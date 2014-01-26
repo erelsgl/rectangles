@@ -2,13 +2,6 @@
  * Utilities related to rectangles and collections of rectangles.
  */
 
-function Rectangle(x1,y1, x2,y2) {
-	this.xmin = Math.min(x1,x2);
-	this.xmax = Math.max(x1,x2);
-	this.ymin = Math.min(y1,y2);
-	this.ymax = Math.max(y1,y2);
-}
-
 module.exports = {
 
 	/**
@@ -47,12 +40,9 @@ module.exports = {
 	 * @return the number of rectangles that interior-contain the given x value.
 	 */
 	numContainingX: function(rectangles, x) {
-		var num=0;
-		for (var i=0; i<rectangles.length; ++i) {
-			var r = rectangles[i];
-			num += (r.xmin<x && x<r.xmax);
-		}
-		return num;
+		return rectangles.reduce(function(prev,cur) {
+			return prev + (cur.xmin<x && x<cur.xmax)
+		}, 0);
 	},
 	
 	/**
@@ -61,13 +51,29 @@ module.exports = {
 	 * @return the a list of the rectangles that interior-contain the given x value.
 	 */
 	rectsContainingX: function(rectangles, x) {
-		var rects=[];
-		for (var i=0; i<rectangles.length; ++i) {
-			var r = rectangles[i];
-			if (r.xmin<x && x<r.xmax)
-				rects.push(r);
-		}
-		return rects;
+		return rectangles.filter(function(cur) {
+			return (cur.xmin<x && x<cur.xmax);
+		}, []);
+	},
+	
+	/**
+	 * @param rectangles a list of rectangles containing xmin and xmax values.
+	 * @param x a number.
+	 * @return the a list of the rectangles that interior-contain the given x value.
+	 */
+	partitionByX: function(rectangles, x) {
+		var beforeX = [];
+		var intersectedByX = [];
+		var afterX = [];
+		rectangles.forEach(function(cur) {
+			if (cur.xmax<=x)
+				beforeX.push(cur);
+			else if (x<=cur.xmin)
+				afterX.push(cur);
+			else
+				intersectedByX.push(cur);
+		});
+		return [beforeX, intersectedByX, afterX];
 	},
 	
 	
@@ -77,12 +83,9 @@ module.exports = {
 	 * @return the number of rectangles that interior-contain the given y value.
 	 */
 	numContainingY: function(rectangles, y) {
-		var num=0;
-		for (var i=0; i<rectangles.length; ++i) {
-			var r = rectangles[i];
-			num += (r.ymin<y && y<r.ymax);
-		}
-		return num;
+		return rectangles.reduce(function(prev,cur) {
+			return prev + (cur.ymin<y && y<cur.ymax)
+		}, 0);
 	},
 	
 	
@@ -92,12 +95,40 @@ module.exports = {
 	 * @return the a list of the rectangles that interior-contain the given y value.
 	 */
 	rectsContainingY: function(rectangles, y) {
-		var rects=[];
-		for (var i=0; i<rectangles.length; ++i) {
-			var r = rectangles[i];
-			if (r.ymin<y && y<r.ymax)
-				rects.push(r);
-		}
-		return rects;
+		return rectangles.filter(function(cur) {
+			return (cur.ymin<y && y<cur.ymax);
+		}, []);
+	},
+	
+	/**
+	 * @param rectangles a list of rectangles containing xmin and xmax values.
+	 * @param x a number.
+	 * @return the a list of the rectangles that interior-contain the given x value.
+	 */
+	partitionByY: function(rectangles, y) {
+		var beforeY = [];
+		var intersectedByY = [];
+		var afterY = [];
+		rectangles.forEach(function(cur) {
+			if (cur.ymax<=y)
+				beforeY.push(cur);
+			else if (y<=cur.ymin)
+				afterY.push(cur);
+			else
+				intersectedByY.push(cur);
+		});
+		return [beforeY, intersectedByY, afterY];
+	},
+	
+	
+	/**
+	 * @param rectangles a list of rectangles defined by xmin, xmax, ymin, ymax.
+	 * @param rect another rectangle.
+	 * @return the number of 'rectangles' that interior-intersect 'rect'.
+	 */
+	numContainingRect: function(rectangles, rect) {
+		return rectangles.reduce(function(prev,cur) {
+			return prev + (cur.xmin<rect.xmax && rect.xmin<cur.xmax && cur.ymin<rect.ymax && rect.ymin<cur.ymax);
+		}, 0);
 	},
 }

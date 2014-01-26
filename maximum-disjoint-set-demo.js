@@ -9,7 +9,4 @@ var candidateRects = [
 	{xmin:0,xmax:2, ymin:0,ymax:2},
 	];
 
-console.dir(rectangles.sortedXValues(candidateRects));
-console.dir(rectangles.sortedYValues(candidateRects));
 console.dir(maximumDisjointSet(candidateRects));
-console.dir(powerSet(candidateRects));
