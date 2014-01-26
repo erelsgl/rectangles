@@ -55,6 +55,21 @@ module.exports = {
 		return num;
 	},
 	
+	/**
+	 * @param rectangles a list of rectangles containing xmin and xmax values.
+	 * @param x a number.
+	 * @return the a list of the rectangles that interior-contain the given x value.
+	 */
+	rectsContainingX: function(rectangles, x) {
+		var rects=[];
+		for (var i=0; i<rectangles.length; ++i) {
+			var r = rectangles[i];
+			if (r.xmin<x && x<r.xmax)
+				rects.push(r);
+		}
+		return rects;
+	},
+	
 	
 	/**
 	 * @param rectangles a list of rectangles containing ymin and ymax values.
@@ -70,4 +85,19 @@ module.exports = {
 		return num;
 	},
 	
+	
+	/**
+	 * @param rectangles a list of rectangles containing ymin and ymax values.
+	 * @param y a number.
+	 * @return the a list of the rectangles that interior-contain the given y value.
+	 */
+	rectsContainingY: function(rectangles, y) {
+		var rects=[];
+		for (var i=0; i<rectangles.length; ++i) {
+			var r = rectangles[i];
+			if (r.ymin<y && y<r.ymax)
+				rects.push(r);
+		}
+		return rects;
+	},
 }

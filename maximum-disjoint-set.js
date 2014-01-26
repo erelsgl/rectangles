@@ -1,4 +1,6 @@
 var rectangles = require('./rectangles');
+var powerSet = require('./powerset');
+var _ = require('underscore');
 
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set.
@@ -13,16 +15,20 @@ var rectangles = require('./rectangles');
  */
 function maximumDisjointSet(candidateRects) {
 	var MDS = [];
-	var minIntersectionCount = rectangles.length;
-	var xvalues = rectangles.sortedXValues(candidateRects);
-	for (var i=1; i<xvalues.length-1; ++i) {
-		var x = xvalues[i];
-		// How many rectangles will be intersected if we cut at x?
-		var intersectionCount = rectangles.numContainingX(rectangles, x);
-		if (intersectionCount<minIntersectionCount) {
-			
-		}
-	}
+	var xValues = rectangles.sortedXValues(candidateRects);
+	xValues.pop();
+	xValues.shift();
+	if (xValues.length==0)
+		return candidateRects;
+
+	var xThatCutsFewestRects = _.min(xValues, function(x) {
+		return rectangles.numContainingX(candidateRects, x)
+	});
+	var rectsThatAreCutByX = rectangles.rectsContainingX(candidateRects, xThatCutsFewestRects);
+	console.dir(rectsThatAreCutByX);
+	var subsetsOfRectsThatAreCutByX = powerSet(rectsThatAreCutByX);
+	console.dir(subsetsOfRectsThatAreCutByX);
+	
 	return MDS;
 }
 

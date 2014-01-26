@@ -1,0 +1,26 @@
+{
+  "name": "maximum-disjoint-set",
+  "description": "Calculate a maximum set of non-overlapping rectangles",
+  "version": "0.1.0",
+  "author": "Erel Segal-haLevi <erelsgl@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erelsgl/maximum-disjoint-set.git"
+  },
+  "dependencies": {
+    "underscore": "*"
+  },
+  "devDependencies": {
+    "mocha": ">=1.0.0",
+    "should": ">=0.6.0"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [
+    "rectangles",
+    "optimization",
+    "geometry"
+  ],
+  "license": "LGPL"
+}
