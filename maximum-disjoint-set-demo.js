@@ -1,6 +1,4 @@
 var maximumDisjointSet = require('./maximum-disjoint-set');
-var rectangles = require('./rectangles');
-var powerSet = require('./powerset');
 
 
 var candidateRects = [

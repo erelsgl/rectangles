@@ -1,9 +1,9 @@
-var rectangles = require('./rectangles');
+var rectutils = require('./rectutils');
 var powerSet = require('./powerset');
 var _ = require('underscore');
 
 /**
- * Find a largest interior-disjoint set of rectangles, from the given set.
+ * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
  * 
  * @param candidateRects an array of candidate rectangles from which to select the MDS.
  * Each rectangle should contain the fields: xmin, xmax, ymin, ymax.
@@ -28,7 +28,7 @@ function maximumDisjointSetNotIntersecting(ironRects, candidateRects) {
 		return candidateRects;
 	
 	if (candidateRects.length==1) {
-		if (rectangles.numContainingRect(ironRects, candidateRects[0])==0) 
+		if (rectutils.numContainingRect(ironRects, candidateRects[0])==0) 
 			return candidateRects;
 		else 
 			return [];
@@ -68,19 +68,19 @@ function partitionRects(candidateRects) {
 	if (candidateRects.length<=1)
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 	
-	var xValues = rectangles.sortedXValues(candidateRects).slice(1,-1);
+	var xValues = rectutils.sortedXValues(candidateRects).slice(1,-1);
 	if (xValues.length>0) {
 		var xThatCutsFewestRects = _.min(xValues, function(x) {
-			return rectangles.numContainingX(candidateRects, x)
+			return rectutils.numContainingX(candidateRects, x)
 		});
-		return rectangles.partitionByX(candidateRects, xThatCutsFewestRects);
+		return rectutils.partitionByX(candidateRects, xThatCutsFewestRects);
 	} 
-	var yValues = rectangles.sortedYValues(candidateRects).slice(1,-1);
+	var yValues = rectutils.sortedYValues(candidateRects).slice(1,-1);
 	if (yValues.length>0) {
 		var yThatCutsFewestRects = _.min(yValues, function(y) {
-			return rectangles.numContainingY(candidateRects, y)
+			return rectutils.numContainingY(candidateRects, y)
 		});
-		return rectangles.partitionByY(candidateRects, yThatCutsFewestRects);
+		return rectutils.partitionByY(candidateRects, yThatCutsFewestRects);
 	}
 	
 	throw new Error("Cannot partition by X nor by Y");
