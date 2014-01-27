@@ -2,6 +2,7 @@
  * @param list a list.
  * @return a list of lists that are subsets of the original list.
  * 
+ * @author Tom Demuyt
  * @link http://codereview.stackexchange.com/a/39747/20684
  */
 function powerSet(list) {

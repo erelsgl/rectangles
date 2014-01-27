@@ -6,7 +6,7 @@
  */
 
 var should = require('should');
-var maximumDisjointSet = require('../maximum-disjoint-set');
+var maximumDisjointSet = require('../shared/maximum-disjoint-set');
 
 var r0101 = {xmin:0,xmax:1, ymin:0,ymax:1};
 var r0112 = {xmin:0,xmax:1, ymin:1,ymax:2};

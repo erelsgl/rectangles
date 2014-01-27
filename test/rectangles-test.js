@@ -6,7 +6,7 @@
  */
 
 var should = require('should');
-var rectutils = require('../rectutils');
+var rectutils = require('../shared/rectutils');
 
 var r0101 = {xmin:0,xmax:1, ymin:0,ymax:1};
 var r1212 = {xmin:1,xmax:2, ymin:1,ymax:2};

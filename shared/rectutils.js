@@ -1,14 +1,18 @@
 /**
  * Utilities related to rectangles and collections of rectangles.
+ * 
+ * Can be used both in js client and node.js server.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01-27
  */
-
-module.exports = {
+//(function(exports){
 
 	/**
 	 * @param rectangles a list of rectangles containing xmin and xmax values.
 	 * @return a sorted list of all X values related to the rectangles.
 	 */
-	sortedXValues: function (rectangles) {
+	exports.sortedXValues = function (rectangles) {
 		var xvalues = {};
 		for (var i=0; i<rectangles.length; ++i) {
 			var r = rectangles[i];
@@ -23,7 +27,7 @@ module.exports = {
 	 * @param rectangles a list of rectangles containing ymin and ymax values.
 	 * @return a sorted list of all Y values related to the rectangles.
 	 */
-	sortedYValues: function (rectangles) {
+	exports.sortedYValues= function (rectangles) {
 		var yvalues = {};
 		for (var i=0; i<rectangles.length; ++i) {
 			var r = rectangles[i];
@@ -39,7 +43,7 @@ module.exports = {
 	 * @param x a number.
 	 * @return the number of rectangles that interior-contain the given x value.
 	 */
-	numContainingX: function(rectangles, x) {
+	exports.numContainingX= function(rectangles, x) {
 		return rectangles.reduce(function(prev,cur) {
 			return prev + (cur.xmin<x && x<cur.xmax)
 		}, 0);
@@ -50,7 +54,7 @@ module.exports = {
 	 * @param x a number.
 	 * @return the a list of the rectangles that interior-contain the given x value.
 	 */
-	rectsContainingX: function(rectangles, x) {
+	exports.rectsContainingX= function(rectangles, x) {
 		return rectangles.filter(function(cur) {
 			return (cur.xmin<x && x<cur.xmax);
 		}, []);
@@ -61,7 +65,7 @@ module.exports = {
 	 * @param x a number.
 	 * @return the a list of the rectangles that interior-contain the given x value.
 	 */
-	partitionByX: function(rectangles, x) {
+	exports.partitionByX= function(rectangles, x) {
 		var beforeX = [];
 		var intersectedByX = [];
 		var afterX = [];
@@ -82,7 +86,7 @@ module.exports = {
 	 * @param y a number.
 	 * @return the number of rectangles that interior-contain the given y value.
 	 */
-	numContainingY: function(rectangles, y) {
+	exports.numContainingY= function(rectangles, y) {
 		return rectangles.reduce(function(prev,cur) {
 			return prev + (cur.ymin<y && y<cur.ymax)
 		}, 0);
@@ -94,7 +98,7 @@ module.exports = {
 	 * @param y a number.
 	 * @return the a list of the rectangles that interior-contain the given y value.
 	 */
-	rectsContainingY: function(rectangles, y) {
+	exports.rectsContainingY= function(rectangles, y) {
 		return rectangles.filter(function(cur) {
 			return (cur.ymin<y && y<cur.ymax);
 		}, []);
@@ -105,7 +109,7 @@ module.exports = {
 	 * @param x a number.
 	 * @return the a list of the rectangles that interior-contain the given x value.
 	 */
-	partitionByY: function(rectangles, y) {
+	exports.partitionByY= function(rectangles, y) {
 		var beforeY = [];
 		var intersectedByY = [];
 		var afterY = [];
@@ -126,9 +130,12 @@ module.exports = {
 	 * @param rect another rectangle.
 	 * @return the number of 'rectangles' that interior-intersect 'rect'.
 	 */
-	numContainingRect: function(rectangles, rect) {
+	exports.numContainingRect= function(rectangles, rect) {
 		return rectangles.reduce(function(prev,cur) {
 			return prev + (cur.xmin<rect.xmax && rect.xmin<cur.xmax && cur.ymin<rect.ymax && rect.ymin<cur.ymax);
 		}, 0);
-	},
-}
+	}
+
+//})(typeof exports === 'undefined'? this['rectutils']={}: exports);
+
+

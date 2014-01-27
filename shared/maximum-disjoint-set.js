@@ -87,3 +87,4 @@ function partitionRects(candidateRects) {
 }
 
 module.exports = maximumDisjointSet;
+
