@@ -1,34 +1,33 @@
 <html>
 <head>
 <meta charset='utf8' />
-<script src="../client/svg.js"></script>
-<script src="../client/svg.draggable.min.js"></script>
-<script src="../client/svg.math.js"></script>
-<script src="../client/svg.export.js"></script>
-<script src="../client/DraggablePoints.js"></script>
-<script src="../client/ColorfulRectangles.js"></script>
+<script src="jquery-1.11.0.min.js"></script>
+<script src="svg.min.js"></script>
+<script src="svg.draggable.min.js"></script>
+<script src="svg.math.js"></script>
+<script src="svg.export.js"></script>
 
-<script src="../shared/rectutils.js"></script>
-<script src="../shared/maximum-disjoint-set-browserified.js"></script>
-<script>alert(maximumDisjointSet);</script>
+<script src="DraggablePoints.js"></script>
+<script src="ColorfulRectangles.js"></script>
 
 
 </head>
 <body>
-<h1>Pools in the Desert</h1>
-<div>&nbsp;</div>
+
 <table><tr><td>
+<h1>Pools in the Desert</h1>
+
 <svg id='svg' style="border:1px solid #000000; background:#ffe"></svg>
 
-</td><td>
+</td><td style='font-size:12px'>
 <p>
 Puzzle:
 <ul>
 <li>Each blue circle is a water-pool.</li>
 <li>Each square is a land-plot, that must be connected to at least two water-pools (one at its corner and one anywhere at its boundary).</li>
-<li>All squares must be interior disjoint.</li>
-<li>How many squares can you create by moving the points around?</li>
-<li>Is there a configuration in which the number of squares is less than the number of points minus 1?</li>
+<li>All squares must be interior-disjoint (= not overlapping).</li>
+<li>How many disjoint squares can you create by moving the points around?</li>
+<li>Is there a configuration in which the number of squares is <b>less</b> than the number of points minus 1?</li>
 </ul>
 
 <p>
@@ -36,135 +35,31 @@ Controls:
 <ul>
 <li>
 Add a point by clicking: 
-<button onclick='addPoint("blue")'>Blue</button>
-<button onclick='addPoint("cyan")'>Cyan</button>
-<button onclick='addPoint("green")'>Green</button>
-<button onclick='addPoint("yellow")'>Yellow</button>
-<button onclick='addPoint("red")'>Red</button>
-<button onclick='addPoint("pink")'>Pink</button>
-<button onclick='addPoint("black")'>Black</button>
+<button class='addpoint'>Blue</button>
+<button class='addpoint'>Cyan</button>
+<button class='addpoint'>Green</button>
+<button class='addpoint'>Yellow</button>
+<button class='addpoint'>Red</button>
+<button class='addpoint'>Pink</button>
+<button class='addpoint'>Black</button>
 </li>
 <li>Remove a point by dragging it over the left or top border;</li>
 <li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
-<li><button onclick='saveToCanvas()'>Export</button> to an image than right-click here  to save: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'/></li>
-<!-- li><button onclick='alert(svgpaper.exportSvg());'>Export</button> to an SVG file.</li-->
-<li>Remove all points by clicking <button onclick='points.clear(); rects.clear();updateStatus()'>Clear</button>.</li>
+<li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px' /></li>
+<li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
 </ul>
 
 <p>
 <div>
-	<input id='automaticallyDrawSquares' type='checkbox' checked='checked' onchange='drawDisjointSquares()' /> Automatically draw squares
+	<input id='drawDisjointSquares' type='checkbox' checked='checked'/> Draw Disjoint Squares<br/>
+	<input id='drawAllCandidateSquares' type='checkbox'/> Draw All Candidate Squares
 </div>
 
 </td>
 </tr>
 </table>
-
-<script type='text/javascript'>
-
-var svgpaper = SVG('svg');
-svgpaper.size(400,400);
-
-var canvas = document.getElementById("canvas");
-canvas.width  = 400;
-canvas.height = 400;
-//svgpaper.rect(10,10);
-//alert(svgpaper.exportSvg());
-
-var points, rects;
-
-function drawDisjointSquares() {
-	rects.clear();
-	if (!document.getElementById('automaticallyDrawSquares').checked)
-		return;
-	for (var i=0; i<points.length; ++i) {
-		for (var j=0; j<i; ++j) {
-			var p1 = points[i];
-			var p2 = points[j];
-			var xmin = Math.min(p1.x,p2.x);
-			var xmax = Math.max(p1.x,p2.x);
-			var xdist = xmax-xmin;
-			var ymin = Math.min(p1.y,p2.y);
-			var ymax = Math.max(p1.y,p2.y);
-			var ydist = ymax-ymin;
-
-			if (xdist==0 || ydist==0)
-				continue; // don't add zero-size squares
-
-			if (xdist>ydist) {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymax-xdist), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmax,ymin+xdist));
-			} else {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmax-ydist,ymin), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmin+ydist,ymax));
-			}
-			if (!points.intersect(square1) &&  // don't add a square that contains a point.
-          !rects.intersect(square1))     // don't add a square that intersects another square.
-						rects.add(square1);
-			else if (!points.intersect(square2) &&  // don't add a square that contains a point.
-          !rects.intersect(square2))     // don't add a square that intersects another square.
-						rects.add(square2);
-		}
-	}
-	updateStatus();
-	var permalink = 
-		location.host+"/"+
-		location.pathname+"?"+encodeURI(points.toString());
-	permalink = permalink.replace(/[?]+/g,"?");
-	permalink = permalink.replace(/[/]+/g,"/");
-	permalink = location.protocol+"//"+permalink;
-	document.getElementById('permalink').href = permalink;
-}
-
-	
-
-var statusText = svgpaper.text("");
-statusText.move(200,0);
-statusText.draggable();
-statusText.font({
-	family:   'Helvetica',
-	color:  'blue',
-	anchor: 'middle'
-})
-function updateStatus() {
-	statusText.text(""+points.length+" points ; "+rects.length+" squares"+
-		//rectutils.sortedXValues(rects)+		
-		"");
-}
-
-function addPoint(color) {
-	points.add(new SVG.math.Point(20,20), color); 
-	updateStatus()
-}
+<script type='text/javascript' src='main.bundle.js'></script>
 
 
-rects =  ColorfulRectangles(svgpaper);
-points = DraggablePoints(svgpaper, drawDisjointSquares);
-
-points.fromLocationSearchString();
-
-/**
- * From a gist by OTM: https://gist.github.com/otm/379a3cdb572ac81d8c19#file-svg-to-img
- */
-function saveToCanvas() {
-	var data = new XMLSerializer().serializeToString(document.getElementById('svg'));
-	var ctx = canvas.getContext("2d");
-
-	var DOMURL = self.URL || self.webkitURL || self;
-	var img = new Image();
-	var svg = new Blob([data], {type: "image/svg+xml;charset=utf-8"});
-	var url = DOMURL.createObjectURL(svg);
-	img.onload = function() {
-		ctx.drawImage(img, 0, 0);
-		DOMURL.revokeObjectURL(url);
-	};
-	img.src = url;
-}
-
-</script>
 </body>
 </html>

@@ -34,3 +34,36 @@ describe('sortedYValues', function() {
 		rectutils.sortedXValues([r3434,r0101]).should.eql([0,1,3,4]);
 	})
 })
+
+describe('areIntersecting', function() {
+	it('works with disjoint', function() {
+		rectutils.areIntersecting(r0101,r2323).should.be.false;
+	})
+	it('works with touching', function() {
+		rectutils.areIntersecting(r0101,r1212).should.be.false;
+	})
+	it('works with intersecting', function() {
+		rectutils.areIntersecting(r0202,r1313).should.be.true;
+	})
+	it('works with identical', function() {
+		rectutils.areIntersecting(r0101,r0101).should.be.true;
+	})
+})
+
+describe('arePairwiseDisjoint', function() {
+	it('works with disjoint', function() {
+		rectutils.arePairwiseDisjoint([r0101,r2323]).should.not.be.false;
+	})
+	it('works with touching', function() {
+		rectutils.arePairwiseDisjoint([r0101,r1212]).should.not.be.false;
+	})
+	it('works with intersecting', function() {
+		rectutils.arePairwiseDisjoint([r0202,r1313]).should.not.be.true;
+	})
+	it('works with identical', function() {
+		rectutils.arePairwiseDisjoint([r0101,r0101]).should.not.be.true;
+	})
+	it('works with all rects', function() {
+		rectutils.arePairwiseDisjoint(candidateRects).should.be.false;
+	})
+})

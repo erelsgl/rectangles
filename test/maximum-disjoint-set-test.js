@@ -43,6 +43,11 @@ describe('MaximumDisjointSet in simple cases', function() {
 		for (var i=0; i<candidateRects.length; ++i)
 			maximumDisjointSet([candidateRects[i]]).should.have.lengthOf(1);
 	})
+
+	it('works for two identical rectangles', function() {
+		for (var i=0; i<candidateRects.length; ++i)
+			maximumDisjointSet([candidateRects[i], candidateRects[i]]).should.have.lengthOf(1);
+	})
 })
 
 describe('MaximumDisjointSet with diagonal rectangles', function() {
@@ -93,5 +98,30 @@ describe('MaximumDisjointSet with horizontal rectangles', function() {
 	it('works for intersecting rectangles', function() {
 		maximumDisjointSet([r0202,r1302]).should.have.lengthOf(1);
 		maximumDisjointSet([r2402,r1302]).should.have.lengthOf(1);
+	})
+})
+
+describe('MaximumDisjointSet with complex scenarios', function() {
+	it('works with 3 disjoint rectangles', function() {
+		var candidates=
+			[ { xmin: 1, xmax: 4, ymin: 1, ymax: 4 },
+			  { xmin: 2, xmax: 6, ymin: 4, ymax: 8 },
+			  { xmin: 4, xmax: 6, ymin: 1, ymax: 3 } ];
+		maximumDisjointSet(candidates).should.have.lengthOf(3);
+	})
+	it('works with 3 disjoint rectangles one of them contained in another', function() {
+		var candidates=
+			[ { xmin: 1, xmax: 4, ymin: 1, ymax: 4 },
+			  { xmin: 3, xmax: 6, ymin: 1, ymax: 4 },
+			  { xmin: 4, xmax: 6, ymin: 1, ymax: 3 } ];
+		maximumDisjointSet(candidates).should.have.lengthOf(2);
+	})
+	it('works with 4 rectangles one of them contained in another', function() {
+		var candidates=
+			[ { xmin: 1, xmax: 4, ymin: 1, ymax: 4 },
+			  { xmin: 2, xmax: 6, ymin: 4, ymax: 8 },
+			  { xmin: 3, xmax: 6, ymin: 1, ymax: 4 },
+			  { xmin: 4, xmax: 6, ymin: 1, ymax: 3 } ];
+		maximumDisjointSet(candidates).should.have.lengthOf(3);
 	})
 })

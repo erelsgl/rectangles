@@ -77,22 +77,16 @@
 	});
 
 
-
-
-
-var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]} 
-
 function ColorfulRectangles(svgpaper) {
 
 	var rects = [];
 
 	// Add a new rectangle (of type SVG.math.Rectangle)
-  rects.add = function(rect) {
+	rects.add = function(rect, color) {
 		rect.draw(svgpaper, {
 			stroke: '#000',
 			'stroke-dasharray': '5,5',
-			fill: color(rects.length), 
+			fill: color,
 			opacity: 0.5,
 		});
 		rect.rectangle.back();

@@ -6,7 +6,15 @@
  * @author Erel Segal-Halevi
  * @since 2014-01-27
  */
-//(function(exports){
+(function(exports){
+	
+	/**
+	 * @param rect1, rect2 - rectangles containing xmin, xmax, ymin and ymax.
+	 * @return true if they intersect; false if not.
+	 */
+	exports.areIntersecting = function(rect1, rect2) {
+		return (rect1.xmin<rect2.xmax && rect2.xmin<rect1.xmax && rect1.ymin<rect2.ymax && rect2.ymin<rect1.ymax);
+	},
 
 	/**
 	 * @param rectangles a list of rectangles containing xmin and xmax values.
@@ -132,10 +140,35 @@
 	 */
 	exports.numContainingRect= function(rectangles, rect) {
 		return rectangles.reduce(function(prev,cur) {
-			return prev + (cur.xmin<rect.xmax && rect.xmin<cur.xmax && cur.ymin<rect.ymax && rect.ymin<cur.ymax);
+			return prev + exports.areIntersecting(cur, rect)
 		}, 0);
+	},
+	
+	/**
+	 * @param rectangles a list of rectangles containing ymin,ymax,xmin,xmax.
+	 * @param ironRects a list of rectangles that must not be intersected.
+	 * @return the list of candidate rectangles that do not intersect any of the ironRects.
+	 */
+	exports.rectsNotIntersecting = function(rectangles, ironRects) {
+		return rectangles.filter(function(cur) {
+			return (exports.numContainingRect(ironRects,cur)==0);
+		}, []);
+	},
+	
+	/**
+	 * @param rectangles a list of rectangles defined by xmin, xmax, ymin, ymax.
+	 * @return true if the rectangles are all pairwise disjoint; false otherwise.
+	 */
+	exports.arePairwiseDisjoint = function(rectangles) {
+		for (var i=0; i<rectangles.length; ++i) {
+			var rect1 = rectangles[i];
+			for (var j=0; j<i; ++j) {
+				var rect2 = rectangles[j];
+				if (exports.areIntersecting(rect1, rect2))
+					return false;
+			}
+		}
+		return true;
 	}
 
-//})(typeof exports === 'undefined'? this['rectutils']={}: exports);
-
-
+})(typeof exports === 'undefined'? this['rectutils']={}: exports);
