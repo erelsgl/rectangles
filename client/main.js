@@ -3,6 +3,7 @@
  */
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
+var _ = require("underscore");
 
 $(document).ready(function() {
 
@@ -148,6 +149,23 @@ $(".export").click(function() {
 		DOMURL.revokeObjectURL(url);
 	};
 	img.src = url;
+});
+
+$(".shuffley").click(function() {
+	yvalues = _.chain(points).pluck("y").shuffle().value();
+	for (var i=0; i<yvalues.length; ++i)
+		points[i].y = yvalues[i];
+	points.redraw();
+	drawSquares();	
+});
+
+$(".randomize").click(function() {
+	for (var i=0; i<points.length; ++i) {
+		points[i].x = Math.random() * 400;
+		points[i].y = Math.random() * 400;
+	}
+	points.redraw();
+	drawSquares();	
 });
 
 $(".clear").click(function() {

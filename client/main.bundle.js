@@ -4,6 +4,7 @@
  */
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
+var _ = require("underscore");
 
 $(document).ready(function() {
 
@@ -151,6 +152,23 @@ $(".export").click(function() {
 	img.src = url;
 });
 
+$(".shuffley").click(function() {
+	yvalues = _.chain(points).pluck("y").shuffle().value();
+	for (var i=0; i<yvalues.length; ++i)
+		points[i].y = yvalues[i];
+	points.redraw();
+	drawSquares();	
+});
+
+$(".randomize").click(function() {
+	for (var i=0; i<points.length; ++i) {
+		points[i].x = Math.random() * 400;
+		points[i].y = Math.random() * 400;
+	}
+	points.redraw();
+	drawSquares();	
+});
+
 $(".clear").click(function() {
 	points.clear(); 
 	rects.clear();
@@ -170,7 +188,7 @@ $("#drawAllCandidateSquares").change(function() {
 }); // end of $(document).ready
 
 
-},{"../shared/maximum-disjoint-set":3}],2:[function(require,module,exports){
+},{"../shared/maximum-disjoint-set":3,"underscore":2}],2:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors

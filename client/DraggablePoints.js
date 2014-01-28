@@ -7,15 +7,19 @@
 
 function DraggablePoints(svgpaper, onDragEnd) {
 	var points = [];
+	
+	var drawPoint=function(point) {
+		point.draw(svgpaper, {
+			stroke: point.color||'blue',
+			fill: point.color||'blue',
+			radius: 10
+		});
+	}
 
 	// Add a new point (of type SVG.math.Point)
 	points.add = function(point, color) {
 		point.color = color;
-		point.draw(svgpaper, {
-				stroke: color||'blue',
-				fill: color||'blue',
-				radius: 10
-		});
+		drawPoint(point);
 
 		point.remove = function() {
 			this.draw();
@@ -50,6 +54,14 @@ function DraggablePoints(svgpaper, onDragEnd) {
 			if (newRect.contains(points[p]))
 				return true;
 		return false;
+	}
+	
+	// Re-draw all the points
+	points.redraw = function() {
+		for (var p=0; p<this.length; ++p)
+			this[p].draw();
+		for (var p=0; p<this.length; ++p)
+			drawPoint(this[p]);
 	}
 
 	//remove all points from the SVG paper:
