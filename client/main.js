@@ -104,6 +104,13 @@ function updateStatus() {
 	statusText.text(""+points.length+" points ; "+rects.length+" squares"+
 		//rectutils.sortedXValues(rects)+		
 		"");
+	if (points.length>10)
+		$(".addpoint").attr("disabled","disabled");
+	else 
+		$(".addpoint").removeAttr("disabled");
+	
+	if (rects.length<points.length-1)
+		alert("Congratulations! You found a winning arrangement! Please tell Erel.");
 }
 
 function updatePermaLink() {
@@ -130,7 +137,7 @@ points.fromLocationSearchString();
 $(".addpoint").click(function() {
 	var color=$(this).text().toLowerCase();
 	points.add(new SVG.math.Point(20,20), color); 
-	updateStatus()
+	updateStatus();
 });
 
 /**
@@ -153,18 +160,18 @@ $(".export").click(function() {
 
 $(".shuffley").click(function() {
 	yvalues = _.chain(points).pluck("y").shuffle().value();
-	for (var i=0; i<yvalues.length; ++i)
-		points[i].y = yvalues[i];
-	points.redraw();
+	for (var i=0; i<yvalues.length; ++i) {
+		var p = points[i];
+		p.move(p.x, yvalues[i]);
+	}
 	drawSquares();	
 });
 
 $(".randomize").click(function() {
 	for (var i=0; i<points.length; ++i) {
-		points[i].x = Math.random() * 400;
-		points[i].y = Math.random() * 400;
+		var p = points[i];
+		p.move(Math.random() * 400,Math.random() * 400); 
 	}
-	points.redraw();
 	drawSquares();	
 });
 

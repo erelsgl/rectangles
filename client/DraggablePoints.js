@@ -26,7 +26,7 @@ function DraggablePoints(svgpaper, onDragEnd) {
 			var index = points.indexOf(this);
 			if (index>=0)
 				points.splice(index,1);
-		}
+		};
 
 		point.circle.dragend = function(delta, event) {
 			point.x = point.circle.attr('cx');
@@ -35,6 +35,13 @@ function DraggablePoints(svgpaper, onDragEnd) {
 				point.remove();
 			onDragEnd();
 		};
+		
+		point.move = function (x,y) {
+			point.x = x;
+			point.y = y;
+			point.circle.attr('cx', x);
+			point.circle.attr('cy', y);
+		}
 
 		point.circle.draggable();
 
