@@ -8,6 +8,7 @@ Utilities related to collections of rectangles.
 ** rectutils - various short utilities for handling collections of rectangles.
 ** maximum-disjoint-set - find a largest set of non-overlapping rectangles from a given collection of candidates.
 * client/ - An HTML demo application and supporting Javascript files running on a web-client only.
+** main.bundle.js created from main.js using browserify.
 * console/ - A Node.js demo console application.
 * test/ - Mocha tests.
 
