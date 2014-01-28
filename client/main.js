@@ -90,7 +90,7 @@ function drawSquares() {
 	updatePermaLink();
 	
 	if (rects.length<points.length-1)
-		alert("Congratulations! You found a winning arrangement! Please tell Erel.");
+		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 
 

@@ -89,6 +89,9 @@ function drawSquares() {
 	}
 	updateStatus();
 	updatePermaLink();
+	
+	if (rects.length<points.length-1)
+		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 
 
@@ -109,9 +112,6 @@ function updateStatus() {
 		$(".addpoint").attr("disabled","disabled");
 	else 
 		$(".addpoint").removeAttr("disabled");
-	
-	if (rects.length<points.length-1)
-		alert("Congratulations! You found a winning arrangement! Please tell Erel.");
 }
 
 function updatePermaLink() {
