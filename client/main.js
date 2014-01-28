@@ -19,7 +19,28 @@ canvas.height = 400;
 var points, rects;
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]} 
+function color(i) {return colors[i % colors.length]}
+
+/**
+ * Make sure the x values and the y values of the points are all unique, by adding a small constant to non-unique values.
+ */
+function makeXYunique(points) {
+	var xvalues={};
+	var yvalues={};
+	for (var i=0; i<points.length; ++i) {
+		var p = points[i];
+		
+		p.x = parseInt(p.x);
+		while (xvalues[p.x]) 
+			p.x += 1;
+		xvalues[p.x] = true;
+		
+		p.y = parseInt(p.y);
+		while (yvalues[p.y])
+			p.y += 1;
+		yvalues[p.y] = true;
+	}
+}
 
 
 /**
@@ -28,6 +49,8 @@ function color(i) {return colors[i % colors.length]}
  */
 function getCandidateSquares(points) {
 	var candidates = [];
+	var slide = 0.1;
+	makeXYunique(points);
 	for (var i=0; i<points.length; ++i) {
 		for (var j=0; j<i; ++j) {
 			var p1 = points[i];
@@ -38,16 +61,6 @@ function getCandidateSquares(points) {
 			var ymin = Math.min(p1.y,p2.y);
 			var ymax = Math.max(p1.y,p2.y);
 			var ydist = ymax-ymin;
-
-			// prevent zero-size squares:
-			if (xdist==0) {
-				xmax+=0.5;
-				xdist+=0.5;
-			}
-			if (ydist==0) {
-				ymax+=0.5;
-				ydist+=0.5;
-			}
 
 			var newcolor = color(candidates.length); 
 			if (xdist>ydist) {

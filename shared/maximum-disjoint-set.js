@@ -14,9 +14,9 @@ var _ = require('underscore');
  * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
  */
 function maximumDisjointSet(candidates) {
-	//console.log("candidates="); 	console.log(candidates);
+	console.log("candidates="+JSON.stringify(candidates));
 	var disjointset = maximumDisjointSetNotIntersecting([], candidates);
-	//console.log("disjoint set="); 	console.log(disjointset);
+	console.log("disjoint set="+JSON.stringify(disjointset));
 	return disjointset;
 }
 
