@@ -14,60 +14,38 @@ var _ = require('underscore');
  * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
  */
 function maximumDisjointSet(candidates) {
-	console.log("candidates="+JSON.stringify(candidates));
-	var disjointset = maximumDisjointSetNotIntersecting([], candidates);
-	console.log("disjoint set="+JSON.stringify(disjointset));
-	return disjointset;
-}
+	if (candidates.length<=1) 
+		return candidates;
 
-/**
- * Recursive subroutine of maximumDisjointSet.
- * 
- * @param ironRects a list of rectangles that must not be intersected.
- * @param candidates an array of candidate rectangles to add to the MDS.
- * 
- * @return the largest set of disjoint rectangles from "candidates", that do not intersect "ironRects".
- */
-function maximumDisjointSetNotIntersecting(ironRects, candidates) {
-//	console.log("\ncandidates="); 	console.log(candidates);
-//	console.log("ironRects="); 	console.log(ironRects);
-	candidates = rectutils.rectsNotIntersecting(candidates, ironRects);
-//	console.log("remainingCandidates="); 	console.log(candidates);
-	var currentMaxDisjointSet = null;
-	if (candidates.length<=1) {
-		currentMaxDisjointSet = candidates;
-	} else {
-		currentMaxDisjointSet = [];
-		var partition = partitionRects(candidates);
-				//	partition[0] - on one side of separator;
-				//	partition[1] - intersected by separator;
-				//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
-//		console.log("partition[0]="); 	console.log(partition[0]);
-//		console.log("partition[1]="); 	console.log(partition[1]);
-//		console.log("partition[2]="); 	console.log(partition[2]);
+	currentMaxDisjointSet = [];
+	var partition = partitionRects(candidates);
+			//	partition[0] - on one side of separator;
+			//	partition[1] - intersected by separator;
+			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
+
+	var allSubsetsOfIntersectedRects = powerSet(partition[1]);
 	
-		var subsetsOfIntersectedRects = powerSet(partition[1]);
+	for (var i=0; i<allSubsetsOfIntersectedRects.length; ++i) {
+		var subsetOfIntersectedRects = allSubsetsOfIntersectedRects[i];
+		if (!rectutils.arePairwiseDisjoint(subsetOfIntersectedRects)) 
+			// the intersected rectangles themselves are not pairwise-disjoint, so they cannot be a part of an MDS.
+			continue;
 		
-		for (var i=0; i<subsetsOfIntersectedRects.length; ++i) {
-			var newIronRects = subsetsOfIntersectedRects[i];
-//			console.log("subsetsOfIntersectedRects["+i+"]="); 	console.log(newIronRects);
-			if (rectutils.arePairwiseDisjoint(newIronRects)) {
-				var sideOne = maximumDisjointSetNotIntersecting(newIronRects, partition[0]);
-				var sideTwo = maximumDisjointSetNotIntersecting(newIronRects, partition[2]);
-				var currentDisjointSet = sideOne.concat(sideTwo).concat(newIronRects);
-				if (currentDisjointSet.length > currentMaxDisjointSet.length) 
-					currentMaxDisjointSet = currentDisjointSet;
-			} else {
-//				console.log(" -- skipped");
-			}
-		}
+		var maxDisjointSetOnSideOne = maximumDisjointSet(
+				rectutils.rectsNotIntersecting(partition[0], subsetOfIntersectedRects));
+		var maxDisjointSetOnSideTwo = maximumDisjointSet(
+				rectutils.rectsNotIntersecting(partition[2], subsetOfIntersectedRects));
+
+		var currentDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedRects);
+		if (currentDisjointSet.length > currentMaxDisjointSet.length) 
+			currentMaxDisjointSet = currentDisjointSet;
 	}
-//	console.log("currentMaxDisjointSet="); console.log(currentMaxDisjointSet); console.log("\n");
+	
 	return currentMaxDisjointSet;
 }
 
 /**
- * Subroutine of maximumDisjointSetNotIntersecting.
+ * Subroutine of maximumDisjointSet.
  * 
  * @param candidates an array of candidate rectangles to add to the MDS. 
  * 	Must have length at least 2.
@@ -75,27 +53,29 @@ function maximumDisjointSetNotIntersecting(ironRects, candidates) {
 		partition[0] - on one side of separator;
 		partition[1] - intersected by separator;
 		partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
+	@note Tries to minimize the size of partition[1]. I.e., out of all possible separators, selects a separator that intersects a smallest number of rectangles.
  * 
  */
 function partitionRects(candidates) {
 	if (candidates.length<=1)
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 	
+	var numContainingX = Infinity;
 	var xValues = rectutils.sortedXValues(candidates).slice(1,-1);
-	var numContainingX = 99999; //infinity;
-	var numContainingy = 99999; //infinity;
 	if (xValues.length>0) {
 		var xThatCutsFewestRects = _.min(xValues, function(x) {
-			return rectutils.numContainingX(candidates, x)
+			return rectutils.numContainingX(candidates, x);
 		});
-		numContainingX = rectutils.numContainingX(candidates, xThatCutsFewestRects)
+		numContainingX = rectutils.numContainingX(candidates, xThatCutsFewestRects);
 	}
+
+	var numContainingy = Infinity;
 	var yValues = rectutils.sortedYValues(candidates).slice(1,-1);
 	if (yValues.length>0) {
 		var yThatCutsFewestRects = _.min(yValues, function(y) {
-			return rectutils.numContainingY(candidates, y)
+			return rectutils.numContainingY(candidates, y);
 		});
-		numContainingy = rectutils.numContainingY(candidates, yThatCutsFewestRects)
+		numContainingy = rectutils.numContainingY(candidates, yThatCutsFewestRects);
 	}
 	if (numContainingX<numContainingy)
 		return rectutils.partitionByX(candidates, xThatCutsFewestRects);
