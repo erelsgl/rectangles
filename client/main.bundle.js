@@ -4,6 +4,9 @@
  */
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
+var makeXYUnique = require("../shared/make-xy-unique");
+var squaresTouchingPoints = require("../shared/squares-touching-points");
+
 var _ = require("underscore");
 
 $(document).ready(function() {
@@ -19,71 +22,6 @@ canvas.height = 400;
 
 var points, rects;
 
-var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]}
-
-/**
- * Make sure the x values and the y values of the points are all unique, by adding a small constant to non-unique values.
- */
-function makeXYunique(points) {
-	var xvalues={};
-	var yvalues={};
-	for (var i=0; i<points.length; ++i) {
-		var p = points[i];
-		
-		p.x = parseInt(p.x);
-		while (xvalues[p.x]) 
-			p.x += 1;
-		xvalues[p.x] = true;
-		
-		p.y = parseInt(p.y);
-		while (yvalues[p.y])
-			p.y += 1;
-		yvalues[p.y] = true;
-	}
-}
-
-
-/**
- * @param points a list of points.
- * @return a list of candidate squares - all squares that touch two points.
- */
-function getCandidateSquares(points) {
-	var candidates = [];
-	var slide = 0.1;
-	makeXYunique(points);
-	for (var i=0; i<points.length; ++i) {
-		for (var j=0; j<i; ++j) {
-			var p1 = points[i];
-			var p2 = points[j];
-			var xmin = Math.min(p1.x,p2.x);
-			var xmax = Math.max(p1.x,p2.x);
-			var xdist = xmax-xmin;
-			var ymin = Math.min(p1.y,p2.y);
-			var ymax = Math.max(p1.y,p2.y);
-			var ydist = ymax-ymin;
-
-			var newcolor = color(candidates.length); 
-			if (xdist>ydist) {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymax-xdist), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmax,ymin+xdist));
-			} else {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmax-ydist,ymin), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmin+ydist,ymax));
-			}
-			square1.color = square2.color = newcolor;
-			if (!points.intersect(square1))  // don't add a square that contains a point.
-				candidates.push(square1);
-			if (!points.intersect(square2))     // don't add a square that intersects another square.
-				candidates.push(square2);
-		}
-	}
-	return candidates;
-}
 
 function drawSquares() {
 	rects.clear();
@@ -92,18 +30,25 @@ function drawSquares() {
 	if (!drawAllCandidateSquares && !drawDisjointSquares)
 		return;
 
-	var candidates = getCandidateSquares(points);
-	if (!drawAllCandidateSquares) {
+	makeXYUnique(points);
+	var candidates = squaresTouchingPoints(points);
+	if (!drawAllCandidateSquares) 
 		candidates = maximumDisjointSet(candidates);
-	}
+
 	for (var i=0; i<candidates.length; ++i) {
 		var square = candidates[i];
-		rects.add(square, square.color);
+		
+		rects.add(candidates[i] = 
+				new SVG.math.Rectangle(
+						new SVG.math.Point(square.xmin,square.ymin), 
+						new SVG.math.Point(square.xmax,square.ymax)), 
+				square.color);
 	}
+	console.dir(candidates);
 	updateStatus();
 	updatePermaLink();
 	
-	if (rects.length<points.length-1)
+	if (rects.length<points.length-2 && points.length<11)
 		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 
@@ -208,7 +153,7 @@ $("#drawAllCandidateSquares").change(function() {
 }); // end of $(document).ready
 
 
-},{"../shared/maximum-disjoint-set":3,"underscore":2}],2:[function(require,module,exports){
+},{"../shared/make-xy-unique":3,"../shared/maximum-disjoint-set":4,"../shared/squares-touching-points":7,"underscore":2}],2:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -1487,6 +1432,37 @@ $("#drawAllCandidateSquares").change(function() {
 }).call(this);
 
 },{}],3:[function(require,module,exports){
+/**
+ * Make sure the x values and the y values of the points are all unique, by adding a small constant to non-unique values.
+ * 
+ * @param points an array of points.
+ * Each point should contain the fields: x, y.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
+ */
+function makeXYunique(points) {
+	var xvalues={};
+	var yvalues={};
+	for (var i=0; i<points.length; ++i) {
+		var p = points[i];
+		
+		p.x = parseInt(p.x);
+		while (xvalues[p.x]) 
+			p.x += 1;
+		xvalues[p.x] = true;
+		
+		p.y = parseInt(p.y);
+		while (yvalues[p.y])
+			p.y += 1;
+		yvalues[p.y] = true;
+	}
+}
+
+
+module.exports = makeXYunique;
+
+},{}],4:[function(require,module,exports){
 var rectutils = require('./rectutils');
 var powerSet = require('./powerset');
 var _ = require('underscore');
@@ -1501,62 +1477,42 @@ var _ = require('underscore');
  * 
  * @note uses a simple exact divide-and-conquer algorithm that can be exponential in the worst case.
  * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
  */
 function maximumDisjointSet(candidates) {
-	console.log("candidates="+JSON.stringify(candidates));
-	var disjointset = maximumDisjointSetNotIntersecting([], candidates);
-	console.log("disjoint set="+JSON.stringify(disjointset));
-	return disjointset;
-}
+	if (candidates.length<=1) 
+		return candidates;
 
-/**
- * Recursive subroutine of maximumDisjointSet.
- * 
- * @param ironRects a list of rectangles that must not be intersected.
- * @param candidates an array of candidate rectangles to add to the MDS.
- * 
- * @return the largest set of disjoint rectangles from "candidates", that do not intersect "ironRects".
- */
-function maximumDisjointSetNotIntersecting(ironRects, candidates) {
-//	console.log("\ncandidates="); 	console.log(candidates);
-//	console.log("ironRects="); 	console.log(ironRects);
-	candidates = rectutils.rectsNotIntersecting(candidates, ironRects);
-//	console.log("remainingCandidates="); 	console.log(candidates);
-	var currentMaxDisjointSet = null;
-	if (candidates.length<=1) {
-		currentMaxDisjointSet = candidates;
-	} else {
-		currentMaxDisjointSet = [];
-		var partition = partitionRects(candidates);
-				//	partition[0] - on one side of separator;
-				//	partition[1] - intersected by separator;
-				//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
-//		console.log("partition[0]="); 	console.log(partition[0]);
-//		console.log("partition[1]="); 	console.log(partition[1]);
-//		console.log("partition[2]="); 	console.log(partition[2]);
+	var currentMaxDisjointSet = [];
+	var partition = partitionRects(candidates);
+			//	partition[0] - on one side of separator;
+			//	partition[1] - intersected by separator;
+			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
+
+	var allSubsetsOfIntersectedRects = powerSet(partition[1]);
 	
-		var subsetsOfIntersectedRects = powerSet(partition[1]);
+	for (var i=0; i<allSubsetsOfIntersectedRects.length; ++i) {
+		var subsetOfIntersectedRects = allSubsetsOfIntersectedRects[i];
+		if (!rectutils.arePairwiseDisjoint(subsetOfIntersectedRects)) 
+			// the intersected rectangles themselves are not pairwise-disjoint, so they cannot be a part of an MDS.
+			continue;
 		
-		for (var i=0; i<subsetsOfIntersectedRects.length; ++i) {
-			var newIronRects = subsetsOfIntersectedRects[i];
-//			console.log("subsetsOfIntersectedRects["+i+"]="); 	console.log(newIronRects);
-			if (rectutils.arePairwiseDisjoint(newIronRects)) {
-				var sideOne = maximumDisjointSetNotIntersecting(newIronRects, partition[0]);
-				var sideTwo = maximumDisjointSetNotIntersecting(newIronRects, partition[2]);
-				var currentDisjointSet = sideOne.concat(sideTwo).concat(newIronRects);
-				if (currentDisjointSet.length > currentMaxDisjointSet.length) 
-					currentMaxDisjointSet = currentDisjointSet;
-			} else {
-//				console.log(" -- skipped");
-			}
-		}
+		var maxDisjointSetOnSideOne = maximumDisjointSet(
+				rectutils.rectsNotIntersecting(partition[0], subsetOfIntersectedRects));
+		var maxDisjointSetOnSideTwo = maximumDisjointSet(
+				rectutils.rectsNotIntersecting(partition[2], subsetOfIntersectedRects));
+
+		var currentDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedRects);
+		if (currentDisjointSet.length > currentMaxDisjointSet.length) 
+			currentMaxDisjointSet = currentDisjointSet;
 	}
-//	console.log("currentMaxDisjointSet="); console.log(currentMaxDisjointSet); console.log("\n");
 	return currentMaxDisjointSet;
 }
 
 /**
- * Subroutine of maximumDisjointSetNotIntersecting.
+ * Subroutine of maximumDisjointSet.
  * 
  * @param candidates an array of candidate rectangles to add to the MDS. 
  * 	Must have length at least 2.
@@ -1564,38 +1520,43 @@ function maximumDisjointSetNotIntersecting(ironRects, candidates) {
 		partition[0] - on one side of separator;
 		partition[1] - intersected by separator;
 		partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
+	@note Tries to minimize the size of partition[1]. I.e., out of all possible separators, selects a separator that intersects a smallest number of rectangles.
  * 
  */
 function partitionRects(candidates) {
 	if (candidates.length<=1)
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 	
+	var numContainingX = Infinity;
 	var xValues = rectutils.sortedXValues(candidates).slice(1,-1);
-	var numContainingX = 99999; //infinity;
-	var numContainingy = 99999; //infinity;
 	if (xValues.length>0) {
 		var xThatCutsFewestRects = _.min(xValues, function(x) {
-			return rectutils.numContainingX(candidates, x)
+			return rectutils.numContainingX(candidates, x);
 		});
-		numContainingX = rectutils.numContainingX(candidates, xThatCutsFewestRects)
+		numContainingX = rectutils.numContainingX(candidates, xThatCutsFewestRects);
 	}
+
+	var numContainingY = Infinity;
 	var yValues = rectutils.sortedYValues(candidates).slice(1,-1);
 	if (yValues.length>0) {
 		var yThatCutsFewestRects = _.min(yValues, function(y) {
-			return rectutils.numContainingY(candidates, y)
+			return rectutils.numContainingY(candidates, y);
 		});
-		numContainingy = rectutils.numContainingY(candidates, yThatCutsFewestRects)
+		numContainingY = rectutils.numContainingY(candidates, yThatCutsFewestRects);
 	}
-	if (numContainingX<numContainingy)
+	if (numContainingX<=numContainingY) {
+		//console.log("\t\tSeparator line: x="+xThatCutsFewestRects+", intersects "+numContainingX+" rects.");
 		return rectutils.partitionByX(candidates, xThatCutsFewestRects);
-	else
+	} else {
+		//console.log("\t\tSeparator line: y="+yThatCutsFewestRects+", intersects "+numContainingY+" rects.");
 		return rectutils.partitionByY(candidates, yThatCutsFewestRects);
+	}
 }
 
 module.exports = maximumDisjointSet;
 
 
-},{"./powerset":4,"./rectutils":5,"underscore":2}],4:[function(require,module,exports){
+},{"./powerset":5,"./rectutils":6,"underscore":2}],5:[function(require,module,exports){
 /**
  * @param list a list.
  * @return a list of lists that are subsets of the original list.
@@ -1617,7 +1578,7 @@ function powerSet(list) {
 
 module.exports = powerSet;
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 /**
  * Utilities related to rectangles and collections of rectangles.
  * 
@@ -1758,9 +1719,21 @@ module.exports = powerSet;
 	 * @param rect another rectangle.
 	 * @return the number of 'rectangles' that interior-intersect 'rect'.
 	 */
-	exports.numContainingRect= function(rectangles, rect) {
+	exports.numRectsIntersectingRect = function(rectangles, rect) {
 		return rectangles.reduce(function(prev,cur) {
 			return prev + exports.areIntersecting(cur, rect)
+		}, 0);
+	},
+	
+	/**
+	 * @param rectangles a list of points defined by x, y.
+	 * @param rect a rectangle.
+	 * @return the number of 'points' in the interior of 'rect'.
+	 */
+	exports.numPointsInRect = function(points, rect) {
+		return points.reduce(function(prev,cur) {
+			return prev + 
+				(rect.xmin<cur.x && cur.x<rect.xmax && rect.ymin<cur.y && cur.y<rect.ymax)
 		}, 0);
 	},
 	
@@ -1771,9 +1744,10 @@ module.exports = powerSet;
 	 */
 	exports.rectsNotIntersecting = function(rectangles, ironRects) {
 		return rectangles.filter(function(cur) {
-			return (exports.numContainingRect(ironRects,cur)==0);
+			return (exports.numRectsIntersectingRect(ironRects,cur)==0);
 		}, []);
 	},
+	
 	
 	/**
 	 * @param rectangles a list of rectangles defined by xmin, xmax, ymin, ymax.
@@ -1793,4 +1767,60 @@ module.exports = powerSet;
 
 })(typeof exports === 'undefined'? this['rectutils']={}: exports);
 
-},{}]},{},[1])
+},{}],7:[function(require,module,exports){
+var rectutils = require('./rectutils');
+
+/**
+ * Find a set of candidate squares based on a given set of points.
+ * 
+ * @param points an array of points.
+ * Each point should contain the fields: x, y.
+ * 
+ * @return a set of squares such that:
+ * a. Each square touches two points: one at a corner and one anywhere at the boundary.
+ * b. No square contains a point.
+ * @note the output can be used as input to maximum-disjoint-set.js.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
+ */
+function squaresTouchingPoints(points) {
+	var squares = [];
+	var slide = 0.1;
+	for (var i=0; i<points.length; ++i) {
+		for (var j=0; j<i; ++j) {
+			var p1 = points[i];
+			var p2 = points[j];
+			var xmin = Math.min(p1.x,p2.x);
+			var xmax = Math.max(p1.x,p2.x);
+			var xdist = xmax-xmin;
+			var ymin = Math.min(p1.y,p2.y);
+			var ymax = Math.max(p1.y,p2.y);
+			var ydist = ymax-ymin;
+
+			if (xdist>ydist) {
+				var square1 = {xmin: xmin, ymin: ymax-xdist, xmax: xmax, ymax: ymax};
+				var square2 = {xmin: xmin, ymin: ymin, xmax: xmax, ymax: ymin+xdist};
+			} else {
+				var square1 = {xmin: xmax-ydist, ymin: ymin, xmax: xmax, ymax: ymax};
+				var square2 = {xmin: xmin, ymin: ymin, xmax: xmin+ydist, ymax: ymax};
+			}
+
+			square1.color = square2.color = color(squares.length);
+			if (rectutils.numPointsInRect(points,square1)==0)  // don't add a square that contains a point.
+				squares.push(square1);
+			if (rectutils.numPointsInRect(points,square2)==0)
+				squares.push(square2);
+		}
+	}
+	return squares;
+}
+
+
+var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
+function color(i) {return colors[i % colors.length]}
+
+
+module.exports = squaresTouchingPoints;
+
+},{"./rectutils":6}]},{},[1])

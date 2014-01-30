@@ -138,9 +138,21 @@
 	 * @param rect another rectangle.
 	 * @return the number of 'rectangles' that interior-intersect 'rect'.
 	 */
-	exports.numContainingRect= function(rectangles, rect) {
+	exports.numRectsIntersectingRect = function(rectangles, rect) {
 		return rectangles.reduce(function(prev,cur) {
 			return prev + exports.areIntersecting(cur, rect)
+		}, 0);
+	},
+	
+	/**
+	 * @param rectangles a list of points defined by x, y.
+	 * @param rect a rectangle.
+	 * @return the number of 'points' in the interior of 'rect'.
+	 */
+	exports.numPointsInRect = function(points, rect) {
+		return points.reduce(function(prev,cur) {
+			return prev + 
+				(rect.xmin<cur.x && cur.x<rect.xmax && rect.ymin<cur.y && cur.y<rect.ymax)
 		}, 0);
 	},
 	
@@ -151,9 +163,10 @@
 	 */
 	exports.rectsNotIntersecting = function(rectangles, ironRects) {
 		return rectangles.filter(function(cur) {
-			return (exports.numContainingRect(ironRects,cur)==0);
+			return (exports.numRectsIntersectingRect(ironRects,cur)==0);
 		}, []);
 	},
+	
 	
 	/**
 	 * @param rectangles a list of rectangles defined by xmin, xmax, ymin, ymax.

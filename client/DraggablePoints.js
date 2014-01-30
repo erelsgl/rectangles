@@ -54,14 +54,6 @@ function DraggablePoints(svgpaper, onDragEnd) {
 
 		points.push(point);
 	}
-
-	// Return true if any point is contained in the given rectangle
-	points.intersect = function(newRect) {
-		for (var p=0; p<points.length; ++p) 
-			if (newRect.contains(points[p]))
-				return true;
-		return false;
-	}
 	
 	// Re-draw all the points
 	points.redraw = function() {

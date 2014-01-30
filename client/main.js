@@ -3,6 +3,9 @@
  */
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
+var makeXYUnique = require("../shared/make-xy-unique");
+var squaresTouchingPoints = require("../shared/squares-touching-points");
+
 var _ = require("underscore");
 
 $(document).ready(function() {
@@ -18,71 +21,6 @@ canvas.height = 400;
 
 var points, rects;
 
-var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]}
-
-/**
- * Make sure the x values and the y values of the points are all unique, by adding a small constant to non-unique values.
- */
-function makeXYunique(points) {
-	var xvalues={};
-	var yvalues={};
-	for (var i=0; i<points.length; ++i) {
-		var p = points[i];
-		
-		p.x = parseInt(p.x);
-		while (xvalues[p.x]) 
-			p.x += 1;
-		xvalues[p.x] = true;
-		
-		p.y = parseInt(p.y);
-		while (yvalues[p.y])
-			p.y += 1;
-		yvalues[p.y] = true;
-	}
-}
-
-
-/**
- * @param points a list of points.
- * @return a list of candidate squares - all squares that touch two points.
- */
-function getCandidateSquares(points) {
-	var candidates = [];
-	var slide = 0.1;
-	makeXYunique(points);
-	for (var i=0; i<points.length; ++i) {
-		for (var j=0; j<i; ++j) {
-			var p1 = points[i];
-			var p2 = points[j];
-			var xmin = Math.min(p1.x,p2.x);
-			var xmax = Math.max(p1.x,p2.x);
-			var xdist = xmax-xmin;
-			var ymin = Math.min(p1.y,p2.y);
-			var ymax = Math.max(p1.y,p2.y);
-			var ydist = ymax-ymin;
-
-			var newcolor = color(candidates.length); 
-			if (xdist>ydist) {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymax-xdist), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmax,ymin+xdist));
-			} else {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmax-ydist,ymin), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmin+ydist,ymax));
-			}
-			square1.color = square2.color = newcolor;
-			if (!points.intersect(square1))  // don't add a square that contains a point.
-				candidates.push(square1);
-			if (!points.intersect(square2))     // don't add a square that intersects another square.
-				candidates.push(square2);
-		}
-	}
-	return candidates;
-}
 
 function drawSquares() {
 	rects.clear();
@@ -91,18 +29,25 @@ function drawSquares() {
 	if (!drawAllCandidateSquares && !drawDisjointSquares)
 		return;
 
-	var candidates = getCandidateSquares(points);
-	if (!drawAllCandidateSquares) {
+	makeXYUnique(points);
+	var candidates = squaresTouchingPoints(points);
+	if (!drawAllCandidateSquares) 
 		candidates = maximumDisjointSet(candidates);
-	}
+
 	for (var i=0; i<candidates.length; ++i) {
 		var square = candidates[i];
-		rects.add(square, square.color);
+		
+		rects.add(candidates[i] = 
+				new SVG.math.Rectangle(
+						new SVG.math.Point(square.xmin,square.ymin), 
+						new SVG.math.Point(square.xmax,square.ymax)), 
+				square.color);
 	}
+	console.dir(candidates);
 	updateStatus();
 	updatePermaLink();
 	
-	if (rects.length<points.length-1)
+	if (rects.length<points.length-2 && points.length<11)
 		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 

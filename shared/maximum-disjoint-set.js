@@ -12,12 +12,15 @@ var _ = require('underscore');
  * 
  * @note uses a simple exact divide-and-conquer algorithm that can be exponential in the worst case.
  * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
  */
 function maximumDisjointSet(candidates) {
 	if (candidates.length<=1) 
 		return candidates;
 
-	currentMaxDisjointSet = [];
+	var currentMaxDisjointSet = [];
 	var partition = partitionRects(candidates);
 			//	partition[0] - on one side of separator;
 			//	partition[1] - intersected by separator;
@@ -40,7 +43,6 @@ function maximumDisjointSet(candidates) {
 		if (currentDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = currentDisjointSet;
 	}
-	
 	return currentMaxDisjointSet;
 }
 
@@ -69,18 +71,21 @@ function partitionRects(candidates) {
 		numContainingX = rectutils.numContainingX(candidates, xThatCutsFewestRects);
 	}
 
-	var numContainingy = Infinity;
+	var numContainingY = Infinity;
 	var yValues = rectutils.sortedYValues(candidates).slice(1,-1);
 	if (yValues.length>0) {
 		var yThatCutsFewestRects = _.min(yValues, function(y) {
 			return rectutils.numContainingY(candidates, y);
 		});
-		numContainingy = rectutils.numContainingY(candidates, yThatCutsFewestRects);
+		numContainingY = rectutils.numContainingY(candidates, yThatCutsFewestRects);
 	}
-	if (numContainingX<numContainingy)
+	if (numContainingX<=numContainingY) {
+		//console.log("\t\tSeparator line: x="+xThatCutsFewestRects+", intersects "+numContainingX+" rects.");
 		return rectutils.partitionByX(candidates, xThatCutsFewestRects);
-	else
+	} else {
+		//console.log("\t\tSeparator line: y="+yThatCutsFewestRects+", intersects "+numContainingY+" rects.");
 		return rectutils.partitionByY(candidates, yThatCutsFewestRects);
+	}
 }
 
 module.exports = maximumDisjointSet;

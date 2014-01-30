@@ -18,12 +18,12 @@ var maximumDisjointSet = require('../shared/maximum-disjoint-set');
 //console.dir(maximumDisjointSet(candidates));
 
 candidates=[
-            {"xmin":140.4,"xmax":150.4,"ymin":80,"ymax":90},
-            {"xmin":150,"xmax":160,"ymin":80,"ymax":90},
-            {"xmin":150,"xmax":200,"ymin":40,"ymax":90},
-            {"xmin":150,"xmax":200,"ymin":80,"ymax":130},
-            {"xmin":150,"xmax":200,"ymin":30.3,"ymax":80.3},
-            {"xmin":150,"xmax":200,"ymin":80,"ymax":130},
-            ];
+            {"xmin":-70,"ymin":110,"xmax":140,"ymax":320,"color":"#000"},
+            {"xmin":90,"ymin":210,"xmax":200,"ymax":320,"color":"#f00"},
+            {"xmin":100,"ymin":110,"xmax":200,"ymax":210,"color":"#ff0"},
+            {"xmin":140,"ymin":130,"xmax":220,"ymax":210,"color":"#880"},
+            {"xmin":200,"ymin":130,"xmax":280,"ymax":210,"color":"#880"},
+            ]
 
 console.dir(maximumDisjointSet(candidates));
+

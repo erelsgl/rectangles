@@ -124,4 +124,13 @@ describe('MaximumDisjointSet with complex scenarios', function() {
 			  { xmin: 4, xmax: 6, ymin: 1, ymax: 3 } ];
 		maximumDisjointSet(candidates).should.have.lengthOf(3);
 	})
+	it('works with 5 rectangles that once caught a bug', function() {
+		var candidates=[
+	            {"xmin":-70,"ymin":110,"xmax":140,"ymax":320,"color":"#000"},
+	            {"xmin":90,"ymin":210,"xmax":200,"ymax":320,"color":"#f00"},
+	            {"xmin":100,"ymin":110,"xmax":200,"ymax":210,"color":"#ff0"},
+	            {"xmin":140,"ymin":130,"xmax":220,"ymax":210,"color":"#880"},
+	            {"xmin":200,"ymin":130,"xmax":280,"ymax":210,"color":"#880"},
+	            ];
+		maximumDisjointSet(candidates).should.have.lengthOf(3);
 })
