@@ -8,7 +8,8 @@
     "url": "https://github.com/erelsgl/maximum-disjoint-set.git"
   },
   "dependencies": {
-    "underscore": "*"
+    "underscore": "*",
+    "seed-random": "*"
   },
   "devDependencies": {
     "mocha": ">=1.0.0",

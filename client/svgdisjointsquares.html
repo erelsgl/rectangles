@@ -6,18 +6,40 @@
 <script src="svg.draggable.min.js"></script>
 <script src="svg.math.js"></script>
 <script src="svg.export.js"></script>
+<script src="require.js"></script>
 
 <script src="DraggablePoints.js"></script>
 <script src="ColorfulRectangles.js"></script>
 
+<script type='text/javascript' src='main.bundle.js'></script>
+
+<style>
+/* http://stackoverflow.com/questions/272799/vertical-rotated-text-in-html-table */
+.box_rotate {
+     -moz-transform: rotate(90deg);  /* FF3.5+ */
+       -o-transform: rotate(90deg);  /* Opera 10.5 */
+  -webkit-transform: rotate(90deg);  /* Saf3.1+, Chrome */
+          transform: rotate(90deg);  
+             filter:  progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25);  /* IE6,IE7 */
+         -ms-filter: "progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25)"; /* IE8 */
+         writing-mode: tb-rl;
+}
+</style>
 
 </head>
 <body>
 
 <table><tr><td>
 <h1>Pools in the Desert</h1>
-
-<svg id='svg' style="border:1px solid #000000; background:#ffe"></svg>
+<table>
+<tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-top' type='checkbox'/></td></tr>
+<tr>
+	<td><input class='wall' id='wall-left' type='checkbox'/></td>
+	<td><svg id='svg' style="background:#ffe; border:dotted #ccc 3px"></svg></td>
+	<td><input class='wall' id='wall-right' type='checkbox'/></td>
+</tr>
+<tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-bottom' type='checkbox'/></td></tr>
+</table>
 
 </td><td style='font-size:12px'>
 <p>
@@ -61,7 +83,6 @@ Add a point by clicking a color. Due to efficiency issues, up to 11 points are a
 </td>
 </tr>
 </table>
-<script type='text/javascript' src='main.bundle.js'></script>
 
 
 </body>

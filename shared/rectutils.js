@@ -183,5 +183,4 @@
 		}
 		return true;
 	}
-
 })(typeof exports === 'undefined'? this['rectutils']={}: exports);

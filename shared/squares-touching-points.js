@@ -5,6 +5,7 @@ var rectutils = require('./rectutils');
  * 
  * @param points an array of points.
  * Each point should contain the fields: x, y.
+ * @param xminWall, xmaxWall, yminWall, ymaxWall - boundaries for squares (can be -+Infinity).
  * 
  * @return a set of squares such that:
  * a. Each square touches two points: one at a corner and one anywhere at the boundary.
@@ -14,7 +15,7 @@ var rectutils = require('./rectutils');
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-function squaresTouchingPoints(points) {
+function squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall) {
 	var squares = [];
 	var slide = 0.1;
 	for (var i=0; i<points.length; ++i) {
@@ -29,11 +30,15 @@ function squaresTouchingPoints(points) {
 			var ydist = ymax-ymin;
 
 			if (xdist>ydist) {
-				var square1 = {xmin: xmin, ymin: ymax-xdist, xmax: xmax, ymax: ymax};
-				var square2 = {xmin: xmin, ymin: ymin, xmax: xmax, ymax: ymin+xdist};
+				var ySmall = Math.max(ymax-xdist, yminWall);
+				var yLarge = Math.min(ymin+xdist, ymaxWall);
+				var square1 = {xmin: xmin, ymin: ySmall, xmax: xmax, ymax: ySmall+xdist};
+				var square2 = {xmin: xmin, ymin: yLarge-xdist, xmax: xmax, ymax: yLarge};
 			} else {
-				var square1 = {xmin: xmax-ydist, ymin: ymin, xmax: xmax, ymax: ymax};
-				var square2 = {xmin: xmin, ymin: ymin, xmax: xmin+ydist, ymax: ymax};
+				var xSmall = Math.max(xmax-ydist, xminWall);
+				var xLarge = Math.min(xmin+ydist, xmaxWall);
+				var square1 = {xmin: xSmall, ymin: ymin, xmax: xSmall+ydist, ymax: ymax};
+				var square2 = {xmin: xLarge-ydist, ymin: ymin, xmax: xLarge, ymax: ymax};
 			}
 
 			square1.color = square2.color = color(squares.length);

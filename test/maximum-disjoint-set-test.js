@@ -133,4 +133,5 @@ describe('MaximumDisjointSet with complex scenarios', function() {
 	            {"xmin":200,"ymin":130,"xmax":280,"ymax":210,"color":"#880"},
 	            ];
 		maximumDisjointSet(candidates).should.have.lengthOf(3);
+	})
 })

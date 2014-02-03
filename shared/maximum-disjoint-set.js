@@ -2,6 +2,17 @@ var rectutils = require('./rectutils');
 var powerSet = require('./powerset');
 var _ = require('underscore');
 
+var numRecursiveCalls;
+function maximumDisjointSet(candidates) {
+	candidates = _.uniq(candidates, false, function(rect) {
+		return ""+rect.xmin+" "+rect.xmax+" "+rect.ymin+" "+rect.ymax;
+	});
+//	numRecursiveCalls = 0;
+	var maxDisjointSet = maximumDisjointSetRec(candidates);
+//	console.log("numRecursiveCalls="+numRecursiveCalls);
+	return maxDisjointSet;
+}
+
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
  * 
@@ -16,7 +27,8 @@ var _ = require('underscore');
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-function maximumDisjointSet(candidates) {
+function maximumDisjointSetRec(candidates) {
+//	++numRecursiveCalls;
 	if (candidates.length<=1) 
 		return candidates;
 
@@ -34,14 +46,31 @@ function maximumDisjointSet(candidates) {
 			// the intersected rectangles themselves are not pairwise-disjoint, so they cannot be a part of an MDS.
 			continue;
 		
-		var maxDisjointSetOnSideOne = maximumDisjointSet(
-				rectutils.rectsNotIntersecting(partition[0], subsetOfIntersectedRects));
-		var maxDisjointSetOnSideTwo = maximumDisjointSet(
-				rectutils.rectsNotIntersecting(partition[2], subsetOfIntersectedRects));
+		var candidatesOnSideOne = rectutils.rectsNotIntersecting(partition[0], subsetOfIntersectedRects);
+		var candidatesOnSideTwo = rectutils.rectsNotIntersecting(partition[2], subsetOfIntersectedRects);
+		
+		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
+		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
+			var temp = candidatesOnSideOne;
+			candidatesOnSideOne = candidatesOnSideTwo;
+			candidatesOnSideTwo = temp;
+		}
+		
+		// branch-and-bound (advice by D.W.):
+		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedRects.length;
+		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
+			continue;
 
-		var currentDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedRects);
-		if (currentDisjointSet.length > currentMaxDisjointSet.length) 
-			currentMaxDisjointSet = currentDisjointSet;
+		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne);
+		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedRects.length;
+		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
+			continue;
+
+		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo);
+
+		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedRects);
+		if (newDisjointSet.length > currentMaxDisjointSet.length) 
+			currentMaxDisjointSet = newDisjointSet;
 	}
 	return currentMaxDisjointSet;
 }
@@ -62,30 +91,56 @@ function partitionRects(candidates) {
 	if (candidates.length<=1)
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 	
-	var numContainingX = Infinity;
+	var bestXPartition = null;
 	var xValues = rectutils.sortedXValues(candidates).slice(1,-1);
 	if (xValues.length>0) {
-		var xThatCutsFewestRects = _.min(xValues, function(x) {
-			return rectutils.numContainingX(candidates, x);
+		var bestX = _.min(xValues, function(x) {
+//			return rectutils.numContainingX(candidates,x);
+			return -partitionQuality(rectutils.partitionByX(candidates, x));
 		});
-		numContainingX = rectutils.numContainingX(candidates, xThatCutsFewestRects);
+		var bestXPartition = rectutils.partitionByX(candidates, bestX);
 	}
 
-	var numContainingY = Infinity;
+	var bestYPartition = null;
 	var yValues = rectutils.sortedYValues(candidates).slice(1,-1);
 	if (yValues.length>0) {
-		var yThatCutsFewestRects = _.min(yValues, function(y) {
-			return rectutils.numContainingY(candidates, y);
+		var bestY = _.min(yValues, function(y) {
+//			return rectutils.numContainingY(candidates,y);
+			return -partitionQuality(rectutils.partitionByY(candidates, y));
 		});
-		numContainingY = rectutils.numContainingY(candidates, yThatCutsFewestRects);
+		var bestYPartition = rectutils.partitionByY(candidates, bestY);
 	}
-	if (numContainingX<=numContainingY) {
-		//console.log("\t\tSeparator line: x="+xThatCutsFewestRects+", intersects "+numContainingX+" rects.");
-		return rectutils.partitionByX(candidates, xThatCutsFewestRects);
+	
+	if (!bestYPartition && !bestXPartition) 
+		throw new Error("No x partition and no y partition! candidates="+JSON.stringify(candidates));
+
+	if (partitionQuality(bestXPartition)>=partitionQuality(bestYPartition)) {
+//		console.log("\t\tSeparator line: x="+bestX+" "+partitionDescription(bestXPartition));
+		return bestXPartition;
 	} else {
-		//console.log("\t\tSeparator line: y="+yThatCutsFewestRects+", intersects "+numContainingY+" rects.");
-		return rectutils.partitionByY(candidates, yThatCutsFewestRects);
+//		console.log("\t\tSeparator line: y="+bestY+" "+partitionDescription(bestYPartition));
+		return bestYPartition;
 	}
+}
+
+/**
+ * Calculate a quality factor for the given partition of squares.
+ * 
+ * @see http://cs.stackexchange.com/questions/20126
+ * 
+ * @param partition contains three parts; see partitionRects.
+ */
+function partitionQuality(partition) {
+	if (!partition) return -1; // worst quality
+	var numIntersected = partition[1].length; // the smaller - the better
+	var smallestPart = Math.min(partition[2].length,partition[0].length);  // the larger - the better
+	if (!numIntersected && !smallestPart)
+		throw new Error("empty partition - might lead to endless recursion!");
+	return smallestPart/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
+}
+
+function partitionDescription(partition) {
+	return "side1="+partition[0].length+" intersect="+partition[1].length+" side2="+partition[2].length;
 }
 
 module.exports = maximumDisjointSet;

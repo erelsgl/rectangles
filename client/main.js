@@ -10,16 +10,25 @@ var _ = require("underscore");
 
 $(document).ready(function() {
 
-var svgpaper = SVG('svg');
-svgpaper.size(400,400);
-
 var canvas = document.getElementById("canvas");
 canvas.width  = 400;
 canvas.height = 400;
+
+var svgpaper = SVG('svg');
+svgpaper.size(canvas.width,canvas.height);
+
 //svgpaper.rect(10,10);
 //alert(svgpaper.exportSvg());
 
 var points, rects;
+
+function setWallStyle(direction, isChecked) {
+	$("#svg").css("border-"+direction, isChecked? "solid #000": "dotted #ccc");
+}
+setWallStyle("top", $("#wall-top").is(":checked"));
+setWallStyle("bottom", $("#wall-bottom").is(":checked"));
+setWallStyle("left", $("#wall-left").is(":checked"));
+setWallStyle("right", $("#wall-right").is(":checked"));
 
 
 function drawSquares() {
@@ -28,9 +37,14 @@ function drawSquares() {
 	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
 	if (!drawAllCandidateSquares && !drawDisjointSquares)
 		return;
+	
+	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
+	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
+	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
+	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 
 	makeXYUnique(points);
-	var candidates = squaresTouchingPoints(points);
+	var candidates = squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall);
 	if (!drawAllCandidateSquares) 
 		candidates = maximumDisjointSet(candidates);
 
@@ -43,12 +57,11 @@ function drawSquares() {
 						new SVG.math.Point(square.xmax,square.ymax)), 
 				square.color);
 	}
-	console.dir(candidates);
 	updateStatus();
 	updatePermaLink();
 	
-	if (rects.length<points.length-2 && points.length<11)
-		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
+//	if (rects.length<points.length-2 && points.length<11)
+//		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 
 
@@ -85,7 +98,6 @@ rects =  ColorfulRectangles(svgpaper);
 points = DraggablePoints(svgpaper, drawSquares);
 
 points.fromLocationSearchString();
-
 
 
 
@@ -148,6 +160,13 @@ $("#drawAllCandidateSquares").change(function() {
 	$("#drawDisjointSquares").attr('checked', false);
 	drawSquares();	
 });
+
+$(".wall").change(function() {
+	var isChecked = $(this).is(':checked');
+	var direction = $(this).attr("id").replace(/^wall-/,"");
+	setWallStyle(direction, isChecked);
+	drawSquares();
+})
 
 }); // end of $(document).ready
 
