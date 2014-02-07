@@ -82,26 +82,20 @@ function DraggablePoints(svgpaper, onDragEnd) {
 	}
 
 	// Fill the points array from the given string (created by toString)
+	//     or a default (if there is no string).
 	points.fromString = function(s) {
-		var pointsStrings = s.split(/:/);
-		for (var i=0; i<pointsStrings.length; ++i) {
-			var xyc = pointsStrings[i].split(/,/);
-			if (xyc.length<2) continue;
-			points.add(new SVG.math.Point(xyc[0], xyc[1]), xyc[2]);
-		}
-		return points;
-	}
-
-	// Fill the points array from the location search string, or a default (if there is no search string).
-	points.fromLocationSearchString = function() {
-		if (location.search<10) {
+		if (!s || s.length<10) {
 			for (var i=1; i<=8; ++i) 
 				points.add(new SVG.math.Point(40*i,40*i), "blue");
-		} else  {
-			points.fromString(location.search.substr(1));
+		} else {
+			var pointsStrings = s.split(/:/);
+			for (var i=0; i<pointsStrings.length; ++i) {
+				var xyc = pointsStrings[i].split(/,/);
+				if (xyc.length<2) continue;
+				if (!xyc[2] || xyc[2]=='undefined') xyc[2]="blue";
+				points.add(new SVG.math.Point(xyc[0], xyc[1]), xyc[2]);
+			}
 		}
-		onDragEnd();
-		return points;
 	}
 
 	return points;

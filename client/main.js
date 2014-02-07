@@ -17,10 +17,15 @@ canvas.height = 400;
 var svgpaper = SVG('svg');
 svgpaper.size(canvas.width,canvas.height);
 
+var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
+
 //svgpaper.rect(10,10);
 //alert(svgpaper.exportSvg());
 
 var points, rects;
+
+
+/* WALLS */
 
 function setWallStyle(direction, isChecked) {
 	$("#svg").css("border-"+direction, isChecked? "solid #000": "dotted #ccc");
@@ -30,6 +35,39 @@ setWallStyle("bottom", $("#wall-bottom").is(":checked"));
 setWallStyle("left", $("#wall-left").is(":checked"));
 setWallStyle("right", $("#wall-right").is(":checked"));
 
+function setWallFlag(direction, isChecked) {
+	$("#wall-"+direction).prop("checked", isChecked);
+	setWallStyle(direction, isChecked);
+}
+
+function wallsToString() {
+	return ""+
+		($("#wall-top").is(":checked")? 1: 0)+","+
+		($("#wall-bottom").is(":checked")? 1: 0)+","+
+		($("#wall-left").is(":checked")? 1: 0)+","+
+		($("#wall-right").is(":checked")? 1: 0);
+}
+
+function wallsFromString(string) {
+	if (!string) return;
+	var flags = string.split(/,/);
+	if (flags.length != 4)
+		throw new Error("expected a string with 4 values but found '"+string+"'");
+	setWallFlag("top", flags[0]=='1');
+	setWallFlag("bottom", flags[1]=='1');
+	setWallFlag("left", flags[2]=='1');
+	setWallFlag("right", flags[3]=='1');
+}
+
+$(".wall").change(function() {
+	var isChecked = $(this).is(':checked');
+	var direction = $(this).attr("id").replace(/^wall-/,"");
+	setWallStyle(direction, isChecked);
+	drawSquares();
+})
+
+
+/* SQUARES */
 
 function drawSquares() {
 	rects.clear();
@@ -59,9 +97,6 @@ function drawSquares() {
 	}
 	updateStatus();
 	updatePermaLink();
-	
-//	if (rects.length<points.length-2 && points.length<11)
-//		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 
 
@@ -78,7 +113,7 @@ function updateStatus() {
 	statusText.text(""+points.length+" points ; "+rects.length+" squares"+
 		//rectutils.sortedXValues(rects)+		
 		"");
-	if (points.length>10)
+	if (points.length>=MAX_POINT_COUNT)
 		$(".addpoint").attr("disabled","disabled");
 	else 
 		$(".addpoint").removeAttr("disabled");
@@ -87,7 +122,7 @@ function updateStatus() {
 function updatePermaLink() {
 	var permalink = 
 		location.host+"/"+
-		location.pathname+"?"+encodeURI(points.toString());
+		location.pathname+"?walls="+wallsToString()+"&points="+encodeURI(points.toString());
 	permalink = permalink.replace(/[?]+/g,"?");
 	permalink = permalink.replace(/[/]+/g,"/");
 	permalink = location.protocol+"//"+permalink;
@@ -97,9 +132,9 @@ function updatePermaLink() {
 rects =  ColorfulRectangles(svgpaper);
 points = DraggablePoints(svgpaper, drawSquares);
 
-points.fromLocationSearchString();
-
-
+points.fromString(Arg("points"));
+wallsFromString(Arg("walls"));
+drawSquares();
 
 
 /* EVENTS */
@@ -160,13 +195,6 @@ $("#drawAllCandidateSquares").change(function() {
 	$("#drawDisjointSquares").attr('checked', false);
 	drawSquares();	
 });
-
-$(".wall").change(function() {
-	var isChecked = $(this).is(':checked');
-	var direction = $(this).attr("id").replace(/^wall-/,"");
-	setWallStyle(direction, isChecked);
-	drawSquares();
-})
 
 }); // end of $(document).ready
 

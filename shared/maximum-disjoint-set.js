@@ -2,14 +2,16 @@ var rectutils = require('./rectutils');
 var powerSet = require('./powerset');
 var _ = require('underscore');
 
+var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance 
+
 var numRecursiveCalls;
 function maximumDisjointSet(candidates) {
 	candidates = _.uniq(candidates, false, function(rect) {
 		return ""+rect.xmin+" "+rect.xmax+" "+rect.ymin+" "+rect.ymax;
 	});
-//	numRecursiveCalls = 0;
+	if (COUNT_THE_NUM_OF_CALLS) numRecursiveCalls = 0;
 	var maxDisjointSet = maximumDisjointSetRec(candidates);
-//	console.log("numRecursiveCalls="+numRecursiveCalls);
+	if (COUNT_THE_NUM_OF_CALLS) console.log("numRecursiveCalls="+numRecursiveCalls);
 	return maxDisjointSet;
 }
 
@@ -28,7 +30,7 @@ function maximumDisjointSet(candidates) {
  * @since 2014-01
  */
 function maximumDisjointSetRec(candidates) {
-//	++numRecursiveCalls;
+	if (COUNT_THE_NUM_OF_CALLS) ++numRecursiveCalls;
 	if (candidates.length<=1) 
 		return candidates;
 
@@ -94,9 +96,8 @@ function partitionRects(candidates) {
 	var bestXPartition = null;
 	var xValues = rectutils.sortedXValues(candidates).slice(1,-1);
 	if (xValues.length>0) {
-		var bestX = _.min(xValues, function(x) {
-//			return rectutils.numContainingX(candidates,x);
-			return -partitionQuality(rectutils.partitionByX(candidates, x));
+		var bestX = _.max(xValues, function(x) {
+			return partitionQuality(rectutils.partitionByX(candidates, x));
 		});
 		var bestXPartition = rectutils.partitionByX(candidates, bestX);
 	}
@@ -104,9 +105,8 @@ function partitionRects(candidates) {
 	var bestYPartition = null;
 	var yValues = rectutils.sortedYValues(candidates).slice(1,-1);
 	if (yValues.length>0) {
-		var bestY = _.min(yValues, function(y) {
-//			return rectutils.numContainingY(candidates,y);
-			return -partitionQuality(rectutils.partitionByY(candidates, y));
+		var bestY = _.max(yValues, function(y) {
+			return partitionQuality(rectutils.partitionByY(candidates, y));
 		});
 		var bestYPartition = rectutils.partitionByY(candidates, bestY);
 	}
@@ -136,6 +136,9 @@ function partitionQuality(partition) {
 	var smallestPart = Math.min(partition[2].length,partition[0].length);  // the larger - the better
 	if (!numIntersected && !smallestPart)
 		throw new Error("empty partition - might lead to endless recursion!");
+
+//	return 1/numIntersected; 
+//	return smallestPart; 
 	return smallestPart/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
 }
 
