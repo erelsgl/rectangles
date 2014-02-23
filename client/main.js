@@ -3,86 +3,71 @@
  */
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
+var makeXYUnique = require("../shared/make-xy-unique");
+var squaresTouchingPoints = require("../shared/squares-touching-points");
+
 var _ = require("underscore");
 
 $(document).ready(function() {
 
-var svgpaper = SVG('svg');
-svgpaper.size(400,400);
-
 var canvas = document.getElementById("canvas");
 canvas.width  = 400;
 canvas.height = 400;
+
+var svgpaper = SVG('svg');
+svgpaper.size(canvas.width,canvas.height);
+
+var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
+
 //svgpaper.rect(10,10);
 //alert(svgpaper.exportSvg());
 
 var points, rects;
 
-var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]}
 
-/**
- * Make sure the x values and the y values of the points are all unique, by adding a small constant to non-unique values.
- */
-function makeXYunique(points) {
-	var xvalues={};
-	var yvalues={};
-	for (var i=0; i<points.length; ++i) {
-		var p = points[i];
-		
-		p.x = parseInt(p.x);
-		while (xvalues[p.x]) 
-			p.x += 1;
-		xvalues[p.x] = true;
-		
-		p.y = parseInt(p.y);
-		while (yvalues[p.y])
-			p.y += 1;
-		yvalues[p.y] = true;
-	}
+/* WALLS */
+
+function setWallStyle(direction, isChecked) {
+	$("#svg").css("border-"+direction, isChecked? "solid #000": "dotted #ccc");
+}
+setWallStyle("top", $("#wall-top").is(":checked"));
+setWallStyle("bottom", $("#wall-bottom").is(":checked"));
+setWallStyle("left", $("#wall-left").is(":checked"));
+setWallStyle("right", $("#wall-right").is(":checked"));
+
+function setWallFlag(direction, isChecked) {
+	$("#wall-"+direction).prop("checked", isChecked);
+	setWallStyle(direction, isChecked);
 }
 
-
-/**
- * @param points a list of points.
- * @return a list of candidate squares - all squares that touch two points.
- */
-function getCandidateSquares(points) {
-	var candidates = [];
-	var slide = 0.1;
-	makeXYunique(points);
-	for (var i=0; i<points.length; ++i) {
-		for (var j=0; j<i; ++j) {
-			var p1 = points[i];
-			var p2 = points[j];
-			var xmin = Math.min(p1.x,p2.x);
-			var xmax = Math.max(p1.x,p2.x);
-			var xdist = xmax-xmin;
-			var ymin = Math.min(p1.y,p2.y);
-			var ymax = Math.max(p1.y,p2.y);
-			var ydist = ymax-ymin;
-
-			var newcolor = color(candidates.length); 
-			if (xdist>ydist) {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymax-xdist), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmax,ymin+xdist));
-			} else {
-				var square1 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmax-ydist,ymin), new SVG.math.Point(xmax,ymax));
-				var square2 = new SVG.math.Rectangle(
-					new SVG.math.Point(xmin,ymin), new SVG.math.Point(xmin+ydist,ymax));
-			}
-			square1.color = square2.color = newcolor;
-			if (!points.intersect(square1))  // don't add a square that contains a point.
-				candidates.push(square1);
-			if (!points.intersect(square2))     // don't add a square that intersects another square.
-				candidates.push(square2);
-		}
-	}
-	return candidates;
+function wallsToString() {
+	return ""+
+		($("#wall-top").is(":checked")? 1: 0)+","+
+		($("#wall-bottom").is(":checked")? 1: 0)+","+
+		($("#wall-left").is(":checked")? 1: 0)+","+
+		($("#wall-right").is(":checked")? 1: 0);
 }
+
+function wallsFromString(string) {
+	if (!string) return;
+	var flags = string.split(/,/);
+	if (flags.length != 4)
+		throw new Error("expected a string with 4 values but found '"+string+"'");
+	setWallFlag("top", flags[0]=='1');
+	setWallFlag("bottom", flags[1]=='1');
+	setWallFlag("left", flags[2]=='1');
+	setWallFlag("right", flags[3]=='1');
+}
+
+$(".wall").change(function() {
+	var isChecked = $(this).is(':checked');
+	var direction = $(this).attr("id").replace(/^wall-/,"");
+	setWallStyle(direction, isChecked);
+	drawSquares();
+})
+
+
+/* SQUARES */
 
 function drawSquares() {
 	rects.clear();
@@ -90,20 +75,28 @@ function drawSquares() {
 	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
 	if (!drawAllCandidateSquares && !drawDisjointSquares)
 		return;
+	
+	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
+	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
+	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
+	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 
-	var candidates = getCandidateSquares(points);
-	if (!drawAllCandidateSquares) {
+	makeXYUnique(points);
+	var candidates = squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall);
+	if (!drawAllCandidateSquares) 
 		candidates = maximumDisjointSet(candidates);
-	}
+
 	for (var i=0; i<candidates.length; ++i) {
 		var square = candidates[i];
-		rects.add(square, square.color);
+		
+		rects.add(candidates[i] = 
+				new SVG.math.Rectangle(
+						new SVG.math.Point(square.xmin,square.ymin), 
+						new SVG.math.Point(square.xmax,square.ymax)), 
+				square.color);
 	}
 	updateStatus();
 	updatePermaLink();
-	
-	if (rects.length<points.length-1)
-		alert("Congratulations! You found a winning arrangement! Please tell Erel at erelsgl@gmail.com !");
 }
 
 
@@ -120,7 +113,7 @@ function updateStatus() {
 	statusText.text(""+points.length+" points ; "+rects.length+" squares"+
 		//rectutils.sortedXValues(rects)+		
 		"");
-	if (points.length>10)
+	if (points.length>=MAX_POINT_COUNT)
 		$(".addpoint").attr("disabled","disabled");
 	else 
 		$(".addpoint").removeAttr("disabled");
@@ -129,7 +122,7 @@ function updateStatus() {
 function updatePermaLink() {
 	var permalink = 
 		location.host+"/"+
-		location.pathname+"?"+encodeURI(points.toString());
+		location.pathname+"?walls="+wallsToString()+"&points="+encodeURI(points.toString());
 	permalink = permalink.replace(/[?]+/g,"?");
 	permalink = permalink.replace(/[/]+/g,"/");
 	permalink = location.protocol+"//"+permalink;
@@ -139,10 +132,9 @@ function updatePermaLink() {
 rects =  ColorfulRectangles(svgpaper);
 points = DraggablePoints(svgpaper, drawSquares);
 
-points.fromLocationSearchString();
-
-
-
+points.fromString(Arg("points"));
+wallsFromString(Arg("walls"));
+drawSquares();
 
 
 /* EVENTS */
