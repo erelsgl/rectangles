@@ -7,12 +7,18 @@
 <script src="svg.math.js"></script>
 <script src="svg.export.js"></script>
 <script src="arg.js.v1.1.min.js"></script>
+
+<script type="text/javascript">
+	var smoothie = {
+		requirePaths: ['.']
+	};
+</script>
 <script src="require.js"></script>
 
 <script src="DraggablePoints.js"></script>
 <script src="ColorfulRectangles.js"></script>
 
-<script type='text/javascript' src='main.bundle.js'></script>
+<script type='text/javascript' src='main.js'></script>
 
 <style>
 /* http://stackoverflow.com/questions/272799/vertical-rotated-text-in-html-table */
@@ -24,6 +30,10 @@
              filter:  progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25);  /* IE6,IE7 */
          -ms-filter: "progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25)"; /* IE8 */
          writing-mode: tb-rl;
+}
+
+#walls, #points {
+	width: 200px
 }
 </style>
 
@@ -69,7 +79,7 @@ Add a point by clicking a color. Due to efficiency issues, up to <span id='max-p
 </li>
 <li>Remove a point by dragging it over the left or top border;</li>
 <li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
-<li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px' /></li>
+<li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
 <li><button class='shuffley'>Shuffle the y values</button> randomly, keeping the x values;</li>
 <li><button class='randomize'>Move all points randomly</button>;</li>
 <li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
@@ -85,6 +95,14 @@ Add a point by clicking a color. Due to efficiency issues, up to <span id='max-p
 </tr>
 </table>
 
+<form method='get' action=''>
+<h2>Manual data entry</h2>
+<table>
+<tr><th>walls:</th><td><input id='walls' name='walls' 'value='' /></td></tr>
+<tr><th>points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
+<tr><th colspan='2'><input type='submit' /></th></tr>
+</table>
+</form>
 
 </body>
 </html>

@@ -120,9 +120,12 @@ function updateStatus() {
 }
 
 function updatePermaLink() {
+	var wallsString = document.getElementById('walls').value = wallsToString();
+	var pointsString = points.toString();
+	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
 	var permalink = 
 		location.host+"/"+
-		location.pathname+"?walls="+wallsToString()+"&points="+encodeURI(points.toString());
+		location.pathname+"?walls="+encodeURI(wallsString)+"&points="+encodeURI(pointsString);
 	permalink = permalink.replace(/[?]+/g,"?");
 	permalink = permalink.replace(/[/]+/g,"/");
 	permalink = location.protocol+"//"+permalink;

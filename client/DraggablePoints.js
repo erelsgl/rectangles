@@ -90,7 +90,7 @@ function DraggablePoints(svgpaper, onDragEnd) {
 		} else {
 			var pointsStrings = s.split(/:/);
 			for (var i=0; i<pointsStrings.length; ++i) {
-				var xyc = pointsStrings[i].split(/,/);
+				var xyc = pointsStrings[i].replace(/\s*/g,"").split(/,/);
 				if (xyc.length<2) continue;
 				if (!xyc[2] || xyc[2]=='undefined') xyc[2]="blue";
 				points.add(new SVG.math.Point(xyc[0], xyc[1]), xyc[2]);

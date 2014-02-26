@@ -8,10 +8,10 @@
 //seed('a', {global: true});//over-ride global Math.random
 var X_RANGE = Y_RANGE = 400;
 
-var xminWall = -Infinity; //0;//
-var xmaxWall = Infinity; // X_RANGE; //
-var yminWall = -Infinity; // 0; // 
-var ymaxWall = Infinity; // Y_RANGE; //
+var xminWall = 0;//-Infinity; //
+var xmaxWall = X_RANGE; //Infinity; // 
+var yminWall = 0; // -Infinity; // 
+var ymaxWall = Y_RANGE; //Infinity; // 
 
 var EXPERIMENT_COUNT=1000;
 
@@ -42,7 +42,7 @@ function randomPoints(count, xmax, ymax, gridSize) {
 
 console.log("agents\tprop avg\ttotally prop\tavg time[ms]");
 for (var AGENT_COUNT = 1; AGENT_COUNT<=10; ++AGENT_COUNT) {
-	var POINT_COUNT = AGENT_COUNT+1;  // this is probably the worst case
+	var POINT_COUNT = AGENT_COUNT+1;  // +1 is probably the worst case
 	
 	var start=new Date();
 	var proportionalCount = 0;
