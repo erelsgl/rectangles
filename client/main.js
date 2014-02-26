@@ -81,7 +81,7 @@ function drawSquares() {
 	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
 	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 
-	makeXYUnique(points);
+	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
 	var candidates = squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall);
 	if (!drawAllCandidateSquares) 
 		candidates = maximumDisjointSet(candidates);

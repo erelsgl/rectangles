@@ -161,6 +161,17 @@
 	 * @param ironRects a list of rectangles that must not be intersected.
 	 * @return the list of candidate rectangles that do not intersect any of the ironRects.
 	 */
+	exports.rectsNotEmpty = function(rectangles) {
+		return rectangles.filter(function(cur) {
+			return (cur.xmin<cur.xmax && cur.ymin<cur.ymax);
+		}, []);
+	},
+
+	/**
+	 * @param rectangles a list of rectangles containing ymin,ymax,xmin,xmax.
+	 * @param ironRects a list of rectangles that must not be intersected.
+	 * @return the list of candidate rectangles that do not intersect any of the ironRects.
+	 */
 	exports.rectsNotIntersecting = function(rectangles, ironRects) {
 		return rectangles.filter(function(cur) {
 			return (exports.numRectsIntersectingRect(ironRects,cur)==0);

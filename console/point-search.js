@@ -17,16 +17,16 @@ var squaresTouchingPoints = require("../shared/squares-touching-points");
 var pointsToString = require("../shared/points-to-string");
 
 var initial_points = [
-  {x:000, y:Y_RANGE},
-  {x:100, y:Y_RANGE},
+  {x:140, y:Y_RANGE},
+  {x:180, y:Y_RANGE},
   {x:200, y:Y_RANGE},
-  {x:300, y:Y_RANGE},
-  {x:400, y:Y_RANGE},
+  {x:220, y:Y_RANGE},
+  {x:260, y:Y_RANGE},
+
+  {x:200,y:300},
   
-  {x:200,y:0},
-  
-  {x:320, y:Y_RANGE-71},
-  {x:80, y:Y_RANGE-70},
+  {x:231, y:Y_RANGE-20},
+  {x:171, y:Y_RANGE-21},
   ];
 
 var points = initial_points.slice(0);
@@ -38,12 +38,17 @@ var start=new Date();
 
 var fs = require('fs');
 var results = "";
-for (var x=0; x<=400; x+=5) {
-	for (var y=0; y<=400; y+=5) {
+var step = 2;
+for (var x=100; x<=300; x+=step) {
+	for (var y=0; y<=200; y+=step) {
 		var points = initial_points.slice(0);
-		points[5].x = x;
-		points[5].y = Y_RANGE-y;
-		makeXYUnique(points);
+//		points[5].x = x;
+//		points[5].y = Y_RANGE-y;
+		points[6].x = x;
+		points[6].y = Y_RANGE-y;
+		points[7].x = X_RANGE-x;
+		points[7].y = Y_RANGE-y;
+		makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
 		var disjointset = maximumDisjointSet(squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall));
 		results += (x+"\t"+y+"\t"+disjointset.length+"\n");
 	}
