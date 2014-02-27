@@ -7,20 +7,22 @@
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-function makeXYunique(points) {
+function makeXYunique(points, xminWall, xmaxWall, yminWall, ymaxWall) {
 	var xvalues={};
 	var yvalues={};
 	for (var i=0; i<points.length; ++i) {
 		var p = points[i];
 		
 		p.x = parseInt(p.x);
-		while (xvalues[p.x]) 
-			p.x += 1;
+		if (xminWall<p.x && p.x<xmaxWall)
+			while (xvalues[p.x]) 
+				p.x += 1;
 		xvalues[p.x] = true;
 		
 		p.y = parseInt(p.y);
-		while (yvalues[p.y])
-			p.y += 1;
+		if (yminWall<p.y && p.y<ymaxWall)
+			while (yvalues[p.y])
+				p.y += 1;
 		yvalues[p.y] = true;
 	}
 }

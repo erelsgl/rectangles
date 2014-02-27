@@ -6,6 +6,7 @@ var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance
 
 var numRecursiveCalls;
 function maximumDisjointSet(candidates) {
+	candidates = rectutils.rectsNotEmpty(candidates);
 	candidates = _.uniq(candidates, false, function(rect) {
 		return ""+rect.xmin+" "+rect.xmax+" "+rect.ymin+" "+rect.ymax;
 	});
