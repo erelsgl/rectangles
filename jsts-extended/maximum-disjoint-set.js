@@ -1,15 +1,40 @@
+/**
+ * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-02
+ */
+
 var powerSet = require("powerset");
 var _ = require('underscore');
-var rectutils = require('./rectutils');
+var jsts = require('jsts');
+
+require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
 var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance 
-
 var numRecursiveCalls;
-function maximumDisjointSet(candidates) {
-	candidates = rectutils.rectsNotEmpty(candidates);
-	candidates = _.uniq(candidates, false, function(rect) {
-		return ""+rect.xmin+" "+rect.xmax+" "+rect.ymin+" "+rect.ymax;
-	});
+
+
+/**
+ * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * @param candidates a set of shapes (geometries).
+ * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
+ */
+jsts.algorithm.maximumDisjointSet = function(candidates) {
+	candidates = _.chain(candidates)
+		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
+		.map(function(cur) { return (cur.norm()); })              // normalize representation
+		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
+		.value();
+	candidates.forEach(function(cur) {   // cache x and y values of the envelopes
+		var envelope = cur.getEnvelopeInternal();
+		cur.xmin = envelope.getMinX();
+		cur.xmax = envelope.getMaxX();
+		cur.ymin = envelope.getMinY();
+		cur.ymax = envelope.getMaxY();
+	})
+
+
 	if (COUNT_THE_NUM_OF_CALLS) numRecursiveCalls = 0;
 	var maxDisjointSet = maximumDisjointSetRec(candidates);
 	if (COUNT_THE_NUM_OF_CALLS) console.log("numRecursiveCalls="+numRecursiveCalls);
@@ -36,7 +61,7 @@ function maximumDisjointSetRec(candidates) {
 		return candidates;
 
 	var currentMaxDisjointSet = [];
-	var partition = partitionRects(candidates);
+	var partition = partitionShapes(candidates);
 			//	partition[0] - on one side of separator;
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
@@ -45,13 +70,13 @@ function maximumDisjointSetRec(candidates) {
 	
 	for (var i=0; i<allSubsetsOfIntersectedRects.length; ++i) {
 		var subsetOfIntersectedRects = allSubsetsOfIntersectedRects[i];
-		if (!rectutils.arePairwiseDisjoint(subsetOfIntersectedRects)) 
+		if (!jsts.algorithm.arePairwiseDisjoint(subsetOfIntersectedRects)) 
 			// the intersected rectangles themselves are not pairwise-disjoint, so they cannot be a part of an MDS.
 			continue;
 		
-		var candidatesOnSideOne = rectutils.rectsNotIntersecting(partition[0], subsetOfIntersectedRects);
-		var candidatesOnSideTwo = rectutils.rectsNotIntersecting(partition[2], subsetOfIntersectedRects);
-		
+		var candidatesOnSideOne = jsts.algorithm.calcDisjoint(partition[0], subsetOfIntersectedRects);
+		var candidatesOnSideTwo = jsts.algorithm.calcDisjoint(partition[2], subsetOfIntersectedRects);
+
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
 			var temp = candidatesOnSideOne;
@@ -90,26 +115,26 @@ function maximumDisjointSetRec(candidates) {
 	@note Tries to minimize the size of partition[1]. I.e., out of all possible separators, selects a separator that intersects a smallest number of rectangles.
  * 
  */
-function partitionRects(candidates) {
+function partitionShapes(candidates) {
 	if (candidates.length<=1)
 		throw new Error("less than two candidate rectangles - nothing to partition!");
-	
+
 	var bestXPartition = null;
-	var xValues = rectutils.sortedXValues(candidates).slice(1,-1);
+	var xValues = sortedXValues(candidates).slice(1,-1);
 	if (xValues.length>0) {
 		var bestX = _.max(xValues, function(x) {
-			return partitionQuality(rectutils.partitionByX(candidates, x));
+			return partitionQuality(partitionByX(candidates, x));
 		});
-		var bestXPartition = rectutils.partitionByX(candidates, bestX);
+		var bestXPartition = partitionByX(candidates, bestX);
 	}
 
 	var bestYPartition = null;
-	var yValues = rectutils.sortedYValues(candidates).slice(1,-1);
+	var yValues = sortedYValues(candidates).slice(1,-1);
 	if (yValues.length>0) {
 		var bestY = _.max(yValues, function(y) {
-			return partitionQuality(rectutils.partitionByY(candidates, y));
+			return partitionQuality(partitionByY(candidates, y));
 		});
-		var bestYPartition = rectutils.partitionByY(candidates, bestY);
+		var bestYPartition = partitionByY(candidates, bestY);
 	}
 	
 	if (!bestYPartition && !bestXPartition) 
@@ -124,12 +149,87 @@ function partitionRects(candidates) {
 	}
 }
 
+
+/**
+ * @param shapes an array of shapes, each of which contains pre-calculated "xmin" and "xmax" fields.
+ * @returns a sorted array of all X values of the envelopes.
+ */
+function sortedXValues(shapes) {
+	var xvalues = {};
+	for (var i=0; i<shapes.length; ++i) {
+		var s = shapes[i];
+		xvalues[s.xmin]=xvalues[s.xmax]=true;
+	}
+	var xlist = Object.keys(xvalues);
+	xlist.sort(function(a,b){return a-b});
+	return xlist;
+}
+
+/**
+ * @param shapes an array of shapes, each of which contains pre-calculated "ymin" and "ymax" fields.
+ * @returns a sorted array of all Y values of the envelopes.
+ */
+function sortedYValues(shapes) {
+	var yvalues = {};
+	for (var i=0; i<shapes.length; ++i) {
+		var s = shapes[i];
+		yvalues[s.ymin]=yvalues[s.ymax]=true;
+	}
+	var ylist = Object.keys(yvalues);
+	ylist.sort(function(a,b){return a-b});
+	return ylist;
+}
+
+
+/**
+ * @param shapes an array of shapes, each of which contains pre-calculated "xmin" and "xmax" fields.
+ * @param x a number.
+ * @return a partitioning of shapes to 3 lists: before, intersecting, after x.
+ */
+function partitionByX(shapes, x) {
+	var beforeX = [];
+	var intersectedByX = [];
+	var afterX = [];
+	shapes.forEach(function(cur) {
+		if (cur.xmax<=x)
+			beforeX.push(cur);
+		else if (x<=cur.xmin)
+			afterX.push(cur);
+		else
+			intersectedByX.push(cur);
+	});
+	return [beforeX, intersectedByX, afterX];
+}
+
+/**
+ * @param shapes an array of shapes, each of which contains pre-calculated "ymin" and "ymax" fields.
+ * @param y a number.
+ * @return a partitioning of shapes to 3 lists: before, intersecting, after y.
+ */
+function partitionByY(shapes, y) {
+	var beforeY = [];
+	var intersectedByY = [];
+	var afterY = [];
+	shapes.forEach(function(cur) {
+		if (cur.ymax<=y)
+			beforeY.push(cur);
+		else if (y<=cur.ymin)
+			afterY.push(cur);
+		else
+			intersectedByY.push(cur);
+	});
+	return [beforeY, intersectedByY, afterY];
+}
+
+
+
+
 /**
  * Calculate a quality factor for the given partition of squares.
  * 
  * @see http://cs.stackexchange.com/questions/20126
  * 
- * @param partition contains three parts; see partitionRects.
+ * @param partition contains three parts; see partitionShapes.
  */
 function partitionQuality(partition) {
 	if (!partition) return -1; // worst quality
@@ -146,6 +246,4 @@ function partitionQuality(partition) {
 function partitionDescription(partition) {
 	return "side1="+partition[0].length+" intersect="+partition[1].length+" side2="+partition[2].length;
 }
-
-module.exports = maximumDisjointSet;
 

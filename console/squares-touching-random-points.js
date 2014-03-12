@@ -14,8 +14,8 @@ var xmaxWall = Infinity; // X_RANGE; //
 var yminWall = -Infinity; // 0; // 
 var ymaxWall = Y_RANGE; //Infinity; // 
 
-var EXPERIMENT_COUNT=100000;
-var POINT_COUNT=10;
+var EXPERIMENT_COUNT=10;
+var POINT_COUNT=20;
 var PRESET_POINTS = [
   {x:40, y:Y_RANGE},
   {x:200, y:Y_RANGE},
@@ -75,4 +75,4 @@ var elapsed=new Date()-start;
 var elapsedMean = Math.round(elapsed/EXPERIMENT_COUNT);
 var candidateCountMean = (candidateCount/EXPERIMENT_COUNT);
 
-console.log(proportionalCount+" proportional out of "+EXPERIMENT_COUNT+" experiments ("+(100.0*proportionalCount/EXPERIMENT_COUNT)+"%). "+candidateCountMean+" avg candidate count. "+elapsedMean+" avg time [ms].")
+console.log(EXPERIMENT_COUNT+" experiments. "+proportionalCount+" proportional ("+(100.0*proportionalCount/EXPERIMENT_COUNT)+"%). "+candidateCountMean+" avg candidate count. "+elapsed+" total time [ms].")

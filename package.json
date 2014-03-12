@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "underscore": "*",
-    "seed-random": "*"
+    "seed-random": "*",
+    "powerset": "*",
+    "jsts": "*"
   },
   "devDependencies": {
     "mocha": ">=1.0.0",
