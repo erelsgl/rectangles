@@ -7,8 +7,8 @@
 
 var powerSet = require("powerset");
 var _ = require('underscore');
-var jsts = require('jsts');
 
+var jsts = require('jsts');
 require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
 var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance 
