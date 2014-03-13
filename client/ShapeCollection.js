@@ -1,4 +1,4 @@
-// A collection of shapes on an SVG paper
+// A collection of JSTS shapes on an SVG paper
 function ShapeCollection(svgpaper, defaultStyle) {
 	var shapes = [];
 
@@ -7,7 +7,15 @@ function ShapeCollection(svgpaper, defaultStyle) {
 		for (var i in defaultStyle)
 			if (!style[i])
 				style[i] = defaultStyle[i];
-		var shapeOnPaper = svgpaper.rect(shape.width,shape.height).move(shape.xmin,shape.ymin).attr(style);
+		var shapeOnPaper;
+		if (shape instanceof jsts.geom.AxisParallelRectangle)	{
+			shapeOnPaper = svgpaper.rect(shape.xmax-shape.xmin, shape.ymax-shape.ymin);
+			shapeOnPaper.move(shape.xmin,shape.ymin);
+		} else {
+			console.dir(shape);
+			throw new Error("Unrecognized shape");
+		}
+		shapeOnPaper.attr(style);
 		shapeOnPaper.back();  // send behind points
 		this.push(shapeOnPaper);
 	}

@@ -34,7 +34,7 @@ statusText.font({
 })
 
 function updateStatus() {
-	statusText.text(""+points.length+" points ; "+rects.length+" squares"+
+	statusText.text(""+points.length+" points ; "+landplots.length+" squares"+
 		"");
 	if (points.length>=MAX_POINT_COUNT)
 		$(".addpoint").attr("disabled","disabled");
@@ -62,10 +62,10 @@ function updatePermaLink() {
 
 /* SQUARES */
 
-var points, rects;
+var points, landplots;
 
 function drawSquares() {
-	rects.clear();
+	landplots.clear();
 	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
 	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
 	if (!drawAllCandidateSquares && !drawDisjointSquares)
@@ -83,23 +83,14 @@ function drawSquares() {
 		candidates = jsts.algorithm.maximumDisjointSet(candidates);
 
 	for (var i=0; i<candidates.length; ++i) {
-		var square = candidates[i];
-		//console.dir(square);
-		
-		rects.add({
-			xmin: square.xmin, 
-			ymin: square.ymin,
-			width: square.xmax-square.xmin,
-			height: square.ymax-square.ymin
-		}, {
-			fill: square.color
-		});
+		var shape = candidates[i];
+		landplots.add(shape, {fill: shape.color});
 	}
 	updateStatus();
 	updatePermaLink();
 }
 
-rects =  ShapeCollection(svgpaper, /*default style =*/ {
+landplots =  ShapeCollection(svgpaper, /*default style =*/ {
 	stroke: '#000',
 	'stroke-dasharray': '5,5',
 	opacity: 0.5,
@@ -156,7 +147,7 @@ $(".randomize").click(function() {
 
 $(".clear").click(function() {
 	points.clear(); 
-	rects.clear();
+	landplots.clear();
 	updateStatus();
 });
 
