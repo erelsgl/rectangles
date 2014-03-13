@@ -11,6 +11,12 @@ function ShapeCollection(svgpaper, defaultStyle) {
 		if (shape instanceof jsts.geom.AxisParallelRectangle)	{
 			shapeOnPaper = svgpaper.rect(shape.xmax-shape.xmin, shape.ymax-shape.ymin);
 			shapeOnPaper.move(shape.xmin,shape.ymin);
+		} else if (shape instanceof jsts.geom.Polygon) {
+			var coordinates = shape.getCoordinates().map(function(cur) {
+				return cur.x+","+cur.y;
+			}).join(" ");
+			console.log(coordinates);
+			shapeOnPaper = svgpaper.polygon(coordinates);
 		} else {
 			console.dir(shape);
 			throw new Error("Unrecognized shape");

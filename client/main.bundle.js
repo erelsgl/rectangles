@@ -4,8 +4,6 @@
  */
 var jsts = require("../jsts-extended/index");
 var factory = new jsts.geom.GeometryFactory();
-//var jsts = {algorithm: {maximumDisjointSet:require("../shared/maximum-disjoint-set")}};
-//var factory = {createSquaresTouchingPoints: require("../shared/squares-touching-points")};
 var makeXYUnique = require("../shared/make-xy-unique");
 
 var _ = require("underscore");
@@ -77,9 +75,12 @@ function drawSquares() {
 	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
 	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
-
+	
+	var rotatedSquares = $("#rotatedSquares").is(':checked');
 	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	var candidates = factory.createSquaresTouchingPoints(points, envelope);
+	var candidates = (rotatedSquares?
+		factory.createRotatedSquaresTouchingPoints(points, envelope):
+		factory.createSquaresTouchingPoints(points, envelope));
 	if (!drawAllCandidateSquares) 
 		candidates = jsts.algorithm.maximumDisjointSet(candidates);
 
@@ -166,6 +167,10 @@ $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
 	var direction = $(this).attr("id").replace(/^wall-/,"");
 	setWallStyle(direction, isChecked);
+	drawSquares();
+})
+
+$(".shape").change(function() {
 	drawSquares();
 })
 
@@ -403,11 +408,23 @@ $(".wall").change(function() {
 function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 
 /**
+ * Constructs an array of <code>Coordinate</code>s from a given array of {x,y} points.
+ */
+jsts.geom.GeometryFactory.prototype.createCoordinates = function(points) {
+	return points.map(function(point) {
+		return coord(point.x, point.y);
+	}, this);
+};
+
+/**
  * Constructs an array of <code>Point</code>s from a given array of {x,y} points.
  */
 jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
 	return points.map(function(point) {
-		return this.createPoint(coord(point.x, point.y));
+		return (point instanceof jsts.geom.Coordinate? 
+			this.createPoint(point):
+			this.createPoint(coord(point.x, point.y))
+			);
 	}, this);
 };
 
@@ -418,6 +435,14 @@ require("./factory-utils");
 require("./AxisParallelRectangle");
 require("./maximum-disjoint-set");
 require("./squares-touching-points");
+jsts.stringify = function(object) {
+	if (object instanceof Array) {
+		return object.map(function(cur) {
+			return cur.toString();
+		});
+	}
+	else return object.toString();
+}
 module.exports = jsts;
 
 },{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set":6,"./squares-touching-points":7,"jsts":8}],5:[function(require,module,exports){
@@ -759,6 +784,8 @@ var jsts = require('jsts');
 require("./factory-utils");
 require("./AxisParallelRectangle");
 
+function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
+
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
 /**
@@ -779,28 +806,27 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	var pointObjects = this.createPoints(points);
 	var squares = [];
-	var slide = 0.1;
 	for (var i=0; i<points.length; ++i) {
 		for (var j=0; j<i; ++j) {
 			var p1 = points[i];
 			var p2 = points[j];
 			var xmin = Math.min(p1.x,p2.x);
 			var xmax = Math.max(p1.x,p2.x);
-			var xdist = xmax-xmin;
+			var dist_x = xmax-xmin;
 			var ymin = Math.min(p1.y,p2.y);
 			var ymax = Math.max(p1.y,p2.y);
-			var ydist = ymax-ymin;
+			var dist_y = ymax-ymin;
 
-			if (xdist>ydist) {
-				var ySmall = Math.max(ymax-xdist, envelope.getMinY());
-				var yLarge = Math.min(ymin+xdist, envelope.getMaxY());
-				var square1 = this.createAxisParallelRectangle({xmin: xmin, ymin: ySmall, xmax: xmax, ymax: ySmall+xdist});
-				var square2 = this.createAxisParallelRectangle({xmin: xmin, ymin: yLarge-xdist, xmax: xmax, ymax: yLarge});
+			if (dist_x>dist_y) {
+				var ySmall = Math.max(ymax-dist_x, envelope.getMinY());
+				var yLarge = Math.min(ymin+dist_x, envelope.getMaxY());
+				var square1 = this.createAxisParallelRectangle({xmin: xmin, ymin: ySmall, xmax: xmax, ymax: ySmall+dist_x});
+				var square2 = this.createAxisParallelRectangle({xmin: xmin, ymin: yLarge-dist_x, xmax: xmax, ymax: yLarge});
 			} else {
-				var xSmall = Math.max(xmax-ydist, envelope.getMinX());
-				var xLarge = Math.min(xmin+ydist, envelope.getMaxX());
-				var square1 = this.createAxisParallelRectangle({xmin: xSmall, ymin: ymin, xmax: xSmall+ydist, ymax: ymax});
-				var square2 = this.createAxisParallelRectangle({xmin: xLarge-ydist, ymin: ymin, xmax: xLarge, ymax: ymax});
+				var xSmall = Math.max(xmax-dist_y, envelope.getMinX());
+				var xLarge = Math.min(xmin+dist_y, envelope.getMaxX());
+				var square1 = this.createAxisParallelRectangle({xmin: xSmall, ymin: ymin, xmax: xSmall+dist_y, ymax: ymax});
+				var square2 = this.createAxisParallelRectangle({xmin: xLarge-dist_y, ymin: ymin, xmax: xLarge, ymax: ymax});
 			}
 
 			square1.color = square2.color = color(squares.length);
@@ -813,6 +839,36 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 	return squares;
 }
 
+jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
+	if (!envelope)  envelope = DEFAULT_ENVELOPE;
+	coordinates = this.createCoordinates(coordinates);
+	var pointObjects = this.createPoints(coordinates);
+	var squares = [];
+	for (var i=0; i<coordinates.length; ++i) {
+		var c1 = coordinates[i];
+		for (var j=0; j<i; ++j) {
+			var c2 = coordinates[j];
+			var dist_x = c2.x-c1.x;
+			var dist_y = c2.y-c1.y;
+			var mid_x = (c1.x+c2.x)/2;
+			var mid_y = (c1.y+c2.y)/2;
+
+			var coords = [];
+			coords.push([c1, c2, coord(c2.x-dist_y,c2.y+dist_x), coord(c1.x-dist_y,c1.y+dist_x), c1]);
+			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
+			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
+
+			var newcolor = color(squares.length);
+			for (var k=0; k<coords.length; ++k) {
+				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
+				newsquare.color = newcolor;
+				if (jsts.algorithm.numWithin(pointObjects,newsquare)==0)  // don't add a square that contains a point.
+					squares.push(newsquare);
+			}
+		}
+	}
+	return squares;
+}
 
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];

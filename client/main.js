@@ -3,8 +3,6 @@
  */
 var jsts = require("../jsts-extended/index");
 var factory = new jsts.geom.GeometryFactory();
-//var jsts = {algorithm: {maximumDisjointSet:require("../shared/maximum-disjoint-set")}};
-//var factory = {createSquaresTouchingPoints: require("../shared/squares-touching-points")};
 var makeXYUnique = require("../shared/make-xy-unique");
 
 var _ = require("underscore");
@@ -76,9 +74,12 @@ function drawSquares() {
 	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
 	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
-
+	
+	var rotatedSquares = $("#rotatedSquares").is(':checked');
 	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	var candidates = factory.createSquaresTouchingPoints(points, envelope);
+	var candidates = (rotatedSquares?
+		factory.createRotatedSquaresTouchingPoints(points, envelope):
+		factory.createSquaresTouchingPoints(points, envelope));
 	if (!drawAllCandidateSquares) 
 		candidates = jsts.algorithm.maximumDisjointSet(candidates);
 
@@ -165,6 +166,10 @@ $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
 	var direction = $(this).attr("id").replace(/^wall-/,"");
 	setWallStyle(direction, isChecked);
+	drawSquares();
+})
+
+$(".shape").change(function() {
 	drawSquares();
 })
 
