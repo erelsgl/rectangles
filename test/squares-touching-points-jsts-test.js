@@ -26,30 +26,52 @@ describe('squaresTouchingPoints in simple cases', function() {
 
 describe('squaresTouchingPoints without walls', function() {
 	it('works for two points at left end', function() {
-		var squares = factory.createSquaresTouchingPoints([p1,p2], new jsts.geom.Envelope(-Infinity,Infinity,-Infinity,Infinity)).
-			map(function(cur){return cur.toString()});
-		squares.should.eql([ 'POLYGON((-1 1,2 1,2 4,-1 4,-1 1))',
-		                     'POLYGON((1 1,4 1,4 4,1 4,1 1))' ]);
+		var squares = factory.createSquaresTouchingPoints([p1,p2], new jsts.geom.Envelope(-Infinity,Infinity,-Infinity,Infinity));
+		jsts.stringify(squares).should.eql(
+			['RECTANGLE([-1,2]x[1,4])', 'RECTANGLE([1,4]x[1,4])']);
 	})
 	it('works for two points at right end', function() {
-		var squares = factory.createSquaresTouchingPoints([p3,p4], new jsts.geom.Envelope(-Infinity,Infinity,-Infinity,Infinity)).
-			map(function(cur){return cur.toString()});
-		squares.should.eql([ 'POLYGON((2 2,5 2,5 5,2 5,2 2))',
-		                     'POLYGON((4 2,7 2,7 5,4 5,4 2))' ]);
+		var squares = factory.createSquaresTouchingPoints([p3,p4], new jsts.geom.Envelope(-Infinity,Infinity,-Infinity,Infinity));
+		jsts.stringify(squares).should.eql(
+			['RECTANGLE([2,5]x[2,5])', 'RECTANGLE([4,7]x[2,5])']);
 	})
 })
 
 describe('squaresTouchingPoints with walls', function() {
 	it('works for two points and a single left wall', function() {
-		var squares = factory.createSquaresTouchingPoints([p1,p2], new jsts.geom.Envelope(0,Infinity, -Infinity,Infinity)).
-			map(function(cur){return cur.toString()});
-		squares.should.eql([ 'POLYGON((0 1,3 1,3 4,0 4,0 1))',
-		          		   'POLYGON((1 1,4 1,4 4,1 4,1 1))' ]);
+		var squares = factory.createSquaresTouchingPoints([p1,p2], new jsts.geom.Envelope(0,Infinity, -Infinity,Infinity));
+		jsts.stringify(squares).should.eql(
+				['RECTANGLE([0,3]x[1,4])', 'RECTANGLE([1,4]x[1,4])']);
 	})
 	it('works for two points and a single right wall', function() {
-		var squares = factory.createSquaresTouchingPoints([p3,p4], new jsts.geom.Envelope(-Infinity,5,-Infinity,Infinity)).
-			map(function(cur){return cur.toString()});
-		squares.should.eql([ 'POLYGON((2 2,5 2,5 5,2 5,2 2))',
-		                      'POLYGON((2 2,5 2,5 5,2 5,2 2))' ]);
+		var squares = factory.createSquaresTouchingPoints([p3,p4], new jsts.geom.Envelope(-Infinity,5,-Infinity,Infinity));
+		jsts.stringify(squares).should.eql(
+				['RECTANGLE([2,5]x[2,5])', 'RECTANGLE([2,5]x[2,5])']);
 	})
 })
+
+describe('rotatedSquaresTouchingPoints without walls', function() {
+	var p1 = {x:0,y:0};
+	var p2 = {x:3,y:1};
+	var p3 = {x:3,y:0};
+	var p4 = {x:3,y:-1};
+	it('works', function() {
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p2])).should.eql(
+				[ 'POLYGON((3 1,0 0,1 -3,4 -2,3 1))',
+				  'POLYGON((3 1,2 -1,0 0,1 2,3 1))',
+				  'POLYGON((3 1,0 0,-1 3,2 4,3 1))' ]
+				);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p3])).should.eql(
+				[ 'POLYGON((3 0,0 0,0 -3,3 -3,3 0))',
+				  'POLYGON((3 0,1.5 -1.5,0 0,1.5 1.5,3 0))',
+				  'POLYGON((3 0,0 0,0 3,3 3,3 0))' ]
+				);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p4])).should.eql(
+				[ 'POLYGON((3 -1,0 0,-1 -3,2 -4,3 -1))',
+				  'POLYGON((3 -1,1 -2,0 0,2 1,3 -1))',
+				  'POLYGON((3 -1,0 0,1 3,4 2,3 -1))' ]
+				);
+	});
+})
+
+

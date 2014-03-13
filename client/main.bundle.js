@@ -759,6 +759,8 @@ var jsts = require('jsts');
 require("./factory-utils");
 require("./AxisParallelRectangle");
 
+var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
+
 /**
  * Find a set of candidate squares based on a given set of points.
  * 
@@ -774,16 +776,7 @@ require("./AxisParallelRectangle");
  * @since 2014-01
  */
 jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(points, envelope) {
-	var xminWall, yminWall, xmaxWall, ymaxWall;
-	if (!envelope) {
-		xminWall = yminWall = -Infinity;
-		xmaxWall = ymaxWall = Infinity;
-	} else {
-		xminWall = envelope.getMinX();
-		yminWall = envelope.getMinY();
-		xmaxWall = envelope.getMaxX();
-		ymaxWall = envelope.getMaxY();
-	}
+	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	var pointObjects = this.createPoints(points);
 	var squares = [];
 	var slide = 0.1;
@@ -799,13 +792,13 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 			var ydist = ymax-ymin;
 
 			if (xdist>ydist) {
-				var ySmall = Math.max(ymax-xdist, yminWall);
-				var yLarge = Math.min(ymin+xdist, ymaxWall);
+				var ySmall = Math.max(ymax-xdist, envelope.getMinY());
+				var yLarge = Math.min(ymin+xdist, envelope.getMaxY());
 				var square1 = this.createAxisParallelRectangle({xmin: xmin, ymin: ySmall, xmax: xmax, ymax: ySmall+xdist});
 				var square2 = this.createAxisParallelRectangle({xmin: xmin, ymin: yLarge-xdist, xmax: xmax, ymax: yLarge});
 			} else {
-				var xSmall = Math.max(xmax-ydist, xminWall);
-				var xLarge = Math.min(xmin+ydist, xmaxWall);
+				var xSmall = Math.max(xmax-ydist, envelope.getMinX());
+				var xLarge = Math.min(xmin+ydist, envelope.getMaxX());
 				var square1 = this.createAxisParallelRectangle({xmin: xSmall, ymin: ymin, xmax: xSmall+ydist, ymax: ymax});
 				var square2 = this.createAxisParallelRectangle({xmin: xLarge-ydist, ymin: ymin, xmax: xLarge, ymax: ymax});
 			}
@@ -819,6 +812,7 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 	}
 	return squares;
 }
+
 
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
