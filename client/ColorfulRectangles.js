@@ -93,14 +93,6 @@ function ColorfulRectangles(svgpaper) {
 		rects.push(rect);
 	}
 
-	// Return true if any existing rectangle intersects the new rectangle
-	rects.intersect = function(newRect) {
-		for (var r=0; r<rects.length; ++r) 
-			if (rects[r].intersects(newRect))
-				return true;
-		return false;
-	}
-
 	//remove all rectangles from the SVG paper:
 	rects.clear = function() {
 		for (var r=0; r<this.length; ++r)

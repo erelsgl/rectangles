@@ -23,10 +23,10 @@ var numRecursiveCalls;
 jsts.algorithm.maximumDisjointSet = function(candidates) {
 	candidates = _.chain(candidates)
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
-		.map(function(cur) { return (cur.norm()); })              // normalize representation
 		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
 		.value();
 	candidates.forEach(function(cur) {   // cache x and y values of the envelopes
+		cur.normalize();
 		var envelope = cur.getEnvelopeInternal();
 		cur.xmin = envelope.getMinX();
 		cur.xmax = envelope.getMaxX();
@@ -70,12 +70,12 @@ function maximumDisjointSetRec(candidates) {
 	
 	for (var i=0; i<allSubsetsOfIntersectedRects.length; ++i) {
 		var subsetOfIntersectedRects = allSubsetsOfIntersectedRects[i];
-		if (!jsts.algorithm.arePairwiseDisjoint(subsetOfIntersectedRects)) 
+		if (!jsts.algorithm.arePairwiseNotOverlapping(subsetOfIntersectedRects)) 
 			// the intersected rectangles themselves are not pairwise-disjoint, so they cannot be a part of an MDS.
 			continue;
-		
-		var candidatesOnSideOne = jsts.algorithm.calcDisjoint(partition[0], subsetOfIntersectedRects);
-		var candidatesOnSideTwo = jsts.algorithm.calcDisjoint(partition[2], subsetOfIntersectedRects);
+
+		var candidatesOnSideOne = jsts.algorithm.calcNotOverlapping(partition[0], subsetOfIntersectedRects);
+		var candidatesOnSideTwo = jsts.algorithm.calcNotOverlapping(partition[2], subsetOfIntersectedRects);
 
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {

@@ -4,15 +4,29 @@
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-//var seed = require('seed-random');
-//seed('a', {global: true});//over-ride global Math.random
+
+//require('look').start();
+//console.log("click any key to start experiments");
+//var fs = require( "fs" );
+//var fd = fs.openSync( "/dev/stdin", "rs" );
+//fs.readSync( fd, new Buffer( 1 ), 0, 1 );
+//fs.closeSync( fd );
+//console.log("starting experiments");
 
 var X_RANGE = Y_RANGE = 600;
 
-var xminWall = -Infinity; //0;//
-var xmaxWall = Infinity; // X_RANGE; //
-var yminWall = -Infinity; // 0; // 
-var ymaxWall = Y_RANGE; //Infinity; // 
+var jsts = require("../jsts-extended");
+var factory = new jsts.geom.GeometryFactory();
+
+var makeXYUnique = require("../shared/make-xy-unique");
+var pointsToString = require("../shared/points-to-string");
+
+
+var envelope = new jsts.geom.Envelope(
+		-Infinity, // 0,//
+		Infinity,  // X_RANGE, //
+		-Infinity, // 0, // 
+		Y_RANGE);  // Infinity); // 
 
 var EXPERIMENT_COUNT=100;
 var POINT_COUNT=20;
@@ -31,10 +45,6 @@ var KNOWN_SQUARE_COUNT=6;
 
 var GRID_SIZE = 10;
 
-var maximumDisjointSet = require("../shared/maximum-disjoint-set");
-var makeXYUnique = require("../shared/make-xy-unique");
-var squaresTouchingPoints = require("../shared/squares-touching-points");
-var pointsToString = require("../shared/points-to-string");
 
 function randomPointSnappedToGrid(maxVal, gridSize) {
 	return 	Math.floor(Math.random()*maxVal/gridSize)*gridSize;
@@ -59,9 +69,10 @@ var proportionalCount = 0;
 var candidateCount = 0;
 for (var e=0; e<EXPERIMENT_COUNT; ++e) {
 	var points = randomPoints(POINT_COUNT,  X_RANGE, Y_RANGE, GRID_SIZE);
-	var candidates = squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall);
+	var candidates = factory.createSquaresTouchingPoints(points, envelope);
+	
 	candidateCount += candidates.length;
-	var disjointset = maximumDisjointSet(candidates);
+	var disjointset = jsts.algorithm.maximumDisjointSet(candidates);
 	if (disjointset.length >= points.length-1) 
 		proportionalCount++;
 	else {

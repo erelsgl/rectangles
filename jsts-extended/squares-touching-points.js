@@ -1,5 +1,6 @@
 var jsts = require('jsts');
-require("./rectangle-utils");
+require("./factory-utils");
+require("./AxisParallelRectangle");
 
 /**
  * Find a set of candidate squares based on a given set of points.

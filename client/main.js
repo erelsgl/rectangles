@@ -1,10 +1,11 @@
 /**
  * main.js - Main Javascript program from svgdisjointsquares.html
  */
-
-var maximumDisjointSet = require("../shared/maximum-disjoint-set");
+var jsts = require("../jsts-extended/index");
+var factory = new jsts.geom.GeometryFactory();
+//var jsts = {algorithm: {maximumDisjointSet:require("../shared/maximum-disjoint-set")}};
+//var factory = {createSquaresTouchingPoints: require("../shared/squares-touching-points")};
 var makeXYUnique = require("../shared/make-xy-unique");
-var squaresTouchingPoints = require("../shared/squares-touching-points");
 
 var _ = require("underscore");
 
@@ -19,86 +20,9 @@ svgpaper.size(canvas.width,canvas.height);
 
 var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
 
-//svgpaper.rect(10,10);
-//alert(svgpaper.exportSvg());
-
-var points, rects;
 
 
-/* WALLS */
-
-function setWallStyle(direction, isChecked) {
-	$("#svg").css("border-"+direction, isChecked? "solid #000": "dotted #ccc");
-}
-setWallStyle("top", $("#wall-top").is(":checked"));
-setWallStyle("bottom", $("#wall-bottom").is(":checked"));
-setWallStyle("left", $("#wall-left").is(":checked"));
-setWallStyle("right", $("#wall-right").is(":checked"));
-
-function setWallFlag(direction, isChecked) {
-	$("#wall-"+direction).prop("checked", isChecked);
-	setWallStyle(direction, isChecked);
-}
-
-function wallsToString() {
-	return ""+
-		($("#wall-top").is(":checked")? 1: 0)+","+
-		($("#wall-bottom").is(":checked")? 1: 0)+","+
-		($("#wall-left").is(":checked")? 1: 0)+","+
-		($("#wall-right").is(":checked")? 1: 0);
-}
-
-function wallsFromString(string) {
-	if (!string) return;
-	var flags = string.split(/,/);
-	if (flags.length != 4)
-		throw new Error("expected a string with 4 values but found '"+string+"'");
-	setWallFlag("top", flags[0]=='1');
-	setWallFlag("bottom", flags[1]=='1');
-	setWallFlag("left", flags[2]=='1');
-	setWallFlag("right", flags[3]=='1');
-}
-
-$(".wall").change(function() {
-	var isChecked = $(this).is(':checked');
-	var direction = $(this).attr("id").replace(/^wall-/,"");
-	setWallStyle(direction, isChecked);
-	drawSquares();
-})
-
-
-/* SQUARES */
-
-function drawSquares() {
-	rects.clear();
-	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
-	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
-	if (!drawAllCandidateSquares && !drawDisjointSquares)
-		return;
-	
-	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
-	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
-	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
-	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
-
-	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	var candidates = squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	if (!drawAllCandidateSquares) 
-		candidates = maximumDisjointSet(candidates);
-
-	for (var i=0; i<candidates.length; ++i) {
-		var square = candidates[i];
-		
-		rects.add(candidates[i] = 
-				new SVG.math.Rectangle(
-						new SVG.math.Point(square.xmin,square.ymin), 
-						new SVG.math.Point(square.xmax,square.ymax)), 
-				square.color);
-	}
-	updateStatus();
-	updatePermaLink();
-}
-
+/* STATUS */
 
 var statusText = svgpaper.text("");
 statusText.move(200,0);
@@ -111,7 +35,6 @@ statusText.font({
 
 function updateStatus() {
 	statusText.text(""+points.length+" points ; "+rects.length+" squares"+
-		//rectutils.sortedXValues(rects)+		
 		"");
 	if (points.length>=MAX_POINT_COUNT)
 		$(".addpoint").attr("disabled","disabled");
@@ -132,8 +55,56 @@ function updatePermaLink() {
 	document.getElementById('permalink').href = permalink;
 }
 
-rects =  ColorfulRectangles(svgpaper);
-points = DraggablePoints(svgpaper, drawSquares);
+
+
+
+
+
+/* SQUARES */
+
+var points, rects;
+
+function drawSquares() {
+	rects.clear();
+	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
+	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
+	if (!drawAllCandidateSquares && !drawDisjointSquares)
+		return;
+	
+	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
+	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
+	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
+	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
+	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
+
+	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
+	var candidates = factory.createSquaresTouchingPoints(points, envelope);
+	if (!drawAllCandidateSquares) 
+		candidates = jsts.algorithm.maximumDisjointSet(candidates);
+
+	for (var i=0; i<candidates.length; ++i) {
+		var square = candidates[i];
+		//console.dir(square);
+		
+		rects.add({
+			xmin: square.xmin, 
+			ymin: square.ymin,
+			width: square.xmax-square.xmin,
+			height: square.ymax-square.ymin
+		}, {
+			fill: square.color
+		});
+	}
+	updateStatus();
+	updatePermaLink();
+}
+
+rects =  ShapeCollection(svgpaper, /*default style =*/ {
+	stroke: '#000',
+	'stroke-dasharray': '5,5',
+	opacity: 0.5,
+});
+points = DraggablePoints(svgpaper, /* change event = */drawSquares);
 
 points.fromString(Arg("points"));
 wallsFromString(Arg("walls"));
@@ -198,6 +169,13 @@ $("#drawAllCandidateSquares").change(function() {
 	$("#drawDisjointSquares").attr('checked', false);
 	drawSquares();	
 });
+
+$(".wall").change(function() {
+	var isChecked = $(this).is(':checked');
+	var direction = $(this).attr("id").replace(/^wall-/,"");
+	setWallStyle(direction, isChecked);
+	drawSquares();
+})
 
 }); // end of $(document).ready
 

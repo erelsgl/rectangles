@@ -7,12 +7,27 @@
 /**
  * @return true iff no pair of shapes in the given array intersect each other.
  */
-jsts.algorithm.arePairwiseDisjoint = function(shapes) {
+jsts.algorithm.arePairwiseNotIntersecting = function(shapes) {
 	for (var i=0; i<shapes.length; ++i) {
 		var shape1 = shapes[i];
 		for (var j=0; j<i; ++j) {
 			var shape2 = shapes[j];
 			if (shape1.intersects(shape2))
+				return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * @return true iff no pair of shapes in the given array overlap each other.
+ */
+jsts.algorithm.arePairwiseNotOverlapping = function(shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape1 = shapes[i];
+		for (var j=0; j<i; ++j) {
+			var shape2 = shapes[j];
+			if (shape1.overlaps(shape2))
 				return false;
 		}
 	}
@@ -29,6 +44,15 @@ jsts.algorithm.numIntersecting = function(shapes, referenceShape) {
 }
 
 /**
+ * @return the number of shapes from the "shapes" array that intersect "referenceShape".
+ */
+jsts.algorithm.numOverlapping = function(shapes, referenceShape) {
+	return shapes.reduce(function(prev,cur) {
+		return prev + cur.overlaps(referenceShape)
+	}, 0);
+}
+
+/**
  * @return the number of shapes from the "shapes" array that are within the interior of "referenceShape".
  */
 jsts.algorithm.numWithin = function(shapes, referenceShape) {
@@ -39,9 +63,18 @@ jsts.algorithm.numWithin = function(shapes, referenceShape) {
 
 
 /**
- * @return all shapes from the "shapes" array that do not intersect any of the shapes in the "referenceShapes" array.
+ * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
  */
-jsts.algorithm.calcDisjoint = function(shapes, referenceShapes) {
+jsts.algorithm.calcNotOverlapping = function(shapes, referenceShapes) {
+	return shapes.filter(function(cur) {
+		return (jsts.algorithm.numOverlapping(referenceShapes,cur)==0);
+	}, []);
+}
+
+/**
+ * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
+ */
+jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
 	return shapes.filter(function(cur) {
 		return (jsts.algorithm.numIntersecting(referenceShapes,cur)==0);
 	}, []);
