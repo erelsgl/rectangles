@@ -76,10 +76,12 @@ jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = functio
 			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
 			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
 
-			var newcolor = color(squares.length);
+			var groupId = squares.length;
+			var groupColor = color(groupId);
 			for (var k=0; k<coords.length; ++k) {
 				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
-				newsquare.color = newcolor;
+				newsquare.groupId = groupId;
+				newsquare.color = groupColor;
 				if (jsts.algorithm.numWithin(pointObjects,newsquare)==0)  // don't add a square that contains a point.
 					squares.push(newsquare);
 			}

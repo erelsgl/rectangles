@@ -11,7 +11,7 @@ var _ = require('underscore');
 var jsts = require('jsts');
 require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
-var COUNT_THE_NUM_OF_CALLS = true; // a measure of performance 
+var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance 
 var numRecursiveCalls;
 
 
@@ -43,17 +43,23 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 		cur.overlapsCache[i] = true;
 		for (var j=0; j<i; j++) {
 			var other = candidates[j];
-			cur.overlapsCache[j] = other.overlapsCache[i] = cur.overlaps(other);
+			var overlaps = false;
+			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
+				overlaps = true;
+			else
+				overlaps = cur.overlaps(other);
+			cur.overlapsCache[j] = other.overlapsCache[i] = overlaps;
 		}
-		cur.overlaps = function(other) {
-			if ('id' in other)
-				return cur.overlapsCache[other.id];
+		cur.overlaps = function(another) {
+			if ('id' in another)
+				return this.overlapsCache[another.id];
 			else {
-				console.dir(other);
+				console.dir(another);
 				throw new Error("id not found");
 			}
 		}
 	}
+	//console.dir(candidates);
 	
 	if (COUNT_THE_NUM_OF_CALLS) numRecursiveCalls = 0;
 	var maxDisjointSet = maximumDisjointSetRec(candidates);

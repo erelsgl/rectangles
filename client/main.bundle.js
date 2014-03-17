@@ -556,16 +556,42 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
 		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
 		.value();
-	candidates.forEach(function(cur) {   // cache x and y values of the envelopes
+	
+	for (var i=0; i<candidates.length; ++i) {
+		var cur = candidates[i];
 		cur.normalize();
+		cur.id = i;
+		
+		// calculate axis-parallel envelope:
 		var envelope = cur.getEnvelopeInternal();
 		cur.xmin = envelope.getMinX();
 		cur.xmax = envelope.getMaxX();
 		cur.ymin = envelope.getMinY();
 		cur.ymax = envelope.getMaxY();
-	})
-
-
+		
+		// pre-calculate overlaps with other shapes, to save time:
+		cur.overlapsCache = [];
+		cur.overlapsCache[i] = true;
+		for (var j=0; j<i; j++) {
+			var other = candidates[j];
+			var overlaps = false;
+			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
+				overlaps = true;
+			else
+				overlaps = cur.overlaps(other);
+			cur.overlapsCache[j] = other.overlapsCache[i] = overlaps;
+		}
+		cur.overlaps = function(another) {
+			if ('id' in another)
+				return this.overlapsCache[another.id];
+			else {
+				console.dir(another);
+				throw new Error("id not found");
+			}
+		}
+	}
+	//console.dir(candidates);
+	
 	if (COUNT_THE_NUM_OF_CALLS) numRecursiveCalls = 0;
 	var maxDisjointSet = maximumDisjointSetRec(candidates);
 	if (COUNT_THE_NUM_OF_CALLS) console.log("numRecursiveCalls="+numRecursiveCalls);
@@ -597,16 +623,16 @@ function maximumDisjointSetRec(candidates) {
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
 
-	var allSubsetsOfIntersectedRects = powerSet(partition[1]);
+	var allSubsetsOfIntersectedShapes = powerSet(partition[1]);
 	
-	for (var i=0; i<allSubsetsOfIntersectedRects.length; ++i) {
-		var subsetOfIntersectedRects = allSubsetsOfIntersectedRects[i];
-		if (!jsts.algorithm.arePairwiseNotOverlapping(subsetOfIntersectedRects)) 
-			// the intersected rectangles themselves are not pairwise-disjoint, so they cannot be a part of an MDS.
+	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
+		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
+		if (!jsts.algorithm.arePairwiseNotOverlapping(subsetOfIntersectedShapes)) 
+			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 			continue;
 
-		var candidatesOnSideOne = jsts.algorithm.calcNotOverlapping(partition[0], subsetOfIntersectedRects);
-		var candidatesOnSideTwo = jsts.algorithm.calcNotOverlapping(partition[2], subsetOfIntersectedRects);
+		var candidatesOnSideOne = jsts.algorithm.calcNotOverlapping(partition[0], subsetOfIntersectedShapes);
+		var candidatesOnSideTwo = jsts.algorithm.calcNotOverlapping(partition[2], subsetOfIntersectedShapes);
 
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
@@ -616,18 +642,18 @@ function maximumDisjointSetRec(candidates) {
 		}
 		
 		// branch-and-bound (advice by D.W.):
-		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedRects.length;
+		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
 			continue;
 
 		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne);
-		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedRects.length;
+		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
 			continue;
 
 		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo);
 
-		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedRects);
+		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 		if (newDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = newDisjointSet;
 	}
@@ -858,10 +884,12 @@ jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = functio
 			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
 			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
 
-			var newcolor = color(squares.length);
+			var groupId = squares.length;
+			var groupColor = color(groupId);
 			for (var k=0; k<coords.length; ++k) {
 				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
-				newsquare.color = newcolor;
+				newsquare.groupId = groupId;
+				newsquare.color = groupColor;
 				if (jsts.algorithm.numWithin(pointObjects,newsquare)==0)  // don't add a square that contains a point.
 					squares.push(newsquare);
 			}
