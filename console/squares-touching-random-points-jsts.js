@@ -28,8 +28,14 @@ var envelope = new jsts.geom.Envelope(
 		-Infinity, // 0, // 
 		Y_RANGE);  // Infinity); // 
 
-var EXPERIMENT_COUNT=100;
-var POINT_COUNT=20;
+var EXPERIMENT_COUNT=1;
+var POINT_COUNT=5;
+var ROTATED=1;
+
+//ROTATED(12): numRecursiveCalls=34265
+//1 experiments. 1 proportional (100%). 63 avg candidate count. 29436 total time [ms].
+//PARALLEL(12): numRecursiveCalls=1923
+//1 experiments. 1 proportional (100%). 64 avg candidate count. 93 total time [ms].
 
 var PRESET_POINTS = [
   {x:40, y:Y_RANGE},
@@ -69,7 +75,7 @@ var proportionalCount = 0;
 var candidateCount = 0;
 for (var e=0; e<EXPERIMENT_COUNT; ++e) {
 	var points = randomPoints(POINT_COUNT,  X_RANGE, Y_RANGE, GRID_SIZE);
-	var candidates = factory.createSquaresTouchingPoints(points, envelope);
+	var candidates = ROTATED? factory.createRotatedSquaresTouchingPoints(points, envelope): factory.createSquaresTouchingPoints(points, envelope);
 	
 	candidateCount += candidates.length;
 	var disjointset = jsts.algorithm.maximumDisjointSet(candidates);
