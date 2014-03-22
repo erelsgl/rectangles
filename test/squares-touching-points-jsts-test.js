@@ -9,6 +9,40 @@ var should = require('should');
 var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
+
+describe('squaresTouchingPoints without walls', function() {
+	it('works for two horizontal points', function() {
+		var squares = factory.createSquaresTouchingPoints([{x:1,y:1}, {x:2,y:1}]);
+		squares.should.have.lengthOf(2);
+		jsts.stringify(squares).should.eql(
+			['RECTANGLE([1,2]x[0,1])', 'RECTANGLE([1,2]x[1,2])']);
+	})
+	it('works for two vertical points', function() {
+		var squares = factory.createSquaresTouchingPoints([{x:1,y:1}, {x:1,y:2}]);
+		squares.should.have.lengthOf(2);
+		jsts.stringify(squares).should.eql(
+			['RECTANGLE([0,1]x[1,2])', 'RECTANGLE([1,2]x[1,2])']);
+	})
+})
+
+describe('rotatedSquaresTouchingPoints without walls', function() {
+	it('works for two horizontal points', function() {
+		var squares = factory.createRotatedSquaresTouchingPoints([{x:1,y:1}, {x:2,y:1}]);
+		squares.should.have.lengthOf(3);
+		squares.splice(1,1); // remove middle square
+		jsts.stringify(squares).should.eql(
+			['POLYGON((2 1,1 1,1 0,2 0,2 1))', 'POLYGON((2 1,1 1,1 2,2 2,2 1))']);
+	})
+	it('works for two vertical points', function() {
+		var squares = factory.createRotatedSquaresTouchingPoints([{x:1,y:1}, {x:1,y:2}]);
+		squares.should.have.lengthOf(3);
+		squares.splice(1,1); // remove middle square
+		jsts.stringify(squares).should.eql(
+			['POLYGON((1 2,1 1,2 1,2 2,1 2))', 'POLYGON((1 2,1 1,0 1,0 2,1 2))']);
+	})
+})
+
+
 var p1={x:1,y:1};
 var p2={x:2,y:4};
 var p3={x:4,y:2};
@@ -73,5 +107,4 @@ describe('rotatedSquaresTouchingPoints without walls', function() {
 				);
 	});
 })
-
 

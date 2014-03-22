@@ -3,7 +3,7 @@
  */
 var jsts = require("../jsts-extended/index");
 var factory = new jsts.geom.GeometryFactory();
-var makeXYUnique = require("../shared/make-xy-unique");
+//var makeXYUnique = require("../shared/make-xy-unique");
 
 var _ = require("underscore");
 
@@ -76,7 +76,7 @@ function drawSquares() {
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
 	
 	var rotatedSquares = $("#rotatedSquares").is(':checked');
-	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
+	//makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
 	var candidates = (rotatedSquares?
 		factory.createRotatedSquaresTouchingPoints(points, envelope):
 		factory.createSquaresTouchingPoints(points, envelope));

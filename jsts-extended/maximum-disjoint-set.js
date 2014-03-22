@@ -11,8 +11,8 @@ var _ = require('underscore');
 var jsts = require('jsts');
 require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
-var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance 
-var numRecursiveCalls;
+var TRACE_PERFORMANCE = false; 
+var numRecursiveCalls;// a measure of performance 
 
 
 /**
@@ -21,6 +21,7 @@ var numRecursiveCalls;
  * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
  */
 jsts.algorithm.maximumDisjointSet = function(candidates) {
+	if (TRACE_PERFORMANCE) var startTime = new Date();
 	candidates = _.chain(candidates)
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
 		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
@@ -44,9 +45,9 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 		for (var j=0; j<i; j++) {
 			var other = candidates[j];
 			var overlaps = false;
-			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
-				overlaps = true;
-			else
+//			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
+//				overlaps = true;
+//			else
 				overlaps = cur.overlaps(other);
 			cur.overlapsCache[j] = other.overlapsCache[i] = overlaps;
 		}
@@ -59,11 +60,11 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 			}
 		}
 	}
-	//console.dir(candidates);
-	
-	if (COUNT_THE_NUM_OF_CALLS) numRecursiveCalls = 0;
+	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
+
+	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
 	var maxDisjointSet = maximumDisjointSetRec(candidates);
-	if (COUNT_THE_NUM_OF_CALLS) console.log("numRecursiveCalls="+numRecursiveCalls);
+	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
 	return maxDisjointSet;
 }
 
@@ -82,7 +83,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
  * @since 2014-01
  */
 function maximumDisjointSetRec(candidates) {
-	if (COUNT_THE_NUM_OF_CALLS) ++numRecursiveCalls;
+	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
 	if (candidates.length<=1) 
 		return candidates;
 

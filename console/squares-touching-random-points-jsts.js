@@ -29,8 +29,8 @@ var envelope = new jsts.geom.Envelope(
 		Y_RANGE);  // Infinity); // 
 
 var EXPERIMENT_COUNT=1;
-var POINT_COUNT=12;
-var ROTATED=1;
+var POINT_COUNT=20;
+var ROTATED=0;
 
 var PRESET_POINTS = [
   {x:40, y:Y_RANGE},

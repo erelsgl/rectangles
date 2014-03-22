@@ -200,6 +200,8 @@
 
   
 
+  function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
+
   /**
    * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
    * 
@@ -207,13 +209,13 @@
    * or with a single parameter with 4 fields (xmin,ymin, xmax,ymax).
    */
   jsts.geom.GeometryFactory.prototype.createAxisParallelRectangle = function(xmin,ymin, xmax,ymax) {
-  	if (arguments.length==4)
-//  		return this.createPolygon(this.createLinearRing([
-//  			coord(xmin,ymin), coord(xmax,ymin), coord(xmax,ymax), coord(xmin,ymax), coord(xmin,ymin)
-//  		]));
-  		return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
-  	else if (arguments.length==1) 
-  		return this.createAxisParallelRectangle(xmin.xmin, xmin.ymin, xmin.xmax, xmin.ymax);
+	if (arguments.length==1) 
+		return this.createAxisParallelRectangle(xmin.xmin, xmin.ymin, xmin.xmax, xmin.ymax);
+
+//	return this.createPolygon(this.createLinearRing([
+//		coord(xmin,ymin), coord(xmax,ymin), coord(xmax,ymax), coord(xmin,ymax), coord(xmin,ymin)
+//	]));
+	return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
   };
   
 })();

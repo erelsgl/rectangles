@@ -47,14 +47,14 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 				var square2 = this.createAxisParallelRectangle({xmin: xLarge-dist_y, ymin: ymin, xmax: xLarge, ymax: ymax});
 			}
 
-			square1.color = square2.color = color(squares.length);
+			square1.groupId = square2.groupId = squares.length;
 			if (jsts.algorithm.numWithin(pointObjects,square1)==0)  // don't add a square that contains a point.
 				squares.push(square1);
 			if (jsts.algorithm.numWithin(pointObjects,square2)==0)  // don't add a square that contains a point.
 				squares.push(square2);
 		}
 	}
-	return squares;
+	return colorByGroupId(squares);
 }
 
 jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
@@ -77,19 +77,31 @@ jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = functio
 			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
 
 			var groupId = squares.length;
-			var groupColor = color(groupId);
 			for (var k=0; k<coords.length; ++k) {
 				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
 				newsquare.groupId = groupId;
-				newsquare.color = groupColor;
-				if (jsts.algorithm.numWithin(pointObjects,newsquare)==0)  // don't add a square that contains a point.
+				
+				// don't add a square that contains a point:
+				var numPointsWithinNewSquare = 0;
+				for (var p=0; p<pointObjects.length; ++p) {
+					if (p!=i && p!=j && pointObjects[p].within(newsquare))
+						numPointsWithinNewSquare++;
+				}
+	
+				if (numPointsWithinNewSquare==0)  
 					squares.push(newsquare);
 			}
 		}
 	}
-	return squares;
+	return colorByGroupId(squares);
 }
 
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
 function color(i) {return colors[i % colors.length]}
+function colorByGroupId(shapes) {
+	shapes.forEach(function(shape) {
+		shape.color = color(shape.groupId);
+	});
+	return shapes;
+}

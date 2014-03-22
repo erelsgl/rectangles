@@ -4,7 +4,7 @@
  */
 var jsts = require("../jsts-extended/index");
 var factory = new jsts.geom.GeometryFactory();
-var makeXYUnique = require("../shared/make-xy-unique");
+//var makeXYUnique = require("../shared/make-xy-unique");
 
 var _ = require("underscore");
 
@@ -77,7 +77,7 @@ function drawSquares() {
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
 	
 	var rotatedSquares = $("#rotatedSquares").is(':checked');
-	makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
+	//makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
 	var candidates = (rotatedSquares?
 		factory.createRotatedSquaresTouchingPoints(points, envelope):
 		factory.createSquaresTouchingPoints(points, envelope));
@@ -177,7 +177,7 @@ $(".shape").change(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended/index":4,"../shared/make-xy-unique":32,"underscore":31}],2:[function(require,module,exports){
+},{"../jsts-extended/index":4,"underscore":31}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -380,6 +380,8 @@ $(".shape").change(function() {
 
   
 
+  function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
+
   /**
    * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
    * 
@@ -387,13 +389,13 @@ $(".shape").change(function() {
    * or with a single parameter with 4 fields (xmin,ymin, xmax,ymax).
    */
   jsts.geom.GeometryFactory.prototype.createAxisParallelRectangle = function(xmin,ymin, xmax,ymax) {
-  	if (arguments.length==4)
-//  		return this.createPolygon(this.createLinearRing([
-//  			coord(xmin,ymin), coord(xmax,ymin), coord(xmax,ymax), coord(xmin,ymax), coord(xmin,ymin)
-//  		]));
-  		return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
-  	else if (arguments.length==1) 
-  		return this.createAxisParallelRectangle(xmin.xmin, xmin.ymin, xmin.xmax, xmin.ymax);
+	if (arguments.length==1) 
+		return this.createAxisParallelRectangle(xmin.xmin, xmin.ymin, xmin.xmax, xmin.ymax);
+
+//	return this.createPolygon(this.createLinearRing([
+//		coord(xmin,ymin), coord(xmax,ymin), coord(xmax,ymax), coord(xmin,ymax), coord(xmin,ymin)
+//	]));
+	return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
   };
   
 })();
@@ -542,8 +544,8 @@ var _ = require('underscore');
 var jsts = require('jsts');
 require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
-var COUNT_THE_NUM_OF_CALLS = false; // a measure of performance 
-var numRecursiveCalls;
+var TRACE_PERFORMANCE = false; 
+var numRecursiveCalls;// a measure of performance 
 
 
 /**
@@ -552,6 +554,7 @@ var numRecursiveCalls;
  * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
  */
 jsts.algorithm.maximumDisjointSet = function(candidates) {
+	if (TRACE_PERFORMANCE) var startTime = new Date();
 	candidates = _.chain(candidates)
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
 		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
@@ -575,9 +578,9 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 		for (var j=0; j<i; j++) {
 			var other = candidates[j];
 			var overlaps = false;
-			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
-				overlaps = true;
-			else
+//			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
+//				overlaps = true;
+//			else
 				overlaps = cur.overlaps(other);
 			cur.overlapsCache[j] = other.overlapsCache[i] = overlaps;
 		}
@@ -590,11 +593,11 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 			}
 		}
 	}
-	//console.dir(candidates);
-	
-	if (COUNT_THE_NUM_OF_CALLS) numRecursiveCalls = 0;
+	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
+
+	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
 	var maxDisjointSet = maximumDisjointSetRec(candidates);
-	if (COUNT_THE_NUM_OF_CALLS) console.log("numRecursiveCalls="+numRecursiveCalls);
+	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
 	return maxDisjointSet;
 }
 
@@ -613,7 +616,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
  * @since 2014-01
  */
 function maximumDisjointSetRec(candidates) {
-	if (COUNT_THE_NUM_OF_CALLS) ++numRecursiveCalls;
+	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
 	if (candidates.length<=1) 
 		return candidates;
 
@@ -855,14 +858,14 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 				var square2 = this.createAxisParallelRectangle({xmin: xLarge-dist_y, ymin: ymin, xmax: xLarge, ymax: ymax});
 			}
 
-			square1.color = square2.color = color(squares.length);
+			square1.groupId = square2.groupId = squares.length;
 			if (jsts.algorithm.numWithin(pointObjects,square1)==0)  // don't add a square that contains a point.
 				squares.push(square1);
 			if (jsts.algorithm.numWithin(pointObjects,square2)==0)  // don't add a square that contains a point.
 				squares.push(square2);
 		}
 	}
-	return squares;
+	return colorByGroupId(squares);
 }
 
 jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
@@ -885,22 +888,34 @@ jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = functio
 			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
 
 			var groupId = squares.length;
-			var groupColor = color(groupId);
 			for (var k=0; k<coords.length; ++k) {
 				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
 				newsquare.groupId = groupId;
-				newsquare.color = groupColor;
-				if (jsts.algorithm.numWithin(pointObjects,newsquare)==0)  // don't add a square that contains a point.
+				
+				// don't add a square that contains a point:
+				var numPointsWithinNewSquare = 0;
+				for (var p=0; p<pointObjects.length; ++p) {
+					if (p!=i && p!=j && pointObjects[p].within(newsquare))
+						numPointsWithinNewSquare++;
+				}
+	
+				if (numPointsWithinNewSquare==0)  
 					squares.push(newsquare);
 			}
 		}
 	}
-	return squares;
+	return colorByGroupId(squares);
 }
 
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
 function color(i) {return colors[i % colors.length]}
+function colorByGroupId(shapes) {
+	shapes.forEach(function(shape) {
+		shape.color = color(shape.groupId);
+	});
+	return shapes;
+}
 
 },{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":8}],8:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
@@ -4959,38 +4974,5 @@ module.exports = function powerset(input) {
   });
 
 }).call(this);
-
-},{}],32:[function(require,module,exports){
-/**
- * Make sure the x values and the y values of the points are all unique, by adding a small constant to non-unique values.
- * 
- * @param points an array of points.
- * Each point should contain the fields: x, y.
- * 
- * @author Erel Segal-Halevi
- * @since 2014-01
- */
-function makeXYunique(points, xminWall, xmaxWall, yminWall, ymaxWall) {
-	var xvalues={};
-	var yvalues={};
-	for (var i=0; i<points.length; ++i) {
-		var p = points[i];
-		
-		p.x = parseInt(p.x);
-		if (xminWall<p.x && p.x<xmaxWall)
-			while (xvalues[p.x]) 
-				p.x += 1;
-		xvalues[p.x] = true;
-		
-		p.y = parseInt(p.y);
-		if (yminWall<p.y && p.y<ymaxWall)
-			while (yvalues[p.y])
-				p.y += 1;
-		yvalues[p.y] = true;
-	}
-}
-
-
-module.exports = makeXYunique;
 
 },{}]},{},[1])

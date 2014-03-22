@@ -137,4 +137,15 @@ describe('MaximumDisjointSet with complex scenarios', function() {
 	            ];
 		maximumDisjointSet(candidates).should.have.lengthOf(3);
 	})
+	it('works with other 5 rectangles that once caught a bug', function() {
+		var candidates=[
+	            factory.createAxisParallelRectangle({"xmin":80,"ymin":30,"xmax":150,"ymax":100}),
+	            factory.createAxisParallelRectangle({"xmin":99.99,"ymin":30,"xmax":169.99,"ymax":100}),
+	            factory.createAxisParallelRectangle({"xmin":100,"ymin":99.99,"xmax":200,"ymax":199.99}),
+	            factory.createAxisParallelRectangle({"xmin":130,"ymin":30,"xmax":200,"ymax":100}),
+	            factory.createAxisParallelRectangle({"xmin":149.99,"ymin":30,"xmax":219.99,"ymax":100}),
+	            ];
+		maximumDisjointSet(candidates).should.have.lengthOf(1);
+	})
 })
+
