@@ -559,12 +559,18 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
 		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
 		.value();
-	
-	for (var i=0; i<candidates.length; ++i) {
-		var cur = candidates[i];
+
+	// Keep the original overlaps function for later use:
+	for (var ii=0; ii<candidates.length; ++ii) 
+		if (!candidates[ii].overlapsOrig)
+			candidates[ii].overlapsOrig = candidates[ii].overlaps;
+
+	// Replace the overlaps function with a caching version:
+	for (var ii=0; ii<candidates.length; ++ii) {
+		var cur = candidates[ii];
+		cur.id = ii;
 		cur.normalize();
-		cur.id = i;
-		
+
 		// calculate axis-parallel envelope:
 		var envelope = cur.getEnvelopeInternal();
 		cur.xmin = envelope.getMinX();
@@ -574,15 +580,20 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 		
 		// pre-calculate overlaps with other shapes, to save time:
 		cur.overlapsCache = [];
-		cur.overlapsCache[i] = true;
-		for (var j=0; j<i; j++) {
-			var other = candidates[j];
+		cur.overlapsCache[ii] = true; // a shape overlaps itself
+		for (var jj=0; jj<ii; jj++) {
+			var other = candidates[jj];
 			var overlaps = false;
-//			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
-//				overlaps = true;
-//			else
-				overlaps = cur.overlaps(other);
-			cur.overlapsCache[j] = other.overlapsCache[i] = overlaps;
+			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
+				overlaps = true;
+			else
+				overlaps = cur.overlapsOrig(other);
+			if (typeof overlaps==='undefined') {
+				console.dir(cur);
+				console.dir(other);
+				throw new Error("overlaps returned an undefined value");
+			}
+			cur.overlapsCache[jj] = other.overlapsCache[ii] = overlaps;
 		}
 		cur.overlaps = function(another) {
 			if ('id' in another)
@@ -593,6 +604,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 			}
 		}
 	}
+//	console.dir(candidates);
 	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 
 	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
@@ -633,9 +645,12 @@ function maximumDisjointSetRec(candidates) {
 		if (!jsts.algorithm.arePairwiseNotOverlapping(subsetOfIntersectedShapes)) 
 			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 			continue;
-
+		
+//		console.log("subsetOfIntersectedShapes="+JSON.stringify(subsetOfIntersectedShapes));
 		var candidatesOnSideOne = jsts.algorithm.calcNotOverlapping(partition[0], subsetOfIntersectedShapes);
 		var candidatesOnSideTwo = jsts.algorithm.calcNotOverlapping(partition[2], subsetOfIntersectedShapes);
+//		console.log("\tcandidatesOnSideOne="+JSON.stringify(candidatesOnSideOne));
+//		console.log("\tcandidatesOnSideTwo="+JSON.stringify(candidatesOnSideTwo));
 
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
@@ -701,10 +716,10 @@ function partitionShapes(candidates) {
 		throw new Error("No x partition and no y partition! candidates="+JSON.stringify(candidates));
 
 	if (partitionQuality(bestXPartition)>=partitionQuality(bestYPartition)) {
-//		console.log("\t\tSeparator line: x="+bestX+" "+partitionDescription(bestXPartition));
+//		console.log("\t\tBest separator line: x="+bestX+" "+partitionDescription(bestXPartition));
 		return bestXPartition;
 	} else {
-//		console.log("\t\tSeparator line: y="+bestY+" "+partitionDescription(bestYPartition));
+//		console.log("\t\tBest separator line: y="+bestY+" "+partitionDescription(bestYPartition));
 		return bestYPartition;
 	}
 }
@@ -751,7 +766,7 @@ function partitionByX(shapes, x) {
 	var intersectedByX = [];
 	var afterX = [];
 	shapes.forEach(function(cur) {
-		if (cur.xmax<=x)
+		if (cur.xmax<x)
 			beforeX.push(cur);
 		else if (x<=cur.xmin)
 			afterX.push(cur);
@@ -771,7 +786,7 @@ function partitionByY(shapes, y) {
 	var intersectedByY = [];
 	var afterY = [];
 	shapes.forEach(function(cur) {
-		if (cur.ymax<=y)
+		if (cur.ymax<y)
 			beforeY.push(cur);
 		else if (y<=cur.ymin)
 			afterY.push(cur);
