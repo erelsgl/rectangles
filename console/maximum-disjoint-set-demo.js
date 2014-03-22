@@ -1,12 +1,13 @@
-var maximumDisjointSet = require('../shared/maximum-disjoint-set');
-var _ = require('underscore');
+var jsts = require("../jsts-extended");
+var factory = new jsts.geom.GeometryFactory();
 
 candidates=[
-            {"xmin":-70,"ymin":110,"xmax":140,"ymax":320},
-            {"xmin":90,"ymin":210,"xmax":200,"ymax":320},
-            {"xmin":100,"ymin":110,"xmax":200,"ymax":210},
-            {"xmin":140,"ymin":130,"xmax":220,"ymax":210},
-            {"xmin":200,"ymin":130,"xmax":280,"ymax":210},
-            {"xmin":200,"ymin":130,"xmax":280,"ymax":210},
+            factory.createAxisParallelRectangle(-70,110,  140,320),
+            factory.createAxisParallelRectangle(90,210, 200,320),
+            factory.createAxisParallelRectangle(100,110, 200,210),
+            factory.createAxisParallelRectangle(140,130, 220,210),
+            factory.createAxisParallelRectangle(200,130, 280,210),
+            factory.createAxisParallelRectangle(200,130, 280,210),
             ]
-console.dir(maximumDisjointSet(candidates)); // should contain 3 rectangles.
+var disjointSet = jsts.algorithm.maximumDisjointSet(candidates);
+disjointSet.forEach(function(cur) {console.log(cur.toString())});  // should contain 3 rectangles.
