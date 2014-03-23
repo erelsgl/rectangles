@@ -101,3 +101,71 @@ jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
 		return (jsts.algorithm.numIntersecting(referenceShapes,cur)==0);
 	});
 }
+
+
+
+
+
+
+
+/*--- Interior-Disjoint Cache ---*/
+
+jsts.algorithm.prepareDisjointCache = function(candidates) {
+	for (var ii=0; ii<candidates.length; ++ii) {
+		var cur = candidates[ii];
+		cur.id = ii;
+		
+		// pre-calculate interior-disjoint relations with other shapes, to save time:
+		cur.disjointCache = [];
+		cur.disjointCache[ii] = true; // a shape overlaps itself
+		for (var jj=0; jj<ii; jj++) {
+			var other = candidates[jj];
+			var disjoint = ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId?
+				false:
+				disjoint = cur.interiorDisjoint(other));
+			if (typeof disjoint==='undefined') {
+				console.dir(cur);
+				console.dir(other);
+				throw new Error("interiorDisjoint returned an undefined value");
+			}
+			cur.disjointCache[jj] = other.disjointCache[ii] = disjoint;
+		}
+		cur.overlaps = function(another) {
+			if ('id' in another)
+				return this.disjointCache[another.id];
+			else {
+				console.dir(another);
+				throw new Error("id not found");
+			}
+		}
+	}
+}
+
+/**
+ * @return true iff all pairs of shapes in the given array are interior-disjoint
+ */
+jsts.algorithm.arePairwiseDisjointByCache = function(shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape_i_id = shapes[i].id;
+		for (var j=0; j<i; ++j) 
+			if (!shapes[j].disjointCache[shape_i_id])
+				return false;
+	}
+	return true;
+}
+
+
+/**
+ * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
+ */
+jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
+	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id});
+	return shapes.filter(function(shape) {
+		for (var i=0; i<referenceShapesIds.length; ++i) 
+			if (!shape.disjointCache[referenceShapesIds[i]])
+				return false;
+		return true;
+	});
+}
+
+

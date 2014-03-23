@@ -3,6 +3,7 @@ require("./intersection-utils");
 require("./factory-utils");
 require("./AxisParallelRectangle");
 require("./maximum-disjoint-set");
+require("./maximum-disjoint-set-solver");
 require("./squares-touching-points");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {

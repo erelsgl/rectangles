@@ -1,8 +1,10 @@
 /**
- * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
+ * Asynchronous version of maximum-disjoint-set, with option to interrupt.
+ * 
+ * Based on idea of barry-johnson: http://stackoverflow.com/a/22593680/827927
  * 
  * @author Erel Segal-Halevi
- * @since 2014-02
+ * @since 2014-03
  */
 
 var powerSet = require("powerset");
@@ -13,7 +15,7 @@ require("./intersection-utils");
 require("./partition-utils");
 
 var TRACE_PERFORMANCE = false; 
-var numRecursiveCalls;// a measure of performance 
+
 
 
 /*--- Main Algorithm ---*/
@@ -24,9 +26,7 @@ var numRecursiveCalls;// a measure of performance
  * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
  * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
  */
-jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
-	if (!stopAtCount) stopAtCount = Infinity;
-
+jsts.algorithm.MaximumDisjointSetSolver = function(candidates, stopAtCount) {
 	if (TRACE_PERFORMANCE) var startTime = new Date();
 	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
 	candidates.forEach(function(cur) {
@@ -36,17 +36,28 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
 	});
 	candidates = _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
-
 	jsts.algorithm.prepareDisjointCache(candidates);
 	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 	//	console.dir(candidates);
-
-	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
-	var maxDisjointSet = maximumDisjointSetRec(candidates,stopAtCount);
-	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
-	return maxDisjointSet;
+	
+	this.candidates = candidates;
+	this.stopAtCount = stopAtCount? stopAtCount: Infinity;
+	this.interrupted = false;
 }
 
+jsts.algorithm.MaximumDisjointSetSolver.prototype.interrupt = function(){
+    this.interrupted = true;
+};
+
+jsts.algorithm.MaximumDisjointSetSolver.prototype.solve = function (callback) {
+	var self = this;
+	setImmediate(function() {
+		if (TRACE_PERFORMANCE) self.numRecursiveCalls = 0;
+		var maxDisjointSet = self.maximumDisjointSetRec(self.candidates);
+		if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+self.numRecursiveCalls);
+		callback(maxDisjointSet);
+	});
+}
 
 
 /*--- Recursive function ---*/
@@ -65,10 +76,12 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-function maximumDisjointSetRec(candidates,stopAtCount) {
+jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = function(candidates) {
 	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
 	if (candidates.length<=1) 
 		return candidates;
+	if (this.interrupted)
+		return [];
 
 	var currentMaxDisjointSet = [];
 	var partition = jsts.algorithm.partitionShapes(candidates);
@@ -99,18 +112,18 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
 			continue;
 
-		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne);
+		var maxDisjointSetOnSideOne = this.maximumDisjointSetRec(candidatesOnSideOne);
 		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
 			continue;
 
-		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo);
+		var maxDisjointSetOnSideTwo = this.maximumDisjointSetRec(candidatesOnSideTwo);
 
 		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 		if (newDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = newDisjointSet;
 		
-		if (currentMaxDisjointSet.length >= stopAtCount)
+		if (currentMaxDisjointSet.length >= this.stopAtCount)
 			return currentMaxDisjointSet;
 	}
 	return currentMaxDisjointSet;
