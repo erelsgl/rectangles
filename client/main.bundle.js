@@ -354,9 +354,17 @@ $(".shape").change(function() {
   
   jsts.geom.AxisParallelRectangle.prototype.overlaps = function(other) {
 	  if (other instanceof jsts.geom.AxisParallelRectangle) {
+		  return !this.interiorDisjoint(other) && !this.contains(other) && !other.contains(this);
+	  } else {
+		  throw new "not implemented for "+other;
+	  }
+  }
+  
+  jsts.geom.AxisParallelRectangle.prototype.interiorDisjoint = function(other) {
+	  if (other instanceof jsts.geom.AxisParallelRectangle) {
 		  return (
-				  this.xmax>other.xmin && other.xmax>this.xmin && 
-				  this.ymax>other.ymin && other.ymax>this.ymin
+				  this.xmax<=other.xmin || other.xmax<=this.xmin || 
+				  this.ymax<=other.ymin || other.ymax<=this.ymin
 				 );
 	  } else {
 		  throw new "not implemented for "+other;
@@ -469,6 +477,13 @@ module.exports = jsts;
  */
 
 /**
+ * Define the relation "interior-disjoint" (= overlaps or covers or coveredBy)
+ */
+jsts.geom.Geometry.prototype.interiorDisjoint = function(other) {
+	return this.relate(other, "F********");
+}
+
+/**
  * @return true iff no pair of shapes in the given array intersect each other.
  */
 jsts.algorithm.arePairwiseNotIntersecting = function(shapes) {
@@ -492,6 +507,21 @@ jsts.algorithm.arePairwiseNotOverlapping = function(shapes) {
 		for (var j=0; j<i; ++j) {
 			var shape2 = shapes[j];
 			if (shape1.overlaps(shape2))
+				return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * @return true iff all pairs of shapes in the given array are interior-disjoint
+ */
+jsts.algorithm.arePairwiseInteriorDisjoint = function(shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape1 = shapes[i];
+		for (var j=0; j<i; ++j) {
+			var shape2 = shapes[j];
+			if (!shape1.interiorDisjoint(shape2))
 				return false;
 		}
 	}
@@ -532,7 +562,7 @@ jsts.algorithm.numWithin = function(shapes, referenceShape) {
 jsts.algorithm.calcNotOverlapping = function(shapes, referenceShapes) {
 	return shapes.filter(function(cur) {
 		return (jsts.algorithm.numOverlapping(referenceShapes,cur)==0);
-	}, []);
+	});
 }
 
 /**
@@ -541,12 +571,12 @@ jsts.algorithm.calcNotOverlapping = function(shapes, referenceShapes) {
 jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
 	return shapes.filter(function(cur) {
 		return (jsts.algorithm.numIntersecting(referenceShapes,cur)==0);
-	}, []);
+	});
 }
 
 },{}],6:[function(require,module,exports){
 /**
- * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-02
@@ -556,11 +586,9 @@ var powerSet = require("powerset");
 var _ = require('underscore');
 
 var jsts = require('jsts');
-require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
 var TRACE_PERFORMANCE = false; 
 var numRecursiveCalls;// a measure of performance 
-var INTERIOR_DISJOINT = "F********"; // Pattern for "relate" function
 
 /**
  * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
@@ -577,9 +605,9 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 		.value();
 
 	// Keep the original overlaps function for later use:
-	for (var ii=0; ii<candidates.length; ++ii) 
-		if (!candidates[ii].overlapsOrig)
-			candidates[ii].overlapsOrig = candidates[ii].overlaps;
+//	for (var ii=0; ii<candidates.length; ++ii) 
+//		if (!candidates[ii].overlapsOrig)
+//			candidates[ii].overlapsOrig = candidates[ii].overlaps;
 
 	// Replace the overlaps function with a caching version:
 	for (var ii=0; ii<candidates.length; ++ii) {
@@ -595,27 +623,23 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 		cur.ymax = envelope.getMaxY();
 		
 		// pre-calculate overlaps with other shapes, to save time:
-		cur.overlapsCache = [];
-		cur.overlapsCache[ii] = true; // a shape overlaps itself
+		cur.disjointCache = [];
+		cur.disjointCache[ii] = true; // a shape overlaps itself
 		for (var jj=0; jj<ii; jj++) {
 			var other = candidates[jj];
-			var overlaps = false;
-			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
-				overlaps = true;
-			else
-				overlaps = (cur instanceof jsts.geom.AxisParallelRectangle? 
-						cur.overlapsOrig(other): // "relate2" is still not implemented correctly for AxisParallelRectangle
-						!cur.relate(other, INTERIOR_DISJOINT));
-			if (typeof overlaps==='undefined') {
+			var disjoint = ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId?
+				false:
+				disjoint = cur.interiorDisjoint(other));
+			if (typeof disjoint==='undefined') {
 				console.dir(cur);
 				console.dir(other);
-				throw new Error("overlaps returned an undefined value");
+				throw new Error("interiorDisjoint returned an undefined value");
 			}
-			cur.overlapsCache[jj] = other.overlapsCache[ii] = overlaps;
+			cur.disjointCache[jj] = other.disjointCache[ii] = disjoint;
 		}
 		cur.overlaps = function(another) {
 			if ('id' in another)
-				return this.overlapsCache[another.id];
+				return this.disjointCache[another.id];
 			else {
 				console.dir(another);
 				throw new Error("id not found");
@@ -630,6 +654,34 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
 	return maxDisjointSet;
 }
+
+/**
+ * @return true iff all pairs of shapes in the given array are interior-disjoint
+ */
+function arePairwiseInteriorDisjoint(shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape_i_id = shapes[i].id;
+		for (var j=0; j<i; ++j) 
+			if (!shapes[j].disjointCache[shape_i_id])
+				return false;
+	}
+	return true;
+}
+
+
+/**
+ * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
+ */
+function calcInteriorDisjoint(shapes, referenceShapes) {
+	var referenceShapesIds = _.pluck(referenceShapes, "id");
+	return shapes.filter(function(shape) {
+		for (var i=0; i<referenceShapesIds.length; ++i) 
+			if (!shape.disjointCache[referenceShapesIds[i]])
+				return false;
+		return true;
+	});
+}
+
 
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
@@ -660,15 +712,12 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 	
 	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
 		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
-		if (!jsts.algorithm.arePairwiseNotOverlapping(subsetOfIntersectedShapes)) 
+		if (!arePairwiseInteriorDisjoint(subsetOfIntersectedShapes)) 
 			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 			continue;
 		
-//		console.log("subsetOfIntersectedShapes="+JSON.stringify(subsetOfIntersectedShapes));
-		var candidatesOnSideOne = jsts.algorithm.calcNotOverlapping(partition[0], subsetOfIntersectedShapes);
-		var candidatesOnSideTwo = jsts.algorithm.calcNotOverlapping(partition[2], subsetOfIntersectedShapes);
-//		console.log("\tcandidatesOnSideOne="+JSON.stringify(candidatesOnSideOne));
-//		console.log("\tcandidatesOnSideTwo="+JSON.stringify(candidatesOnSideTwo));
+		var candidatesOnSideOne = calcInteriorDisjoint(partition[0], subsetOfIntersectedShapes);
+		var candidatesOnSideTwo = calcInteriorDisjoint(partition[2], subsetOfIntersectedShapes);
 
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
@@ -844,7 +893,22 @@ function partitionDescription(partition) {
 }
 
 
-},{"./intersection-utils":5,"jsts":8,"powerset":30,"underscore":31}],7:[function(require,module,exports){
+},{"jsts":8,"powerset":30,"underscore":31}],7:[function(require,module,exports){
+/**
+ * Find a set of candidate shapes based on a given set of points.
+ * 
+ * @param points an array of points. Each point should contain the fields: x, y.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
+ * 
+ * @return a set of shapes such that:
+ * a. Each shape touches two points.
+ * b. No shape contains a point.
+ * @note the output can be used as input to jsts.algorithm.maximumDisjointSet
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
+ */
+
 var jsts = require('jsts');
 require("./factory-utils");
 require("./AxisParallelRectangle");
@@ -854,23 +918,19 @@ function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
 /**
- * Find a set of candidate squares based on a given set of points.
+ * Find a set of axis-parallel squares based on a given set of points.
  * 
  * @param points an array of points. Each point should contain the fields: x, y.
- * @param envelope a jsts.geom.Envelope, defining the boundaries for the squares.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
  * 
- * @return a set of squares (Polygon's) such that:
+ * @return a set of shapes (Polygon's) such that:
  * a. Each square touches two points: one at a corner and one anywhere at the boundary.
  * b. No square contains a point.
- * @note the output can be used as input to jsts.algorithm.maximumDisjointSet
- * 
- * @author Erel Segal-Halevi
- * @since 2014-01
  */
 jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(points, envelope) {
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	var pointObjects = this.createPoints(points);
-	var squares = [];
+	var shapes = [];
 	for (var i=0; i<points.length; ++i) {
 		for (var j=0; j<i; ++j) {
 			var p1 = points[i];
@@ -894,97 +954,97 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 				var square2 = this.createAxisParallelRectangle({xmin: xLarge-dist_y, ymin: ymin, xmax: xLarge, ymax: ymax});
 			}
 
-			square1.groupId = square2.groupId = squares.length;
+			square1.groupId = square2.groupId = shapes.length;
 			if (jsts.algorithm.numWithin(pointObjects,square1)==0)  // don't add a square that contains a point.
-				squares.push(square1);
+				shapes.push(square1);
 			if (jsts.algorithm.numWithin(pointObjects,square2)==0)  // don't add a square that contains a point.
-				squares.push(square2);
+				shapes.push(square2);
 		}
 	}
-	return colorByGroupId(squares);
+	return colorByGroupId(shapes);
 }
 
-jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
+/**
+ * Find a set of shapes based on a given set of points.
+ * 
+ * @param points an array of points. Each point should contain the fields: x, y.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
+ * @param createShapesTouchingTwoPoints a function that creates shapes touching two given points.
+ * 
+ * @return a set of shapes (of type jsts.geom.Polygon), such that:
+ * a. Each shape touches two points, based on the function createShapesTouchingTwoPoints.
+ * b. No shape contains a point.
+ */
+jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(coordinates, envelope, createShapesTouchingTwoPoints) {
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	coordinates = this.createCoordinates(coordinates);
 	var pointObjects = this.createPoints(coordinates);
-	var squares = [];
+	var shapes = [];
 	for (var i=0; i<coordinates.length; ++i) {
 		var c1 = coordinates[i];
 		for (var j=0; j<i; ++j) {
 			var c2 = coordinates[j];
+			var coords = createShapesTouchingTwoPoints(c1,c2);
+			var groupId = shapes.length;
+			for (var k=0; k<coords.length; ++k) {
+				newShape = this.createPolygon(this.createLinearRing(coords[k]));
+				newShape.groupId = groupId;
+				
+				// don't add a square that contains a point:
+				var numPointsWithinNewShape = 0;
+				for (var p=0; p<pointObjects.length; ++p) {
+					if (p!=i && p!=j && pointObjects[p].within(newShape))
+						numPointsWithinNewShape++;
+				}
+	
+				if (numPointsWithinNewShape==0)  
+					shapes.push(newShape);
+			}
+		}
+	}
+	return colorByGroupId(shapes);
+}
+
+
+
+jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
+	return this.createShapesTouchingPoints(coordinates, envelope, 
+		function squaresTouchingTwoPoints(c1, c2) {
 			var dist_x = c2.x-c1.x;
 			var dist_y = c2.y-c1.y;
 			var mid_x = (c1.x+c2.x)/2;
 			var mid_y = (c1.y+c2.y)/2;
-
-			var coords = [];
-			coords.push([c1, c2, coord(c2.x-dist_y,c2.y+dist_x), coord(c1.x-dist_y,c1.y+dist_x), c1]);
-			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
-			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
-
-			var groupId = squares.length;
-			for (var k=0; k<coords.length; ++k) {
-				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
-				newsquare.groupId = groupId;
-				
-				// don't add a square that contains a point:
-				var numPointsWithinNewSquare = 0;
-				for (var p=0; p<pointObjects.length; ++p) {
-					if (p!=i && p!=j && pointObjects[p].within(newsquare))
-						numPointsWithinNewSquare++;
-				}
-	
-				if (numPointsWithinNewSquare==0)  
-					squares.push(newsquare);
-			}
+			return [
+			        [c1, c2, coord(c2.x-dist_y,c2.y+dist_x), coord(c1.x-dist_y,c1.y+dist_x), c1],
+			        [c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1],
+			        [c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1],
+			];
 		}
-	}
-	return colorByGroupId(squares);
+	);
 }
 
 // RAIT = Right-Angled-Isosceles-Triangle
 jsts.geom.GeometryFactory.prototype.createRAITsTouchingPoints = function(coordinates, envelope) {
-	if (!envelope)  envelope = DEFAULT_ENVELOPE;
-	coordinates = this.createCoordinates(coordinates);
-	var pointObjects = this.createPoints(coordinates);
-	var squares = [];
-	for (var i=0; i<coordinates.length; ++i) {
-		var c1 = coordinates[i];
-		for (var j=0; j<i; ++j) {
-			var c2 = coordinates[j];
+	return this.createShapesTouchingPoints(coordinates, envelope, 
+		function RAITsTouchingTwoPoints(c1, c2) {
 			var dist_x = c2.x-c1.x;
 			var dist_y = c2.y-c1.y;
 			var mid_x = (c1.x+c2.x)/2;
 			var mid_y = (c1.y+c2.y)/2;
 
-			var coords = [];
-			coords.push([c1, c2, coord(c2.x-dist_y,c2.y+dist_x), c1]);
-			coords.push([c1, c2, coord(c1.x-dist_y,c1.y+dist_x), c1]);
-			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, c1]);
-			coords.push([c1, c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
-			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), c1]);
-			coords.push([c1, c2, coord(c1.x+dist_y,c1.y-dist_x), c1]);
-
-			var groupId = squares.length;
-			for (var k=0; k<coords.length; ++k) {
-				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
-				newsquare.groupId = groupId;
-				
-				// don't add a square that contains a point:
-				var numPointsWithinNewSquare = 0;
-				for (var p=0; p<pointObjects.length; ++p) {
-					if (p!=i && p!=j && pointObjects[p].within(newsquare))
-						numPointsWithinNewSquare++;
-				}
-	
-				if (numPointsWithinNewSquare==0)  
-					squares.push(newsquare);
-			}
+			return [
+					[c1, c2, coord(c2.x-dist_y,c2.y+dist_x), c1],
+					[c1, c2, coord(c1.x-dist_y,c1.y+dist_x), c1],
+					[c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, c1],
+					[c1, c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1],
+					[c1, c2, coord(c2.x+dist_y,c2.y-dist_x), c1],
+					[c1, c2, coord(c1.x+dist_y,c1.y-dist_x), c1],
+		        ];
 		}
-	}
-	return colorByGroupId(squares);
+	);
 }
+
+
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
 function color(i) {return colors[i % colors.length]}

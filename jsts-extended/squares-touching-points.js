@@ -1,3 +1,18 @@
+/**
+ * Find a set of candidate shapes based on a given set of points.
+ * 
+ * @param points an array of points. Each point should contain the fields: x, y.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
+ * 
+ * @return a set of shapes such that:
+ * a. Each shape touches two points.
+ * b. No shape contains a point.
+ * @note the output can be used as input to jsts.algorithm.maximumDisjointSet
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
+ */
+
 var jsts = require('jsts');
 require("./factory-utils");
 require("./AxisParallelRectangle");
@@ -7,23 +22,19 @@ function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
 /**
- * Find a set of candidate squares based on a given set of points.
+ * Find a set of axis-parallel squares based on a given set of points.
  * 
  * @param points an array of points. Each point should contain the fields: x, y.
- * @param envelope a jsts.geom.Envelope, defining the boundaries for the squares.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
  * 
- * @return a set of squares (Polygon's) such that:
+ * @return a set of shapes (Polygon's) such that:
  * a. Each square touches two points: one at a corner and one anywhere at the boundary.
  * b. No square contains a point.
- * @note the output can be used as input to jsts.algorithm.maximumDisjointSet
- * 
- * @author Erel Segal-Halevi
- * @since 2014-01
  */
 jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(points, envelope) {
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	var pointObjects = this.createPoints(points);
-	var squares = [];
+	var shapes = [];
 	for (var i=0; i<points.length; ++i) {
 		for (var j=0; j<i; ++j) {
 			var p1 = points[i];
@@ -47,97 +58,97 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 				var square2 = this.createAxisParallelRectangle({xmin: xLarge-dist_y, ymin: ymin, xmax: xLarge, ymax: ymax});
 			}
 
-			square1.groupId = square2.groupId = squares.length;
+			square1.groupId = square2.groupId = shapes.length;
 			if (jsts.algorithm.numWithin(pointObjects,square1)==0)  // don't add a square that contains a point.
-				squares.push(square1);
+				shapes.push(square1);
 			if (jsts.algorithm.numWithin(pointObjects,square2)==0)  // don't add a square that contains a point.
-				squares.push(square2);
+				shapes.push(square2);
 		}
 	}
-	return colorByGroupId(squares);
+	return colorByGroupId(shapes);
 }
 
-jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
+/**
+ * Find a set of shapes based on a given set of points.
+ * 
+ * @param points an array of points. Each point should contain the fields: x, y.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
+ * @param createShapesTouchingTwoPoints a function that creates shapes touching two given points.
+ * 
+ * @return a set of shapes (of type jsts.geom.Polygon), such that:
+ * a. Each shape touches two points, based on the function createShapesTouchingTwoPoints.
+ * b. No shape contains a point.
+ */
+jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(coordinates, envelope, createShapesTouchingTwoPoints) {
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	coordinates = this.createCoordinates(coordinates);
 	var pointObjects = this.createPoints(coordinates);
-	var squares = [];
+	var shapes = [];
 	for (var i=0; i<coordinates.length; ++i) {
 		var c1 = coordinates[i];
 		for (var j=0; j<i; ++j) {
 			var c2 = coordinates[j];
+			var coords = createShapesTouchingTwoPoints(c1,c2);
+			var groupId = shapes.length;
+			for (var k=0; k<coords.length; ++k) {
+				newShape = this.createPolygon(this.createLinearRing(coords[k]));
+				newShape.groupId = groupId;
+				
+				// don't add a square that contains a point:
+				var numPointsWithinNewShape = 0;
+				for (var p=0; p<pointObjects.length; ++p) {
+					if (p!=i && p!=j && pointObjects[p].within(newShape))
+						numPointsWithinNewShape++;
+				}
+	
+				if (numPointsWithinNewShape==0)  
+					shapes.push(newShape);
+			}
+		}
+	}
+	return colorByGroupId(shapes);
+}
+
+
+
+jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
+	return this.createShapesTouchingPoints(coordinates, envelope, 
+		function squaresTouchingTwoPoints(c1, c2) {
 			var dist_x = c2.x-c1.x;
 			var dist_y = c2.y-c1.y;
 			var mid_x = (c1.x+c2.x)/2;
 			var mid_y = (c1.y+c2.y)/2;
-
-			var coords = [];
-			coords.push([c1, c2, coord(c2.x-dist_y,c2.y+dist_x), coord(c1.x-dist_y,c1.y+dist_x), c1]);
-			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
-			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1]);
-
-			var groupId = squares.length;
-			for (var k=0; k<coords.length; ++k) {
-				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
-				newsquare.groupId = groupId;
-				
-				// don't add a square that contains a point:
-				var numPointsWithinNewSquare = 0;
-				for (var p=0; p<pointObjects.length; ++p) {
-					if (p!=i && p!=j && pointObjects[p].within(newsquare))
-						numPointsWithinNewSquare++;
-				}
-	
-				if (numPointsWithinNewSquare==0)  
-					squares.push(newsquare);
-			}
+			return [
+			        [c1, c2, coord(c2.x-dist_y,c2.y+dist_x), coord(c1.x-dist_y,c1.y+dist_x), c1],
+			        [c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1],
+			        [c1, c2, coord(c2.x+dist_y,c2.y-dist_x), coord(c1.x+dist_y,c1.y-dist_x), c1],
+			];
 		}
-	}
-	return colorByGroupId(squares);
+	);
 }
 
 // RAIT = Right-Angled-Isosceles-Triangle
 jsts.geom.GeometryFactory.prototype.createRAITsTouchingPoints = function(coordinates, envelope) {
-	if (!envelope)  envelope = DEFAULT_ENVELOPE;
-	coordinates = this.createCoordinates(coordinates);
-	var pointObjects = this.createPoints(coordinates);
-	var squares = [];
-	for (var i=0; i<coordinates.length; ++i) {
-		var c1 = coordinates[i];
-		for (var j=0; j<i; ++j) {
-			var c2 = coordinates[j];
+	return this.createShapesTouchingPoints(coordinates, envelope, 
+		function RAITsTouchingTwoPoints(c1, c2) {
 			var dist_x = c2.x-c1.x;
 			var dist_y = c2.y-c1.y;
 			var mid_x = (c1.x+c2.x)/2;
 			var mid_y = (c1.y+c2.y)/2;
 
-			var coords = [];
-			coords.push([c1, c2, coord(c2.x-dist_y,c2.y+dist_x), c1]);
-			coords.push([c1, c2, coord(c1.x-dist_y,c1.y+dist_x), c1]);
-			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, c1]);
-			coords.push([c1, c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
-			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), c1]);
-			coords.push([c1, c2, coord(c1.x+dist_y,c1.y-dist_x), c1]);
-
-			var groupId = squares.length;
-			for (var k=0; k<coords.length; ++k) {
-				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
-				newsquare.groupId = groupId;
-				
-				// don't add a square that contains a point:
-				var numPointsWithinNewSquare = 0;
-				for (var p=0; p<pointObjects.length; ++p) {
-					if (p!=i && p!=j && pointObjects[p].within(newsquare))
-						numPointsWithinNewSquare++;
-				}
-	
-				if (numPointsWithinNewSquare==0)  
-					squares.push(newsquare);
-			}
+			return [
+					[c1, c2, coord(c2.x-dist_y,c2.y+dist_x), c1],
+					[c1, c2, coord(c1.x-dist_y,c1.y+dist_x), c1],
+					[c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, c1],
+					[c1, c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1],
+					[c1, c2, coord(c2.x+dist_y,c2.y-dist_x), c1],
+					[c1, c2, coord(c1.x+dist_y,c1.y-dist_x), c1],
+		        ];
 		}
-	}
-	return colorByGroupId(squares);
+	);
 }
+
+
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
 function color(i) {return colors[i % colors.length]}
