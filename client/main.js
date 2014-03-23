@@ -76,9 +76,11 @@ function drawSquares() {
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
 	
 	var rotatedSquares = $("#rotatedSquares").is(':checked');
+	var RAITs = $("#RAITs").is(':checked');
 	//makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	var candidates = (rotatedSquares?
-		factory.createRotatedSquaresTouchingPoints(points, envelope):
+	var candidates = (
+		rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
+		RAITs? factory.createRAITsTouchingPoints(points, envelope):
 		factory.createSquaresTouchingPoints(points, envelope));
 	if (!drawAllCandidateSquares) 
 		candidates = jsts.algorithm.maximumDisjointSet(candidates);

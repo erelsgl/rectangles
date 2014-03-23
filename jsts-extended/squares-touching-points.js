@@ -96,6 +96,48 @@ jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = functio
 	return colorByGroupId(squares);
 }
 
+// RAIT = Right-Angled-Isosceles-Triangle
+jsts.geom.GeometryFactory.prototype.createRAITsTouchingPoints = function(coordinates, envelope) {
+	if (!envelope)  envelope = DEFAULT_ENVELOPE;
+	coordinates = this.createCoordinates(coordinates);
+	var pointObjects = this.createPoints(coordinates);
+	var squares = [];
+	for (var i=0; i<coordinates.length; ++i) {
+		var c1 = coordinates[i];
+		for (var j=0; j<i; ++j) {
+			var c2 = coordinates[j];
+			var dist_x = c2.x-c1.x;
+			var dist_y = c2.y-c1.y;
+			var mid_x = (c1.x+c2.x)/2;
+			var mid_y = (c1.y+c2.y)/2;
+
+			var coords = [];
+			coords.push([c1, c2, coord(c2.x-dist_y,c2.y+dist_x), c1]);
+			coords.push([c1, c2, coord(c1.x-dist_y,c1.y+dist_x), c1]);
+			coords.push([c1, coord(mid_x-dist_y/2,mid_y+dist_x/2), c2, c1]);
+			coords.push([c1, c2, coord(mid_x+dist_y/2,mid_y-dist_x/2), c1]);
+			coords.push([c1, c2, coord(c2.x+dist_y,c2.y-dist_x), c1]);
+			coords.push([c1, c2, coord(c1.x+dist_y,c1.y-dist_x), c1]);
+
+			var groupId = squares.length;
+			for (var k=0; k<coords.length; ++k) {
+				newsquare = this.createPolygon(this.createLinearRing(coords[k]));
+				newsquare.groupId = groupId;
+				
+				// don't add a square that contains a point:
+				var numPointsWithinNewSquare = 0;
+				for (var p=0; p<pointObjects.length; ++p) {
+					if (p!=i && p!=j && pointObjects[p].within(newsquare))
+						numPointsWithinNewSquare++;
+				}
+	
+				if (numPointsWithinNewSquare==0)  
+					squares.push(newsquare);
+			}
+		}
+	}
+	return colorByGroupId(squares);
+}
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
 function color(i) {return colors[i % colors.length]}
