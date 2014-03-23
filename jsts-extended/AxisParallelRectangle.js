@@ -157,6 +157,19 @@
 		  throw new "not implemented for "+other;
 	  }
   }
+
+  var Location = jsts.geom.Location;
+
+//  jsts.geom.AxisParallelRectangle.prototype.relate2 = function(other) {
+//	var im = new jsts.geom.IntersectionMatrix();
+//	var II = (
+//			  this.xmax>other.xmin && other.xmax>this.xmin && 
+//			  this.ymax>other.ymin && other.ymax>this.ymin
+//			 );
+//    im.setAtLeast('FFFFFFFFF');
+//	im.set(Location.INTERIOR, Location.INTERIOR, II? "2": "F");
+//	return im;
+//  }
   
   jsts.geom.AxisParallelRectangle.prototype.overlaps = function(other) {
 	  if (other instanceof jsts.geom.AxisParallelRectangle) {

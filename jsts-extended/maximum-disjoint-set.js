@@ -13,7 +13,7 @@ require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
 var TRACE_PERFORMANCE = false; 
 var numRecursiveCalls;// a measure of performance 
-
+var INTERIOR_DISJOINT = "F********"; // Pattern for "relate" function
 
 /**
  * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
@@ -54,7 +54,9 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
 				overlaps = true;
 			else
-				overlaps = cur.overlapsOrig(other);
+				overlaps = (cur instanceof jsts.geom.AxisParallelRectangle? 
+						cur.overlapsOrig(other): // "relate2" is still not implemented correctly for AxisParallelRectangle
+						!cur.relate(other, INTERIOR_DISJOINT));
 			if (typeof overlaps==='undefined') {
 				console.dir(cur);
 				console.dir(other);

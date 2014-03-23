@@ -337,6 +337,19 @@ $(".shape").change(function() {
 		  throw new "not implemented for "+other;
 	  }
   }
+
+  var Location = jsts.geom.Location;
+
+//  jsts.geom.AxisParallelRectangle.prototype.relate2 = function(other) {
+//	var im = new jsts.geom.IntersectionMatrix();
+//	var II = (
+//			  this.xmax>other.xmin && other.xmax>this.xmin && 
+//			  this.ymax>other.ymin && other.ymax>this.ymin
+//			 );
+//    im.setAtLeast('FFFFFFFFF');
+//	im.set(Location.INTERIOR, Location.INTERIOR, II? "2": "F");
+//	return im;
+//  }
   
   jsts.geom.AxisParallelRectangle.prototype.overlaps = function(other) {
 	  if (other instanceof jsts.geom.AxisParallelRectangle) {
@@ -546,7 +559,7 @@ require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
 var TRACE_PERFORMANCE = false; 
 var numRecursiveCalls;// a measure of performance 
-
+var INTERIOR_DISJOINT = "F********"; // Pattern for "relate" function
 
 /**
  * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
@@ -587,7 +600,9 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
 				overlaps = true;
 			else
-				overlaps = cur.overlapsOrig(other);
+				overlaps = (cur instanceof jsts.geom.AxisParallelRectangle? 
+						cur.overlapsOrig(other): // "relate2" is still not implemented correctly for AxisParallelRectangle
+						!cur.relate(other, INTERIOR_DISJOINT));
 			if (typeof overlaps==='undefined') {
 				console.dir(cur);
 				console.dir(other);
