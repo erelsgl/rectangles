@@ -1,5 +1,5 @@
 /**
- * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-02
@@ -9,11 +9,9 @@ var powerSet = require("powerset");
 var _ = require('underscore');
 
 var jsts = require('jsts');
-require("./intersection-utils"); // add some utility functions to jsts.algorithm
 
 var TRACE_PERFORMANCE = false; 
 var numRecursiveCalls;// a measure of performance 
-var INTERIOR_DISJOINT = "F********"; // Pattern for "relate" function
 
 /**
  * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
@@ -30,9 +28,9 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 		.value();
 
 	// Keep the original overlaps function for later use:
-	for (var ii=0; ii<candidates.length; ++ii) 
-		if (!candidates[ii].overlapsOrig)
-			candidates[ii].overlapsOrig = candidates[ii].overlaps;
+//	for (var ii=0; ii<candidates.length; ++ii) 
+//		if (!candidates[ii].overlapsOrig)
+//			candidates[ii].overlapsOrig = candidates[ii].overlaps;
 
 	// Replace the overlaps function with a caching version:
 	for (var ii=0; ii<candidates.length; ++ii) {
@@ -48,27 +46,23 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 		cur.ymax = envelope.getMaxY();
 		
 		// pre-calculate overlaps with other shapes, to save time:
-		cur.overlapsCache = [];
-		cur.overlapsCache[ii] = true; // a shape overlaps itself
+		cur.disjointCache = [];
+		cur.disjointCache[ii] = true; // a shape overlaps itself
 		for (var jj=0; jj<ii; jj++) {
 			var other = candidates[jj];
-			var overlaps = false;
-			if ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId)
-				overlaps = true;
-			else
-				overlaps = (cur instanceof jsts.geom.AxisParallelRectangle? 
-						cur.overlapsOrig(other): // "relate2" is still not implemented correctly for AxisParallelRectangle
-						!cur.relate(other, INTERIOR_DISJOINT));
-			if (typeof overlaps==='undefined') {
+			var disjoint = ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId?
+				false:
+				disjoint = cur.interiorDisjoint(other));
+			if (typeof disjoint==='undefined') {
 				console.dir(cur);
 				console.dir(other);
-				throw new Error("overlaps returned an undefined value");
+				throw new Error("interiorDisjoint returned an undefined value");
 			}
-			cur.overlapsCache[jj] = other.overlapsCache[ii] = overlaps;
+			cur.disjointCache[jj] = other.disjointCache[ii] = disjoint;
 		}
 		cur.overlaps = function(another) {
 			if ('id' in another)
-				return this.overlapsCache[another.id];
+				return this.disjointCache[another.id];
 			else {
 				console.dir(another);
 				throw new Error("id not found");
@@ -83,6 +77,34 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
 	return maxDisjointSet;
 }
+
+/**
+ * @return true iff all pairs of shapes in the given array are interior-disjoint
+ */
+function arePairwiseInteriorDisjoint(shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape_i_id = shapes[i].id;
+		for (var j=0; j<i; ++j) 
+			if (!shapes[j].disjointCache[shape_i_id])
+				return false;
+	}
+	return true;
+}
+
+
+/**
+ * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
+ */
+function calcInteriorDisjoint(shapes, referenceShapes) {
+	var referenceShapesIds = _.pluck(referenceShapes, "id");
+	return shapes.filter(function(shape) {
+		for (var i=0; i<referenceShapesIds.length; ++i) 
+			if (!shape.disjointCache[referenceShapesIds[i]])
+				return false;
+		return true;
+	});
+}
+
 
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
@@ -113,15 +135,12 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 	
 	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
 		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
-		if (!jsts.algorithm.arePairwiseNotOverlapping(subsetOfIntersectedShapes)) 
+		if (!arePairwiseInteriorDisjoint(subsetOfIntersectedShapes)) 
 			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 			continue;
 		
-//		console.log("subsetOfIntersectedShapes="+JSON.stringify(subsetOfIntersectedShapes));
-		var candidatesOnSideOne = jsts.algorithm.calcNotOverlapping(partition[0], subsetOfIntersectedShapes);
-		var candidatesOnSideTwo = jsts.algorithm.calcNotOverlapping(partition[2], subsetOfIntersectedShapes);
-//		console.log("\tcandidatesOnSideOne="+JSON.stringify(candidatesOnSideOne));
-//		console.log("\tcandidatesOnSideTwo="+JSON.stringify(candidatesOnSideTwo));
+		var candidatesOnSideOne = calcInteriorDisjoint(partition[0], subsetOfIntersectedShapes);
+		var candidatesOnSideTwo = calcInteriorDisjoint(partition[2], subsetOfIntersectedShapes);
 
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {

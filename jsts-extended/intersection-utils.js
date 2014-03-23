@@ -5,6 +5,13 @@
  */
 
 /**
+ * Define the relation "interior-disjoint" (= overlaps or covers or coveredBy)
+ */
+jsts.geom.Geometry.prototype.interiorDisjoint = function(other) {
+	return this.relate(other, "F********");
+}
+
+/**
  * @return true iff no pair of shapes in the given array intersect each other.
  */
 jsts.algorithm.arePairwiseNotIntersecting = function(shapes) {
@@ -28,6 +35,21 @@ jsts.algorithm.arePairwiseNotOverlapping = function(shapes) {
 		for (var j=0; j<i; ++j) {
 			var shape2 = shapes[j];
 			if (shape1.overlaps(shape2))
+				return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * @return true iff all pairs of shapes in the given array are interior-disjoint
+ */
+jsts.algorithm.arePairwiseInteriorDisjoint = function(shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape1 = shapes[i];
+		for (var j=0; j<i; ++j) {
+			var shape2 = shapes[j];
+			if (!shape1.interiorDisjoint(shape2))
 				return false;
 		}
 	}
@@ -68,7 +90,7 @@ jsts.algorithm.numWithin = function(shapes, referenceShape) {
 jsts.algorithm.calcNotOverlapping = function(shapes, referenceShapes) {
 	return shapes.filter(function(cur) {
 		return (jsts.algorithm.numOverlapping(referenceShapes,cur)==0);
-	}, []);
+	});
 }
 
 /**
@@ -77,5 +99,5 @@ jsts.algorithm.calcNotOverlapping = function(shapes, referenceShapes) {
 jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
 	return shapes.filter(function(cur) {
 		return (jsts.algorithm.numIntersecting(referenceShapes,cur)==0);
-	}, []);
+	});
 }

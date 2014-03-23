@@ -173,9 +173,17 @@
   
   jsts.geom.AxisParallelRectangle.prototype.overlaps = function(other) {
 	  if (other instanceof jsts.geom.AxisParallelRectangle) {
+		  return !this.interiorDisjoint(other) && !this.contains(other) && !other.contains(this);
+	  } else {
+		  throw new "not implemented for "+other;
+	  }
+  }
+  
+  jsts.geom.AxisParallelRectangle.prototype.interiorDisjoint = function(other) {
+	  if (other instanceof jsts.geom.AxisParallelRectangle) {
 		  return (
-				  this.xmax>other.xmin && other.xmax>this.xmin && 
-				  this.ymax>other.ymin && other.ymax>this.ymin
+				  this.xmax<=other.xmin || other.xmax<=this.xmin || 
+				  this.ymax<=other.ymin || other.ymax<=this.ymin
 				 );
 	  } else {
 		  throw new "not implemented for "+other;
