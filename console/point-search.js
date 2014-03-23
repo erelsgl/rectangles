@@ -5,58 +5,64 @@
  * @since 2014-02
  */
 var X_RANGE = Y_RANGE = 400;
-
-var xminWall = -Infinity; //0;//
+var xminWall = 0; //-Infinity; //
 var xmaxWall = Infinity; // X_RANGE; //
-var yminWall = -Infinity; // 0; // 
-var ymaxWall = Y_RANGE; //Infinity; // 
-
-var maximumDisjointSet = require("../shared/maximum-disjoint-set");
-var squaresTouchingPoints = require("../shared/squares-touching-points");
-var pointsToString = require("../shared/points-to-string");
-
-var initial_points = [
-  {x:140, y:Y_RANGE},
-  {x:180, y:Y_RANGE},
-  {x:200, y:Y_RANGE},
-  {x:210, y:Y_RANGE},
-  {x:230, y:Y_RANGE},
-  {x:270, y:Y_RANGE},
-
-  {x:205,y:0},
-
-  {x:231, y:Y_RANGE-20},
-  {x:171, y:Y_RANGE-21},
-  ];
-
-var points = initial_points.slice(0);
-var disjointset = maximumDisjointSet(squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall));
-console.log(disjointset.length);
-
-var start=new Date();
+var yminWall = 0; // -Infinity; // 
+var ymaxWall = Infinity; // Y_RANGE; //
 
 var fs = require('fs');
-var results = "";
-var step = 2;
-var minDisjointSetSize = Infinity;
-for (var x=100; x<=300; x+=step) {
-	for (var y=0; y<=200; y+=step) {
-		var points = initial_points.slice(0);
-//		points[5].x = x;
-//		points[5].y = Y_RANGE-y;
-		points[7].x = x;
-		points[7].y = Y_RANGE-y;
-		points[8].x = X_RANGE-x;
-		points[8].y = Y_RANGE-y;
-		makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-		var disjointset = maximumDisjointSet(squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall));
-		results += (x+"\t"+y+"\t"+disjointset.length+"\n");
-		if (disjointset.length<minDisjointSetSize)
-			minDisjointSetSize = disjointset.length;
+var exec = require('child_process').exec;
+var jsts = require("../jsts-extended");
+var factory = new jsts.geom.GeometryFactory();
+
+var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
+
+function createResults(fromX, toX, fromY, toY, step, newPoints, callback) {
+	var startTime=new Date();
+	var results = "";
+	var minDisjointSetSize=Infinity, maxDisjointSetSize=0;
+	for (var x=fromX; x<=toX; x+=step) {
+		for (var y=fromY; y<=toY; y+=step) {
+			var points = newPoints(x,y)
+			var candidates = factory.createSquaresTouchingPoints(points, envelope);
+			var disjointset = jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
+			results += (x+"\t"+y+"\t"+disjointset.length+"\n");
+			if (disjointset.length<minDisjointSetSize)
+				minDisjointSetSize = disjointset.length;
+			if (disjointset.length>maxDisjointSetSize)
+				maxDisjointSetSize = disjointset.length;
+		}
 	}
+	console.log("sizes="+minDisjointSetSize+".."+maxDisjointSetSize+". Time: "+(new Date()-startTime)+" [ms]");
+	callback(results, minDisjointSetSize, maxDisjointSetSize);
 }
-fs.writeFile("results.dat", results);
 
-var elapsed=new Date()-start;
-console.log("minDisjointSetSize="+minDisjointSetSize+" time: "+elapsed+" [ms]");
 
+for (var yy=0; yy<400; yy+=25) {
+	createResults(0,400, 0,400, 5, 
+		function newPoints(x,y) {
+			return [
+			  	  {x:0, y:0},
+			  	  {x:100, y:yy},
+			  	  {x:x, y:y},
+			  	];
+		},
+		function callback(results, minDisjointSetSize, maxDisjointSetSize) {
+			var filename = "results"+yy+".dat";
+			fs.writeFileSync(filename, results);
+			var command = "gnuplot --persist -e '"+
+				"set size square; "+
+				"rgb(r,g,b) = 65536 * int(r) + 256 * int(g) + int(b); "+
+				"plot \""+filename+"\" using 1:2:(rgb(0,($3-"+minDisjointSetSize+")*60,0)) with points pointsize 1 pointtype 3 linecolor rgbcolor variable"+
+				"'";
+			exec(command, function (error, stdout, stderr) {
+						console.log('stdout: ' + stdout);
+						console.log('stderr: ' + stderr);
+						if (error !== null) {
+							console.log('exec error: ' + error);
+						}
+				}
+			);
+		}
+	);
+}	

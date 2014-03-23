@@ -178,7 +178,7 @@ $(".shape").change(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended/index":4,"underscore":31}],2:[function(require,module,exports){
+},{"../jsts-extended/index":4,"underscore":33}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -458,6 +458,7 @@ require("./intersection-utils");
 require("./factory-utils");
 require("./AxisParallelRectangle");
 require("./maximum-disjoint-set");
+require("./maximum-disjoint-set-solver");
 require("./squares-touching-points");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
@@ -469,7 +470,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set":6,"./squares-touching-points":7,"jsts":8}],5:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set":7,"./maximum-disjoint-set-solver":6,"./squares-touching-points":9,"jsts":10}],5:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some simple utility functions related to intersection of shapes.
  * @author Erel Segal-Halevi
@@ -574,55 +575,20 @@ jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
 	});
 }
 
-},{}],6:[function(require,module,exports){
-/**
- * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
- * 
- * @author Erel Segal-Halevi
- * @since 2014-02
- */
 
-var powerSet = require("powerset");
-var _ = require('underscore');
 
-var jsts = require('jsts');
 
-var TRACE_PERFORMANCE = false; 
-var numRecursiveCalls;// a measure of performance 
 
-/**
- * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
- * @param candidates a set of shapes (geometries).
- * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
- * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
- */
-jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
-	if (!stopAtCount) stopAtCount = Infinity;
-	if (TRACE_PERFORMANCE) var startTime = new Date();
-	candidates = _.chain(candidates)
-		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
-		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
-		.value();
 
-	// Keep the original overlaps function for later use:
-//	for (var ii=0; ii<candidates.length; ++ii) 
-//		if (!candidates[ii].overlapsOrig)
-//			candidates[ii].overlapsOrig = candidates[ii].overlaps;
 
-	// Replace the overlaps function with a caching version:
+/*--- Interior-Disjoint Cache ---*/
+
+jsts.algorithm.prepareDisjointCache = function(candidates) {
 	for (var ii=0; ii<candidates.length; ++ii) {
 		var cur = candidates[ii];
 		cur.id = ii;
-		cur.normalize();
-
-		// calculate axis-parallel envelope:
-		var envelope = cur.getEnvelopeInternal();
-		cur.xmin = envelope.getMinX();
-		cur.xmax = envelope.getMaxX();
-		cur.ymin = envelope.getMinY();
-		cur.ymax = envelope.getMaxY();
 		
-		// pre-calculate overlaps with other shapes, to save time:
+		// pre-calculate interior-disjoint relations with other shapes, to save time:
 		cur.disjointCache = [];
 		cur.disjointCache[ii] = true; // a shape overlaps itself
 		for (var jj=0; jj<ii; jj++) {
@@ -646,19 +612,12 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 			}
 		}
 	}
-//	console.dir(candidates);
-	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
-
-	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
-	var maxDisjointSet = maximumDisjointSetRec(candidates,stopAtCount);
-	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
-	return maxDisjointSet;
 }
 
 /**
  * @return true iff all pairs of shapes in the given array are interior-disjoint
  */
-function arePairwiseInteriorDisjoint(shapes) {
+jsts.algorithm.arePairwiseDisjointByCache = function(shapes) {
 	for (var i=0; i<shapes.length; ++i) {
 		var shape_i_id = shapes[i].id;
 		for (var j=0; j<i; ++j) 
@@ -672,8 +631,8 @@ function arePairwiseInteriorDisjoint(shapes) {
 /**
  * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
  */
-function calcInteriorDisjoint(shapes, referenceShapes) {
-	var referenceShapesIds = _.pluck(referenceShapes, "id");
+jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
+	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id});
 	return shapes.filter(function(shape) {
 		for (var i=0; i<referenceShapesIds.length; ++i) 
 			if (!shape.disjointCache[referenceShapesIds[i]])
@@ -682,6 +641,195 @@ function calcInteriorDisjoint(shapes, referenceShapes) {
 	});
 }
 
+
+
+},{}],6:[function(require,module,exports){
+/**
+ * Asynchronous version of maximum-disjoint-set, with option to interrupt.
+ * 
+ * Based on idea of barry-johnson: http://stackoverflow.com/a/22593680/827927
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-03
+ */
+
+var powerSet = require("powerset");
+var _ = require('underscore');
+
+var jsts = require('jsts');
+require("./intersection-utils");
+require("./partition-utils");
+
+var TRACE_PERFORMANCE = false; 
+
+
+
+/*--- Main Algorithm ---*/
+
+/**
+ * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * @param candidates a set of shapes (geometries).
+ * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
+ * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
+ */
+jsts.algorithm.MaximumDisjointSetSolver = function(candidates, stopAtCount) {
+	if (TRACE_PERFORMANCE) var startTime = new Date();
+	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
+	candidates.forEach(function(cur) {
+		cur.normalize();
+		var envelope = cur.getEnvelopeInternal();
+		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
+		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
+	});
+	candidates = _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
+	jsts.algorithm.prepareDisjointCache(candidates);
+	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
+	//	console.dir(candidates);
+	
+	this.candidates = candidates;
+	this.stopAtCount = stopAtCount? stopAtCount: Infinity;
+	this.interrupted = false;
+}
+
+jsts.algorithm.MaximumDisjointSetSolver.prototype.interrupt = function(){
+    this.interrupted = true;
+};
+
+jsts.algorithm.MaximumDisjointSetSolver.prototype.solve = function (callback) {
+	var self = this;
+	setImmediate(function() {
+		if (TRACE_PERFORMANCE) self.numRecursiveCalls = 0;
+		var maxDisjointSet = self.maximumDisjointSetRec(self.candidates);
+		if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+self.numRecursiveCalls);
+		callback(maxDisjointSet);
+	});
+}
+
+
+/*--- Recursive function ---*/
+
+/**
+ * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
+ * 
+ * @param candidates an array of candidate rectangles from which to select the MDS.
+ * Each rectangle should contain the fields: xmin, xmax, ymin, ymax.
+ * 
+ * @return a largest set of rectangles that do not interior-intersect.
+ * 
+ * @note uses a simple exact divide-and-conquer algorithm that can be exponential in the worst case.
+ * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-01
+ */
+jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = function(candidates) {
+	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
+	if (candidates.length<=1) 
+		return candidates;
+	if (this.interrupted)
+		return [];
+
+	var currentMaxDisjointSet = [];
+	var partition = jsts.algorithm.partitionShapes(candidates);
+			//	partition[0] - on one side of separator;
+			//	partition[1] - intersected by separator;
+			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
+
+	var allSubsetsOfIntersectedShapes = powerSet(partition[1]);
+
+	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
+		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
+		if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes)) 
+			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
+			continue;
+
+		var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
+		var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
+
+		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
+		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
+			var temp = candidatesOnSideOne;
+			candidatesOnSideOne = candidatesOnSideTwo;
+			candidatesOnSideTwo = temp;
+		}
+
+		// branch-and-bound (advice by D.W.):
+		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
+		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
+			continue;
+
+		var maxDisjointSetOnSideOne = this.maximumDisjointSetRec(candidatesOnSideOne);
+		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
+		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
+			continue;
+
+		var maxDisjointSetOnSideTwo = this.maximumDisjointSetRec(candidatesOnSideTwo);
+
+		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
+		if (newDisjointSet.length > currentMaxDisjointSet.length) 
+			currentMaxDisjointSet = newDisjointSet;
+		
+		if (currentMaxDisjointSet.length >= this.stopAtCount)
+			return currentMaxDisjointSet;
+	}
+	return currentMaxDisjointSet;
+}
+
+
+
+},{"./intersection-utils":5,"./partition-utils":8,"jsts":10,"powerset":32,"underscore":33}],7:[function(require,module,exports){
+/**
+ * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-02
+ */
+
+var powerSet = require("powerset");
+var _ = require('underscore');
+
+var jsts = require('jsts');
+require("./intersection-utils");
+require("./partition-utils");
+
+var TRACE_PERFORMANCE = false; 
+var numRecursiveCalls;// a measure of performance 
+
+
+/*--- Main Algorithm ---*/
+
+/**
+ * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * @param candidates a set of shapes (geometries).
+ * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
+ * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
+ */
+jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
+	if (!stopAtCount) stopAtCount = Infinity;
+
+	if (TRACE_PERFORMANCE) var startTime = new Date();
+	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
+	candidates.forEach(function(cur) {
+		cur.normalize();
+		var envelope = cur.getEnvelopeInternal();
+		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
+		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
+	});
+	candidates = _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
+
+	jsts.algorithm.prepareDisjointCache(candidates);
+	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
+	//	console.dir(candidates);
+
+	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
+	var maxDisjointSet = maximumDisjointSetRec(candidates,stopAtCount);
+	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
+	return maxDisjointSet;
+}
+
+
+
+/*--- Recursive function ---*/
 
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
@@ -703,21 +851,21 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 		return candidates;
 
 	var currentMaxDisjointSet = [];
-	var partition = partitionShapes(candidates);
+	var partition = jsts.algorithm.partitionShapes(candidates);
 			//	partition[0] - on one side of separator;
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
 
 	var allSubsetsOfIntersectedShapes = powerSet(partition[1]);
-	
+
 	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
 		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
-		if (!arePairwiseInteriorDisjoint(subsetOfIntersectedShapes)) 
+		if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes)) 
 			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 			continue;
-		
-		var candidatesOnSideOne = calcInteriorDisjoint(partition[0], subsetOfIntersectedShapes);
-		var candidatesOnSideTwo = calcInteriorDisjoint(partition[2], subsetOfIntersectedShapes);
+
+		var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
+		var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
 
 		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
 		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
@@ -725,7 +873,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 			candidatesOnSideOne = candidatesOnSideTwo;
 			candidatesOnSideTwo = temp;
 		}
-		
+
 		// branch-and-bound (advice by D.W.):
 		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
@@ -748,6 +896,18 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 	return currentMaxDisjointSet;
 }
 
+
+
+},{"./intersection-utils":5,"./partition-utils":8,"jsts":10,"powerset":32,"underscore":33}],8:[function(require,module,exports){
+/**
+ * Adds to jsts.algorithm some utility functions related to partitioning.
+ * These utility functions are used mainly by the maximum-disjoint-set algorithm.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-03
+ */
+var _ = require('underscore');
+
 /**
  * Subroutine of maximumDisjointSet.
  * 
@@ -760,7 +920,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 	@note Tries to minimize the size of partition[1]. I.e., out of all possible separators, selects a separator that intersects a smallest number of rectangles.
  * 
  */
-function partitionShapes(candidates) {
+jsts.algorithm.partitionShapes = function(candidates) {
 	if (candidates.length<=1)
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 
@@ -800,7 +960,7 @@ function partitionShapes(candidates) {
 
 /**
  * @param shapes an array of shapes, each of which contains pre-calculated "xmin" and "xmax" fields.
- * @returns a sorted array of all X values of the envelopes.
+ * @returns a sorted array of all unique X values of the envelopes.
  */
 function sortedXValues(shapes) {
 	var xvalues = {};
@@ -810,12 +970,13 @@ function sortedXValues(shapes) {
 	}
 	var xlist = Object.keys(xvalues);
 	xlist.sort(function(a,b){return a-b});
+//	console.log(xlist)
 	return xlist;
 }
 
 /**
  * @param shapes an array of shapes, each of which contains pre-calculated "ymin" and "ymax" fields.
- * @returns a sorted array of all Y values of the envelopes.
+ * @returns a sorted array of all unique Y values of the envelopes.
  */
 function sortedYValues(shapes) {
 	var yvalues = {};
@@ -896,7 +1057,7 @@ function partitionDescription(partition) {
 }
 
 
-},{"jsts":8,"powerset":30,"underscore":31}],7:[function(require,module,exports){
+},{"underscore":33}],9:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -1069,14 +1230,14 @@ function colorByGroupId(shapes) {
 	return shapes;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":8}],8:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":10}],10:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":9,"javascript.util":10}],9:[function(require,module,exports){
+},{"./lib/jsts":11,"javascript.util":12}],11:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -2654,10 +2815,10 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],10:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 module.exports = require('./src');
 
-},{"./src":29}],11:[function(require,module,exports){
+},{"./src":31}],13:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -2822,7 +2983,7 @@ ArrayList.Iterator.prototype.remove = function() {
 
 module.exports = ArrayList;
 
-},{"./Collection":13,"./IndexOutOfBoundsException":17,"./List":19,"./NoSuchElementException":21,"./OperationNotSupported":22}],12:[function(require,module,exports){
+},{"./Collection":15,"./IndexOutOfBoundsException":19,"./List":21,"./NoSuchElementException":23,"./OperationNotSupported":24}],14:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Arrays.html
  *
@@ -2880,7 +3041,7 @@ Arrays.asList = function(array) {
 
 module.exports = Arrays;
 
-},{}],13:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 /**
  * @requires Iterator.js
  */
@@ -2955,7 +3116,7 @@ Collection.prototype.remove = function(o) {};
 
 module.exports = Collection;
 
-},{"./Iterator":18}],14:[function(require,module,exports){
+},{"./Iterator":20}],16:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -2974,7 +3135,7 @@ EmptyStackException.prototype.name = 'EmptyStackException';
 
 module.exports = EmptyStackException;
 
-},{}],15:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 /**
  * @requires Map.js
  * @requires ArrayList.js
@@ -3038,7 +3199,7 @@ HashMap.prototype.size = function() {
 
 module.exports = HashMap;
 
-},{"./ArrayList":11,"./Map":20}],16:[function(require,module,exports){
+},{"./ArrayList":13,"./Map":22}],18:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -3199,7 +3360,7 @@ HashSet.Iterator.prototype.remove = function() {
 
 module.exports = HashSet;
 
-},{"./Collection":13,"./NoSuchElementException":21,"./OperationNotSupported":22,"./Set":23}],17:[function(require,module,exports){
+},{"./Collection":15,"./NoSuchElementException":23,"./OperationNotSupported":24,"./Set":25}],19:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3218,7 +3379,7 @@ IndexOutOfBoundsException.prototype.name = 'IndexOutOfBoundsException';
 
 module.exports = IndexOutOfBoundsException;
 
-},{}],18:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Iterator.html
  * @interface
@@ -3247,7 +3408,7 @@ Iterator.prototype.remove = function() {};
 
 module.exports = Iterator;
 
-},{}],19:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -3281,7 +3442,7 @@ List.prototype.isEmpty = function() {};
 
 module.exports = List;
 
-},{"./Collection":13}],20:[function(require,module,exports){
+},{"./Collection":15}],22:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Map.html
  *
@@ -3327,7 +3488,7 @@ Map.prototype.values = function() {};
 
 module.exports = Map;
 
-},{}],21:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3346,7 +3507,7 @@ NoSuchElementException.prototype.name = 'NoSuchElementException';
 
 module.exports = NoSuchElementException;
 
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3365,7 +3526,7 @@ OperationNotSupported.prototype.name = 'OperationNotSupported';
 
 module.exports = OperationNotSupported;
 
-},{}],23:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -3393,7 +3554,7 @@ Set.prototype.contains = function(o) {};
 
 module.exports = Set;
 
-},{"./Collection":13}],24:[function(require,module,exports){
+},{"./Collection":15}],26:[function(require,module,exports){
 /**
  * @requires Map.js
  */
@@ -3410,7 +3571,7 @@ SortedMap.prototype = new Map;
 
 module.exports = SortedMap;
 
-},{"./Map":20}],25:[function(require,module,exports){
+},{"./Map":22}],27:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -3427,7 +3588,7 @@ SortedSet.prototype = new Set;
 
 module.exports = SortedSet;
 
-},{"./Set":23}],26:[function(require,module,exports){
+},{"./Set":25}],28:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -3545,7 +3706,7 @@ Stack.prototype.toArray = function() {
 
 module.exports = Stack;
 
-},{"./EmptyStackException":14,"./List":19}],27:[function(require,module,exports){
+},{"./EmptyStackException":16,"./List":21}],29:[function(require,module,exports){
 /**
  * @requires SortedMap.js
  * @requires ArrayList.js
@@ -3638,7 +3799,7 @@ TreeMap.prototype.size = function() {
 
 module.exports = TreeMap;
 
-},{"./ArrayList":11,"./Map":20,"./SortedMap":24}],28:[function(require,module,exports){
+},{"./ArrayList":13,"./Map":22,"./SortedMap":26}],30:[function(require,module,exports){
 /**
  * @requires SortedSet.js
  */
@@ -3806,7 +3967,7 @@ TreeSet.Iterator.prototype.remove = function() {
 
 module.exports = TreeSet;
 
-},{"./Collection":13,"./NoSuchElementException":21,"./OperationNotSupported":22,"./SortedSet":25}],29:[function(require,module,exports){
+},{"./Collection":15,"./NoSuchElementException":23,"./OperationNotSupported":24,"./SortedSet":27}],31:[function(require,module,exports){
 module.exports.ArrayList = require('./ArrayList');
 module.exports.Arrays = require('./Arrays');
 module.exports.Collection = require('./Collection');
@@ -3822,7 +3983,7 @@ module.exports.Stack = require('./Stack');
 module.exports.TreeMap = require('./TreeMap');
 module.exports.TreeSet = require('./TreeSet');
 
-},{"./ArrayList":11,"./Arrays":12,"./Collection":13,"./HashMap":15,"./HashSet":16,"./Iterator":18,"./List":19,"./Map":20,"./Set":23,"./SortedMap":24,"./SortedSet":25,"./Stack":26,"./TreeMap":27,"./TreeSet":28}],30:[function(require,module,exports){
+},{"./ArrayList":13,"./Arrays":14,"./Collection":15,"./HashMap":17,"./HashSet":18,"./Iterator":20,"./List":21,"./Map":22,"./Set":25,"./SortedMap":26,"./SortedSet":27,"./Stack":28,"./TreeMap":29,"./TreeSet":30}],32:[function(require,module,exports){
 /* vim:set ts=2 sw=2 sts=2 expandtab */
 /*jshint asi: true undef: true es5: true node: true browser: true devel: true
          forin: true latedef: false globalstrict: true*/
@@ -3849,7 +4010,7 @@ module.exports = function powerset(input) {
   }, [[]])
 }
 
-},{}],31:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
