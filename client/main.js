@@ -83,7 +83,7 @@ function drawSquares() {
 		RAITs? factory.createRAITsTouchingPoints(points, envelope):
 		factory.createSquaresTouchingPoints(points, envelope));
 	if (!drawAllCandidateSquares) 
-		candidates = jsts.algorithm.maximumDisjointSet(candidates);
+		candidates = jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
 
 	for (var i=0; i<candidates.length; ++i) {
 		var shape = candidates[i];

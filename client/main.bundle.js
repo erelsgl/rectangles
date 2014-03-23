@@ -84,7 +84,7 @@ function drawSquares() {
 		RAITs? factory.createRAITsTouchingPoints(points, envelope):
 		factory.createSquaresTouchingPoints(points, envelope));
 	if (!drawAllCandidateSquares) 
-		candidates = jsts.algorithm.maximumDisjointSet(candidates);
+		candidates = jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
 
 	for (var i=0; i<candidates.length; ++i) {
 		var shape = candidates[i];
@@ -566,9 +566,11 @@ var INTERIOR_DISJOINT = "F********"; // Pattern for "relate" function
 /**
  * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
  * @param candidates a set of shapes (geometries).
+ * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
  * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
  */
-jsts.algorithm.maximumDisjointSet = function(candidates) {
+jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
+	if (!stopAtCount) stopAtCount = Infinity;
 	if (TRACE_PERFORMANCE) var startTime = new Date();
 	candidates = _.chain(candidates)
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
@@ -625,7 +627,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
 	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 
 	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
-	var maxDisjointSet = maximumDisjointSetRec(candidates);
+	var maxDisjointSet = maximumDisjointSetRec(candidates,stopAtCount);
 	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
 	return maxDisjointSet;
 }
@@ -644,7 +646,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates) {
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-function maximumDisjointSetRec(candidates) {
+function maximumDisjointSetRec(candidates,stopAtCount) {
 	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
 	if (candidates.length<=1) 
 		return candidates;
@@ -691,6 +693,9 @@ function maximumDisjointSetRec(candidates) {
 		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 		if (newDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = newDisjointSet;
+		
+		if (currentMaxDisjointSet.length >= stopAtCount)
+			return currentMaxDisjointSet;
 	}
 	return currentMaxDisjointSet;
 }
