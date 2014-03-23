@@ -10,6 +10,16 @@ var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
 
+describe('squaresTouchingPoints in simple cases', function() {
+	it('works for empty sets', function() {
+		factory.createSquaresTouchingPoints([]).should.have.lengthOf(0);
+	})
+
+	it('works for a single point', function() {
+		factory.createSquaresTouchingPoints([{x:1,y:1}]).should.have.lengthOf(0);
+	})
+})
+
 describe('squaresTouchingPoints without walls', function() {
 	it('works for two horizontal points', function() {
 		var squares = factory.createSquaresTouchingPoints([{x:1,y:1}, {x:2,y:1}]);
@@ -47,16 +57,6 @@ var p1={x:1,y:1};
 var p2={x:2,y:4};
 var p3={x:4,y:2};
 var p4={x:5,y:5};
-
-describe('squaresTouchingPoints in simple cases', function() {
-	it('works for empty sets', function() {
-		factory.createSquaresTouchingPoints([]).should.have.lengthOf(0);
-	})
-
-	it('works for a single point', function() {
-		factory.createSquaresTouchingPoints([p1]).should.have.lengthOf(0);
-	})
-})
 
 describe('squaresTouchingPoints without walls', function() {
 	it('works for two points at left end', function() {
@@ -108,3 +108,38 @@ describe('rotatedSquaresTouchingPoints without walls', function() {
 	});
 })
 
+
+describe('rotatedSquaresTouchingPoints with walls', function() {
+	var p1 = {x:0,y:0};
+	var p2 = {x:3,y:1};
+	var p3 = {x:3,y:0};
+	var p4 = {x:3,y:-1};
+	it('works with a single wall at the west', function() {
+		var walls = new jsts.geom.Envelope(0,Infinity,-Infinity,Infinity);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p2],walls)).should.eql(
+				[ 'POLYGON((3 1,0 0,1 -3,4 -2,3 1))',
+				  'POLYGON((3 1,2 -1,0 0,1 2,3 1))']
+				);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p3],walls)).should.eql(
+				[ 'POLYGON((3 0,0 0,0 -3,3 -3,3 0))',
+				  'POLYGON((3 0,1.5 -1.5,0 0,1.5 1.5,3 0))',
+				  'POLYGON((3 0,0 0,0 3,3 3,3 0))' ]
+				);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p4],walls)).should.eql(
+				[ 'POLYGON((3 -1,1 -2,0 0,2 1,3 -1))',
+				  'POLYGON((3 -1,0 0,1 3,4 2,3 -1))' ]
+				);
+	});
+	it('works with a single wall at the south', function() {
+		var walls = new jsts.geom.Envelope(-Infinity,Infinity,0,Infinity);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p2],walls)).should.eql(
+				[ 'POLYGON((3 1,0 0,-1 3,2 4,3 1))' ]
+				);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p3],walls)).should.eql(
+				[ 'POLYGON((3 0,0 0,0 3,3 3,3 0))' ]
+				);
+		jsts.stringify(factory.createRotatedSquaresTouchingPoints([p1,p4],walls)).should.eql(
+				[]
+				);
+	});
+})

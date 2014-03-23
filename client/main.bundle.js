@@ -770,7 +770,7 @@ function partitionShapes(candidates) {
 		var bestX = _.max(xValues, function(x) {
 			return partitionQuality(partitionByX(candidates, x));
 		});
-		var bestXPartition = partitionByX(candidates, bestX);
+		bestXPartition = partitionByX(candidates, bestX);
 	}
 
 	var bestYPartition = null;
@@ -779,11 +779,14 @@ function partitionShapes(candidates) {
 		var bestY = _.max(yValues, function(y) {
 			return partitionQuality(partitionByY(candidates, y));
 		});
-		var bestYPartition = partitionByY(candidates, bestY);
+		bestYPartition = partitionByY(candidates, bestY);
 	}
 	
-	if (!bestYPartition && !bestXPartition) 
-		throw new Error("No x partition and no y partition! candidates="+JSON.stringify(candidates));
+	if (!bestYPartition && !bestXPartition) {
+		console.dir(candidates.map(function(cur){return cur.toString()}));
+		console.warn("Warning: no x partition and no y partition!");
+		return [[],candidates,[]];
+	}
 
 	if (partitionQuality(bestXPartition)>=partitionQuality(bestYPartition)) {
 //		console.log("\t\tBest separator line: x="+bestX+" "+partitionDescription(bestXPartition));
@@ -975,7 +978,7 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
  * a. Each shape touches two points, based on the function createShapesTouchingTwoPoints.
  * b. No shape contains a point.
  */
-jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(coordinates, envelope, createShapesTouchingTwoPoints) {
+jsts.geom.GeometryFactory.prototype.createPolygonsTouchingPoints = function(coordinates, envelope, createShapesTouchingTwoPoints) {
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	coordinates = this.createCoordinates(coordinates);
 	var pointObjects = this.createPoints(coordinates);
@@ -987,18 +990,29 @@ jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(coordi
 			var coords = createShapesTouchingTwoPoints(c1,c2);
 			var groupId = shapes.length;
 			for (var k=0; k<coords.length; ++k) {
-				newShape = this.createPolygon(this.createLinearRing(coords[k]));
+				var curCoords = coords[k];
+
+				// don't add a shape outside the envelope:
+				var numPointsOutsideEnvelope = 0;
+				for (var c=0; c<curCoords.length; ++c) {
+					if (!envelope.intersects(curCoords[c]))
+						numPointsOutsideEnvelope++;
+				}
+//				console.log(k+": "+curCoords+": numPointsOutsideEnvelope="+numPointsOutsideEnvelope);
+				if (numPointsOutsideEnvelope>0) 	continue;
+
+				newShape = this.createPolygon(this.createLinearRing(curCoords));
 				newShape.groupId = groupId;
 				
-				// don't add a square that contains a point:
+				// don't add a shape that contains a point:
 				var numPointsWithinNewShape = 0;
 				for (var p=0; p<pointObjects.length; ++p) {
 					if (p!=i && p!=j && pointObjects[p].within(newShape))
 						numPointsWithinNewShape++;
 				}
-	
-				if (numPointsWithinNewShape==0)  
-					shapes.push(newShape);
+				if (numPointsWithinNewShape>0) continue;
+				
+				shapes.push(newShape);
 			}
 		}
 	}
@@ -1008,7 +1022,7 @@ jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(coordi
 
 
 jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = function(coordinates, envelope) {
-	return this.createShapesTouchingPoints(coordinates, envelope, 
+	return this.createPolygonsTouchingPoints(coordinates, envelope, 
 		function squaresTouchingTwoPoints(c1, c2) {
 			var dist_x = c2.x-c1.x;
 			var dist_y = c2.y-c1.y;
@@ -1025,7 +1039,7 @@ jsts.geom.GeometryFactory.prototype.createRotatedSquaresTouchingPoints = functio
 
 // RAIT = Right-Angled-Isosceles-Triangle
 jsts.geom.GeometryFactory.prototype.createRAITsTouchingPoints = function(coordinates, envelope) {
-	return this.createShapesTouchingPoints(coordinates, envelope, 
+	return this.createPolygonsTouchingPoints(coordinates, envelope, 
 		function RAITsTouchingTwoPoints(c1, c2) {
 			var dist_x = c2.x-c1.x;
 			var dist_y = c2.y-c1.y;

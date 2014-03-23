@@ -13,6 +13,9 @@ var jsts = require('jsts');
 var TRACE_PERFORMANCE = false; 
 var numRecursiveCalls;// a measure of performance 
 
+
+/*--- Main Algorithm ---*/
+
 /**
  * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
  * @param candidates a set of shapes (geometries).
@@ -21,18 +24,27 @@ var numRecursiveCalls;// a measure of performance
  */
 jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 	if (!stopAtCount) stopAtCount = Infinity;
+
 	if (TRACE_PERFORMANCE) var startTime = new Date();
 	candidates = _.chain(candidates)
 		.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
 		.uniq(function(cur) { return cur.toString(); })           // remove duplicates
 		.value();
+	prepareDisjointCache(candidates);
+	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 
-	// Keep the original overlaps function for later use:
-//	for (var ii=0; ii<candidates.length; ++ii) 
-//		if (!candidates[ii].overlapsOrig)
-//			candidates[ii].overlapsOrig = candidates[ii].overlaps;
+	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
+	var maxDisjointSet = maximumDisjointSetRec(candidates,stopAtCount);
+	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
+	return maxDisjointSet;
+}
 
-	// Replace the overlaps function with a caching version:
+
+
+
+/*--- Interior-Disjoint Cache ---*/
+
+function prepareDisjointCache(candidates) {
 	for (var ii=0; ii<candidates.length; ++ii) {
 		var cur = candidates[ii];
 		cur.id = ii;
@@ -45,7 +57,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 		cur.ymin = envelope.getMinY();
 		cur.ymax = envelope.getMaxY();
 		
-		// pre-calculate overlaps with other shapes, to save time:
+		// pre-calculate interior-disjoint relations with other shapes, to save time:
 		cur.disjointCache = [];
 		cur.disjointCache[ii] = true; // a shape overlaps itself
 		for (var jj=0; jj<ii; jj++) {
@@ -69,13 +81,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 			}
 		}
 	}
-//	console.dir(candidates);
-	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
-
-	if (TRACE_PERFORMANCE) numRecursiveCalls = 0;
-	var maxDisjointSet = maximumDisjointSetRec(candidates,stopAtCount);
-	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+numRecursiveCalls);
-	return maxDisjointSet;
+	//	console.dir(candidates);
 }
 
 /**
@@ -106,6 +112,10 @@ function calcInteriorDisjoint(shapes, referenceShapes) {
 }
 
 
+
+
+/*--- Recursive function ---*/
+
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
  * 
@@ -132,13 +142,13 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
 
 	var allSubsetsOfIntersectedShapes = powerSet(partition[1]);
-	
+
 	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
 		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
 		if (!arePairwiseInteriorDisjoint(subsetOfIntersectedShapes)) 
 			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 			continue;
-		
+
 		var candidatesOnSideOne = calcInteriorDisjoint(partition[0], subsetOfIntersectedShapes);
 		var candidatesOnSideTwo = calcInteriorDisjoint(partition[2], subsetOfIntersectedShapes);
 
@@ -148,7 +158,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 			candidatesOnSideOne = candidatesOnSideTwo;
 			candidatesOnSideTwo = temp;
 		}
-		
+
 		// branch-and-bound (advice by D.W.):
 		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
@@ -170,6 +180,10 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 	}
 	return currentMaxDisjointSet;
 }
+
+
+
+/*--- Partition subroutines ---*/
 
 /**
  * Subroutine of maximumDisjointSet.
@@ -193,7 +207,7 @@ function partitionShapes(candidates) {
 		var bestX = _.max(xValues, function(x) {
 			return partitionQuality(partitionByX(candidates, x));
 		});
-		var bestXPartition = partitionByX(candidates, bestX);
+		bestXPartition = partitionByX(candidates, bestX);
 	}
 
 	var bestYPartition = null;
@@ -202,11 +216,14 @@ function partitionShapes(candidates) {
 		var bestY = _.max(yValues, function(y) {
 			return partitionQuality(partitionByY(candidates, y));
 		});
-		var bestYPartition = partitionByY(candidates, bestY);
+		bestYPartition = partitionByY(candidates, bestY);
 	}
 	
-	if (!bestYPartition && !bestXPartition) 
-		throw new Error("No x partition and no y partition! candidates="+JSON.stringify(candidates));
+	if (!bestYPartition && !bestXPartition) {
+		console.dir(candidates.map(function(cur){return cur.toString()}));
+		console.warn("Warning: no x partition and no y partition!");
+		return [[],candidates,[]];
+	}
 
 	if (partitionQuality(bestXPartition)>=partitionQuality(bestYPartition)) {
 //		console.log("\t\tBest separator line: x="+bestX+" "+partitionDescription(bestXPartition));
@@ -220,7 +237,7 @@ function partitionShapes(candidates) {
 
 /**
  * @param shapes an array of shapes, each of which contains pre-calculated "xmin" and "xmax" fields.
- * @returns a sorted array of all X values of the envelopes.
+ * @returns a sorted array of all unique X values of the envelopes.
  */
 function sortedXValues(shapes) {
 	var xvalues = {};
@@ -230,12 +247,13 @@ function sortedXValues(shapes) {
 	}
 	var xlist = Object.keys(xvalues);
 	xlist.sort(function(a,b){return a-b});
+//	console.log(xlist)
 	return xlist;
 }
 
 /**
  * @param shapes an array of shapes, each of which contains pre-calculated "ymin" and "ymax" fields.
- * @returns a sorted array of all Y values of the envelopes.
+ * @returns a sorted array of all unique Y values of the envelopes.
  */
 function sortedYValues(shapes) {
 	var yvalues = {};
