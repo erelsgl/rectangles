@@ -4,7 +4,6 @@
  */
 var jsts = require("../jsts-extended/index");
 var factory = new jsts.geom.GeometryFactory();
-//var makeXYUnique = require("../shared/make-xy-unique");
 
 var _ = require("underscore");
 

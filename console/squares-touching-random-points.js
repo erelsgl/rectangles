@@ -18,7 +18,6 @@ var X_RANGE = Y_RANGE = 600;
 var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
-var makeXYUnique = require("../shared/make-xy-unique");
 var pointsToString = require("../shared/points-to-string");
 
 
@@ -59,7 +58,6 @@ function randomPoints(count, xmax, ymax, gridSize) {
 			y: POINT_COUNT_AT_LEFT_WALL<i&&i<=POINT_COUNT_AT_LEFT_WALL+POINT_COUNT_AT_BOTTOM_WALL? 1: randomPointSnappedToGrid(ymax, gridSize),
 		});
 	}
-	makeXYUnique(points);
 	points.sort(function(a,b){return a.x-b.x});
 	return points;
 }

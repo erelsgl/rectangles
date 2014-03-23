@@ -18,7 +18,6 @@ var EXPERIMENT_COUNT=1000;
 var GRID_SIZE = 1;
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
-var makeXYUnique = require("../shared/make-xy-unique");
 var squaresTouchingPoints = require("../shared/squares-touching-points");
 require('../shared/percent');
 
@@ -34,7 +33,6 @@ function randomPoints(count, xmax, ymax, gridSize) {
 			y: randomPointSnappedToGrid(ymax, gridSize),
 		});
 	}
-	makeXYUnique(points);
 	points.sort(function(a,b){return a.x-b.x});
 	return points;
 }

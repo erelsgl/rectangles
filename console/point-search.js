@@ -12,7 +12,6 @@ var yminWall = -Infinity; // 0; //
 var ymaxWall = Y_RANGE; //Infinity; // 
 
 var maximumDisjointSet = require("../shared/maximum-disjoint-set");
-var makeXYUnique = require("../shared/make-xy-unique");
 var squaresTouchingPoints = require("../shared/squares-touching-points");
 var pointsToString = require("../shared/points-to-string");
 
@@ -31,7 +30,6 @@ var initial_points = [
   ];
 
 var points = initial_points.slice(0);
-//makeXYUnique(points);
 var disjointset = maximumDisjointSet(squaresTouchingPoints(points, xminWall, xmaxWall, yminWall, ymaxWall));
 console.log(disjointset.length);
 
