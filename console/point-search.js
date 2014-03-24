@@ -48,16 +48,19 @@ for (var yy=0; yy<400; yy+=25) {
 			  	];
 		},
 		function callback(results, minDisjointSetSize, maxDisjointSetSize) {
-			var filename = "results"+yy+".dat";
-			fs.writeFileSync(filename, results);
+			var input = "results/"+(1000+yy)+".dat";
+			var output = "results/"+(1000+yy)+".png";
+			fs.writeFileSync(input, results);
 			var command = "gnuplot --persist -e '"+
 				"set size square; "+
 				"rgb(r,g,b) = 65536 * int(r) + 256 * int(g) + int(b); "+
-				"plot \""+filename+"\" using 1:2:(rgb(0,($3-"+minDisjointSetSize+")*60,0)) with points pointsize 1 pointtype 3 linecolor rgbcolor variable"+
+				"set term png; set output \""+output+"\";"+
+				"plot \""+input+"\" using 1:2:(rgb(0,($3-"+minDisjointSetSize+")*"+(250/(maxDisjointSetSize-minDisjointSetSize))+",0)) with points pointsize 1 pointtype 5 linecolor rgbcolor variable title\"\""+
 				"'";
+			//console.log(command);
 			exec(command, function (error, stdout, stderr) {
-						console.log('stdout: ' + stdout);
-						console.log('stderr: ' + stderr);
+						if (stdout) console.log('stdout: ' + stdout);
+						if (stderr) console.log('stderr: ' + stderr);
 						if (error !== null) {
 							console.log('exec error: ' + error);
 						}

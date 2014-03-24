@@ -139,6 +139,7 @@ jsts.algorithm.prepareDisjointCache = function(candidates) {
 			}
 		}
 	}
+	return candidates;
 }
 
 /**

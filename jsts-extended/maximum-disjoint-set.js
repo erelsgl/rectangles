@@ -28,16 +28,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 	if (!stopAtCount) stopAtCount = Infinity;
 
 	if (TRACE_PERFORMANCE) var startTime = new Date();
-	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
-	candidates.forEach(function(cur) {
-		cur.normalize();
-		var envelope = cur.getEnvelopeInternal();
-		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
-		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
-	});
-	candidates = _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
-
-	jsts.algorithm.prepareDisjointCache(candidates);
+	candidates = jsts.algorithm.prepareDisjointCache(jsts.algorithm.prepareShapesToPartition(candidates));
 	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 	//	console.dir(candidates);
 

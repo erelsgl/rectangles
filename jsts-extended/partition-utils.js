@@ -7,6 +7,18 @@
  */
 var _ = require('underscore');
 
+
+jsts.algorithm.prepareShapesToPartition = function(candidates) {
+	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
+	candidates.forEach(function(cur) {
+		cur.normalize();
+		var envelope = cur.getEnvelopeInternal();
+		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
+		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
+	});
+	return _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
+}
+
 /**
  * Subroutine of maximumDisjointSet.
  * 
