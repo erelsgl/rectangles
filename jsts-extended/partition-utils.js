@@ -59,7 +59,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 		return [[],candidates,[]];
 	}
 
-	if (partitionQuality(bestXPartition)>=partitionQuality(bestYPartition)) {
+	if (partitionQuality(bestXPartition,true)>=partitionQuality(bestYPartition,true)) {
 //		console.log("\t\tBest separator line: x="+bestX+" "+partitionDescription(bestXPartition));
 		return bestXPartition;
 	} else {
@@ -151,16 +151,18 @@ function partitionByY(shapes, y) {
  * 
  * @param partition contains three parts; see partitionShapes.
  */
-function partitionQuality(partition) {
+function partitionQuality(partition, log) {
 	if (!partition) return -1; // worst quality
 	var numIntersected = partition[1].length; // the smaller - the better
 	var smallestPart = Math.min(partition[2].length,partition[0].length);  // the larger - the better
 	if (!numIntersected && !smallestPart)
 		throw new Error("empty partition - might lead to endless recursion!");
 
+//	if (log) console.log ("smallestPart="+smallestPart+" numIntersected="+numIntersected);
+
 //	return 1/numIntersected; 
 //	return smallestPart; 
-	return smallestPart/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
+	return (smallestPart+1)/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
 }
 
 function partitionDescription(partition) {

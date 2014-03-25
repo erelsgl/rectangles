@@ -10,8 +10,9 @@
   "dependencies": {
     "underscore": "*",
     "seed-random": "*",
-    "powerset": "*",
-    "jsts": "*"
+    "js-combinatorics": "*",
+    "jsts": "*",
+    "async": "*"
   },
   "devDependencies": {
     "mocha": ">=1.0.0",

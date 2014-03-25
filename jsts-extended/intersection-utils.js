@@ -157,6 +157,18 @@ jsts.algorithm.arePairwiseDisjointByCache = function(shapes) {
 
 
 /**
+ * @return true if shape is disjoint from any of the shapes in the "referenceShapes" array.
+ */
+jsts.algorithm.isDisjointByCache = function(shape, referenceShapes) {
+	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id});
+	for (var i=0; i<referenceShapesIds.length; ++i) 
+		if (!shape.disjointCache[referenceShapesIds[i]])
+			return false;
+	return true;
+}
+
+
+/**
  * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
  */
 jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {

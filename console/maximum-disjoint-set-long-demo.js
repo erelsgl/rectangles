@@ -21,17 +21,24 @@ var candidates = factory.createRotatedSquaresTouchingPoints([
 console.log(candidates.length+" candidates");
 var startTime = new Date();
 if (SYNCHRONOUS) {
+	console.log("Synchronous calculation")
 	var disjointSet = jsts.algorithm.maximumDisjointSet(candidates);
 	console.log(disjointSet.length+" disjoints: ");
 	console.dir(jsts.stringify(disjointSet));
 	console.log(new Date()-startTime+" [ms]");
 } else { // ASYNCHRONOUS:
+	console.log("Asynchronous calculation")
 	var MDS = new jsts.algorithm.MaximumDisjointSetSolver(candidates);
-	setTimeout(function(){
+	process.on('SIGINT', function() {
+		console.log("You clicked Ctrl+C - Interrupting");
+		MDS.interrupt();
+	});
+	var timeout = setTimeout(function(){
 		console.log("This took too long - Interrupting");
 		MDS.interrupt();
 	}, 1000); // interrupt after a second
-	MDS.solve(function(disjointSet) {
+	MDS.solve(function(err, disjointSet) {
+		clearTimeout(timeout);
 		console.log(disjointSet.length+" disjoints: ");
 		console.dir(jsts.stringify(disjointSet));
 		console.log(new Date()-startTime+" [ms]");
