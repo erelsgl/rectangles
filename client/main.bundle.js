@@ -178,7 +178,7 @@ $(".shape").change(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended/index":4,"underscore":33}],2:[function(require,module,exports){
+},{"../jsts-extended/index":4,"underscore":34}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -470,7 +470,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set":7,"./maximum-disjoint-set-solver":6,"./squares-touching-points":9,"jsts":10}],5:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set":7,"./maximum-disjoint-set-solver":6,"./squares-touching-points":9,"jsts":12}],5:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some simple utility functions related to intersection of shapes.
  * @author Erel Segal-Halevi
@@ -612,6 +612,7 @@ jsts.algorithm.prepareDisjointCache = function(candidates) {
 			}
 		}
 	}
+	return candidates;
 }
 
 /**
@@ -624,6 +625,18 @@ jsts.algorithm.arePairwiseDisjointByCache = function(shapes) {
 			if (!shapes[j].disjointCache[shape_i_id])
 				return false;
 	}
+	return true;
+}
+
+
+/**
+ * @return true if shape is disjoint from any of the shapes in the "referenceShapes" array.
+ */
+jsts.algorithm.isDisjointByCache = function(shape, referenceShapes) {
+	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id});
+	for (var i=0; i<referenceShapesIds.length; ++i) 
+		if (!shape.disjointCache[referenceShapesIds[i]])
+			return false;
 	return true;
 }
 
@@ -653,12 +666,13 @@ jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
  * @since 2014-03
  */
 
-var powerSet = require("powerset");
+var Combinatorics = require('js-combinatorics').Combinatorics;
 var _ = require('underscore');
 
 var jsts = require('jsts');
 require("./intersection-utils");
 require("./partition-utils");
+var async = require("async");
 
 var TRACE_PERFORMANCE = false; 
 
@@ -671,18 +685,13 @@ var TRACE_PERFORMANCE = false;
  * @param candidates a set of shapes (geometries).
  * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
  * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
+ * 
+ * @note uses a simple exact divide-and-conquer algorithm that can be exponential in the worst case.
+ * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
  */
 jsts.algorithm.MaximumDisjointSetSolver = function(candidates, stopAtCount) {
 	if (TRACE_PERFORMANCE) var startTime = new Date();
-	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
-	candidates.forEach(function(cur) {
-		cur.normalize();
-		var envelope = cur.getEnvelopeInternal();
-		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
-		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
-	});
-	candidates = _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
-	jsts.algorithm.prepareDisjointCache(candidates);
+	candidates = jsts.algorithm.prepareDisjointCache(jsts.algorithm.prepareShapesToPartition(candidates));
 	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 	//	console.dir(candidates);
 	
@@ -695,89 +704,110 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.interrupt = function(){
     this.interrupted = true;
 };
 
-jsts.algorithm.MaximumDisjointSetSolver.prototype.solve = function (callback) {
-	var self = this;
-	setImmediate(function() {
-		if (TRACE_PERFORMANCE) self.numRecursiveCalls = 0;
-		var maxDisjointSet = self.maximumDisjointSetRec(self.candidates);
-		if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+self.numRecursiveCalls);
-		callback(maxDisjointSet);
-	});
-}
-
-
-/*--- Recursive function ---*/
 
 /**
  * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
  * 
- * @param candidates an array of candidate rectangles from which to select the MDS.
- * Each rectangle should contain the fields: xmin, xmax, ymin, ymax.
- * 
- * @return a largest set of rectangles that do not interior-intersect.
- * 
- * @note uses a simple exact divide-and-conquer algorithm that can be exponential in the worst case.
- * For more complicated algorithms that are provably more efficient (in theory) see: https://en.wikipedia.org/wiki/Maximum_disjoint_set 
+ * @param callback(err,result) - asynchronously called with the result.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-01
  */
-jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = function(candidates) {
-	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
-	if (candidates.length<=1) 
-		return candidates;
-	if (this.interrupted)
-		return [];
+jsts.algorithm.MaximumDisjointSetSolver.prototype.solve = function (callback) {
+	if (TRACE_PERFORMANCE) this.numRecursiveCalls = 0;
+	this.maximumDisjointSetRec(this.candidates, this.stopAtCount, callback);
+	if (TRACE_PERFORMANCE) console.log("numRecursiveCalls="+this.numRecursiveCalls);
+}
 
-	var currentMaxDisjointSet = [];
+
+/*--- Recursive functions ---*/
+
+jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = function(candidates, stopAtCount, callback) {
+//	console.log("maximumDisjointSetRec "+candidates.length);
+	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
+	if (candidates.length<=1)
+		return setImmediate(callback.bind(null,null,candidates));
+	if (this.interrupted)
+		return setImmediate(callback.bind(null,null,[]));
+
 	var partition = jsts.algorithm.partitionShapes(candidates);
 			//	partition[0] - on one side of separator;
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
+//	console.log("\tpartition[1] = "+partition[1].length);
+	var t = new Date();
+	var allSubsetsOfIntersectedShapes = Combinatorics.power(partition[1]);
+//	console.log("powerset took "+(new Date()-t))
+//	allSubsetsOfIntersectedShapes = allSubsetsOfIntersectedShapes.filter(jsts.algorithm.arePairwiseDisjointByCache); 	// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
+//	console.log("filter took "+(new Date()-t))
+//	console.log("\tallSubsetsOfIntersectedShapes = "+allSubsetsOfIntersectedShapes.length);
 
-	var allSubsetsOfIntersectedShapes = powerSet(partition[1]);
+	var self = this;
+	var currentMaxDisjointSet = [];
+	var subsetOfIntersectedShapes = null;
+	async.whilst(
+			function loopCondition() { 
+				if (self.interrupted) return false;
+				if (currentMaxDisjointSet.length >= stopAtCount) return false;
+				subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes.next();
+				if (!subsetOfIntersectedShapes) return false;
+				return true;
+			},
+			function loopBody(loopIterationFinished) {
+//				console.log("\ttime="+(new Date()-t)+" intrp="+self.interrupted);
+				if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes))
+					return setImmediate(loopIterationFinished);
 
-	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
-		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
-		if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes)) 
-			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
-			continue;
+				var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
+				var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
 
-		var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
-		var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
+				// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
+				if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
+					var temp = candidatesOnSideOne;
+					candidatesOnSideOne = candidatesOnSideTwo;
+					candidatesOnSideTwo = temp;
+				}
 
-		// Make sure candidatesOnSideOne is larger than candidatesOnSideTwo - to enable heuristics
-		if (candidatesOnSideOne.length<candidatesOnSideTwo.length) {
-			var temp = candidatesOnSideOne;
-			candidatesOnSideOne = candidatesOnSideTwo;
-			candidatesOnSideTwo = temp;
-		}
+				// branch-and-bound (advice by D.W.):
+				var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
+				if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
+					return setImmediate(loopIterationFinished);
 
-		// branch-and-bound (advice by D.W.):
-		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
-		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			continue;
+				//	var maxDisjointSetOnSideOne = self.maximumDisjointSetRec(candidatesOnSideOne);
+				//	var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
+				//	if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
+				//		continue;
+				//	var maxDisjointSetOnSideTwo = self.maximumDisjointSetRec(candidatesOnSideTwo);
+				
+				async.parallel(
+						[self.maximumDisjointSetRec.bind(self, candidatesOnSideOne, stopAtCount),
+						 self.maximumDisjointSetRec.bind(self, candidatesOnSideTwo, stopAtCount)],
+						function processResults(err, results) {
+							//console.log("\t\tprocessResults "+jsts.stringify(results));
+							if (err) {
+								console.dir(err);
+								throw new Error(err);
+							}
+							var maxDisjointSetOnSideOne = results[0];
+							var maxDisjointSetOnSideTwo = results[1];
+							if (!maxDisjointSetOnSideOne || !maxDisjointSetOnSideTwo) {
+								console.dir(results);
+								throw new Error("undefined results");
+							}
+							var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
+							if (newDisjointSet.length>currentMaxDisjointSet.length)
+								currentMaxDisjointSet = newDisjointSet;
+							setImmediate(loopIterationFinished);
+						}
+				)
+			}, // end function loopBody
+			function loopEnd(err) {
+				callback(err, currentMaxDisjointSet);
+			}
+	); // end of async.whilst
+} // end of function maximumDisjointSetRec
 
-		var maxDisjointSetOnSideOne = this.maximumDisjointSetRec(candidatesOnSideOne);
-		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
-		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			continue;
-
-		var maxDisjointSetOnSideTwo = this.maximumDisjointSetRec(candidatesOnSideTwo);
-
-		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
-		if (newDisjointSet.length > currentMaxDisjointSet.length) 
-			currentMaxDisjointSet = newDisjointSet;
-		
-		if (currentMaxDisjointSet.length >= this.stopAtCount)
-			return currentMaxDisjointSet;
-	}
-	return currentMaxDisjointSet;
-}
-
-
-
-},{"./intersection-utils":5,"./partition-utils":8,"jsts":10,"powerset":32,"underscore":33}],7:[function(require,module,exports){
+},{"./intersection-utils":5,"./partition-utils":8,"async":10,"js-combinatorics":11,"jsts":12,"underscore":34}],7:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -785,7 +815,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
  * @since 2014-02
  */
 
-var powerSet = require("powerset");
+var Combinatorics = require('js-combinatorics').Combinatorics;
 var _ = require('underscore');
 
 var jsts = require('jsts');
@@ -808,16 +838,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 	if (!stopAtCount) stopAtCount = Infinity;
 
 	if (TRACE_PERFORMANCE) var startTime = new Date();
-	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
-	candidates.forEach(function(cur) {
-		cur.normalize();
-		var envelope = cur.getEnvelopeInternal();
-		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
-		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
-	});
-	candidates = _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
-
-	jsts.algorithm.prepareDisjointCache(candidates);
+	candidates = jsts.algorithm.prepareDisjointCache(jsts.algorithm.prepareShapesToPartition(candidates));
 	if (TRACE_PERFORMANCE) 	console.log("Preparation time = "+(new Date()-startTime)+" [ms]");
 	//	console.dir(candidates);
 
@@ -856,13 +877,12 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
 
-	var allSubsetsOfIntersectedShapes = powerSet(partition[1]);
+	var allSubsetsOfIntersectedShapes = Combinatorics.power(partition[1]).
+		filter(jsts.algorithm.arePairwiseDisjointByCache); 	// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
 
-	for (var i=0; i<allSubsetsOfIntersectedShapes.length; ++i) {
-		var subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes[i];
-		if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes)) 
-			// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
-			continue;
+	allSubsetsOfIntersectedShapes.forEach(function(subsetOfIntersectedShapes) {
+		if (currentMaxDisjointSet.length >= stopAtCount)
+			return currentMaxDisjointSet;
 
 		var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
 		var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
@@ -877,28 +897,25 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 		// branch-and-bound (advice by D.W.):
 		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			continue;
+			return;
 
 		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne);
 		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			continue;
+			return;
 
 		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo);
 
 		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 		if (newDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = newDisjointSet;
-		
-		if (currentMaxDisjointSet.length >= stopAtCount)
-			return currentMaxDisjointSet;
-	}
+	}); // end of forEach
 	return currentMaxDisjointSet;
 }
 
 
 
-},{"./intersection-utils":5,"./partition-utils":8,"jsts":10,"powerset":32,"underscore":33}],8:[function(require,module,exports){
+},{"./intersection-utils":5,"./partition-utils":8,"js-combinatorics":11,"jsts":12,"underscore":34}],8:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to partitioning.
  * These utility functions are used mainly by the maximum-disjoint-set algorithm.
@@ -907,6 +924,18 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
  * @since 2014-03
  */
 var _ = require('underscore');
+
+
+jsts.algorithm.prepareShapesToPartition = function(candidates) {
+	candidates = candidates.filter(function(cur) { return (cur.getArea() > 0); })  	// remove empty candidates
+	candidates.forEach(function(cur) {
+		cur.normalize();
+		var envelope = cur.getEnvelopeInternal();
+		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
+		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
+	});
+	return _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
+}
 
 /**
  * Subroutine of maximumDisjointSet.
@@ -948,7 +977,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 		return [[],candidates,[]];
 	}
 
-	if (partitionQuality(bestXPartition)>=partitionQuality(bestYPartition)) {
+	if (partitionQuality(bestXPartition,true)>=partitionQuality(bestYPartition,true)) {
 //		console.log("\t\tBest separator line: x="+bestX+" "+partitionDescription(bestXPartition));
 		return bestXPartition;
 	} else {
@@ -1040,16 +1069,18 @@ function partitionByY(shapes, y) {
  * 
  * @param partition contains three parts; see partitionShapes.
  */
-function partitionQuality(partition) {
+function partitionQuality(partition, log) {
 	if (!partition) return -1; // worst quality
 	var numIntersected = partition[1].length; // the smaller - the better
 	var smallestPart = Math.min(partition[2].length,partition[0].length);  // the larger - the better
 	if (!numIntersected && !smallestPart)
 		throw new Error("empty partition - might lead to endless recursion!");
 
+//	if (log) console.log ("smallestPart="+smallestPart+" numIntersected="+numIntersected);
+
 //	return 1/numIntersected; 
 //	return smallestPart; 
-	return smallestPart/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
+	return (smallestPart+1)/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
 }
 
 function partitionDescription(partition) {
@@ -1057,7 +1088,7 @@ function partitionDescription(partition) {
 }
 
 
-},{"underscore":33}],9:[function(require,module,exports){
+},{"underscore":34}],9:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -1230,14 +1261,1264 @@ function colorByGroupId(shapes) {
 	return shapes;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":10}],10:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":12}],10:[function(require,module,exports){
+var process=require("__browserify_process");/*global setImmediate: false, setTimeout: false, console: false */
+(function () {
+
+    var async = {};
+
+    // global on the server, window in the browser
+    var root, previous_async;
+
+    root = this;
+    if (root != null) {
+      previous_async = root.async;
+    }
+
+    async.noConflict = function () {
+        root.async = previous_async;
+        return async;
+    };
+
+    function only_once(fn) {
+        var called = false;
+        return function() {
+            if (called) throw new Error("Callback was already called.");
+            called = true;
+            fn.apply(root, arguments);
+        }
+    }
+
+    //// cross-browser compatiblity functions ////
+
+    var _each = function (arr, iterator) {
+        if (arr.forEach) {
+            return arr.forEach(iterator);
+        }
+        for (var i = 0; i < arr.length; i += 1) {
+            iterator(arr[i], i, arr);
+        }
+    };
+
+    var _map = function (arr, iterator) {
+        if (arr.map) {
+            return arr.map(iterator);
+        }
+        var results = [];
+        _each(arr, function (x, i, a) {
+            results.push(iterator(x, i, a));
+        });
+        return results;
+    };
+
+    var _reduce = function (arr, iterator, memo) {
+        if (arr.reduce) {
+            return arr.reduce(iterator, memo);
+        }
+        _each(arr, function (x, i, a) {
+            memo = iterator(memo, x, i, a);
+        });
+        return memo;
+    };
+
+    var _keys = function (obj) {
+        if (Object.keys) {
+            return Object.keys(obj);
+        }
+        var keys = [];
+        for (var k in obj) {
+            if (obj.hasOwnProperty(k)) {
+                keys.push(k);
+            }
+        }
+        return keys;
+    };
+
+    //// exported async module functions ////
+
+    //// nextTick implementation with browser-compatible fallback ////
+    if (typeof process === 'undefined' || !(process.nextTick)) {
+        if (typeof setImmediate === 'function') {
+            async.nextTick = function (fn) {
+                // not a direct alias for IE10 compatibility
+                setImmediate(fn);
+            };
+            async.setImmediate = async.nextTick;
+        }
+        else {
+            async.nextTick = function (fn) {
+                setTimeout(fn, 0);
+            };
+            async.setImmediate = async.nextTick;
+        }
+    }
+    else {
+        async.nextTick = process.nextTick;
+        if (typeof setImmediate !== 'undefined') {
+            async.setImmediate = function (fn) {
+              // not a direct alias for IE10 compatibility
+              setImmediate(fn);
+            };
+        }
+        else {
+            async.setImmediate = async.nextTick;
+        }
+    }
+
+    async.each = function (arr, iterator, callback) {
+        callback = callback || function () {};
+        if (!arr.length) {
+            return callback();
+        }
+        var completed = 0;
+        _each(arr, function (x) {
+            iterator(x, only_once(function (err) {
+                if (err) {
+                    callback(err);
+                    callback = function () {};
+                }
+                else {
+                    completed += 1;
+                    if (completed >= arr.length) {
+                        callback(null);
+                    }
+                }
+            }));
+        });
+    };
+    async.forEach = async.each;
+
+    async.eachSeries = function (arr, iterator, callback) {
+        callback = callback || function () {};
+        if (!arr.length) {
+            return callback();
+        }
+        var completed = 0;
+        var iterate = function () {
+            iterator(arr[completed], function (err) {
+                if (err) {
+                    callback(err);
+                    callback = function () {};
+                }
+                else {
+                    completed += 1;
+                    if (completed >= arr.length) {
+                        callback(null);
+                    }
+                    else {
+                        iterate();
+                    }
+                }
+            });
+        };
+        iterate();
+    };
+    async.forEachSeries = async.eachSeries;
+
+    async.eachLimit = function (arr, limit, iterator, callback) {
+        var fn = _eachLimit(limit);
+        fn.apply(null, [arr, iterator, callback]);
+    };
+    async.forEachLimit = async.eachLimit;
+
+    var _eachLimit = function (limit) {
+
+        return function (arr, iterator, callback) {
+            callback = callback || function () {};
+            if (!arr.length || limit <= 0) {
+                return callback();
+            }
+            var completed = 0;
+            var started = 0;
+            var running = 0;
+
+            (function replenish () {
+                if (completed >= arr.length) {
+                    return callback();
+                }
+
+                while (running < limit && started < arr.length) {
+                    started += 1;
+                    running += 1;
+                    iterator(arr[started - 1], function (err) {
+                        if (err) {
+                            callback(err);
+                            callback = function () {};
+                        }
+                        else {
+                            completed += 1;
+                            running -= 1;
+                            if (completed >= arr.length) {
+                                callback();
+                            }
+                            else {
+                                replenish();
+                            }
+                        }
+                    });
+                }
+            })();
+        };
+    };
+
+
+    var doParallel = function (fn) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments);
+            return fn.apply(null, [async.each].concat(args));
+        };
+    };
+    var doParallelLimit = function(limit, fn) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments);
+            return fn.apply(null, [_eachLimit(limit)].concat(args));
+        };
+    };
+    var doSeries = function (fn) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments);
+            return fn.apply(null, [async.eachSeries].concat(args));
+        };
+    };
+
+
+    var _asyncMap = function (eachfn, arr, iterator, callback) {
+        var results = [];
+        arr = _map(arr, function (x, i) {
+            return {index: i, value: x};
+        });
+        eachfn(arr, function (x, callback) {
+            iterator(x.value, function (err, v) {
+                results[x.index] = v;
+                callback(err);
+            });
+        }, function (err) {
+            callback(err, results);
+        });
+    };
+    async.map = doParallel(_asyncMap);
+    async.mapSeries = doSeries(_asyncMap);
+    async.mapLimit = function (arr, limit, iterator, callback) {
+        return _mapLimit(limit)(arr, iterator, callback);
+    };
+
+    var _mapLimit = function(limit) {
+        return doParallelLimit(limit, _asyncMap);
+    };
+
+    // reduce only has a series version, as doing reduce in parallel won't
+    // work in many situations.
+    async.reduce = function (arr, memo, iterator, callback) {
+        async.eachSeries(arr, function (x, callback) {
+            iterator(memo, x, function (err, v) {
+                memo = v;
+                callback(err);
+            });
+        }, function (err) {
+            callback(err, memo);
+        });
+    };
+    // inject alias
+    async.inject = async.reduce;
+    // foldl alias
+    async.foldl = async.reduce;
+
+    async.reduceRight = function (arr, memo, iterator, callback) {
+        var reversed = _map(arr, function (x) {
+            return x;
+        }).reverse();
+        async.reduce(reversed, memo, iterator, callback);
+    };
+    // foldr alias
+    async.foldr = async.reduceRight;
+
+    var _filter = function (eachfn, arr, iterator, callback) {
+        var results = [];
+        arr = _map(arr, function (x, i) {
+            return {index: i, value: x};
+        });
+        eachfn(arr, function (x, callback) {
+            iterator(x.value, function (v) {
+                if (v) {
+                    results.push(x);
+                }
+                callback();
+            });
+        }, function (err) {
+            callback(_map(results.sort(function (a, b) {
+                return a.index - b.index;
+            }), function (x) {
+                return x.value;
+            }));
+        });
+    };
+    async.filter = doParallel(_filter);
+    async.filterSeries = doSeries(_filter);
+    // select alias
+    async.select = async.filter;
+    async.selectSeries = async.filterSeries;
+
+    var _reject = function (eachfn, arr, iterator, callback) {
+        var results = [];
+        arr = _map(arr, function (x, i) {
+            return {index: i, value: x};
+        });
+        eachfn(arr, function (x, callback) {
+            iterator(x.value, function (v) {
+                if (!v) {
+                    results.push(x);
+                }
+                callback();
+            });
+        }, function (err) {
+            callback(_map(results.sort(function (a, b) {
+                return a.index - b.index;
+            }), function (x) {
+                return x.value;
+            }));
+        });
+    };
+    async.reject = doParallel(_reject);
+    async.rejectSeries = doSeries(_reject);
+
+    var _detect = function (eachfn, arr, iterator, main_callback) {
+        eachfn(arr, function (x, callback) {
+            iterator(x, function (result) {
+                if (result) {
+                    main_callback(x);
+                    main_callback = function () {};
+                }
+                else {
+                    callback();
+                }
+            });
+        }, function (err) {
+            main_callback();
+        });
+    };
+    async.detect = doParallel(_detect);
+    async.detectSeries = doSeries(_detect);
+
+    async.some = function (arr, iterator, main_callback) {
+        async.each(arr, function (x, callback) {
+            iterator(x, function (v) {
+                if (v) {
+                    main_callback(true);
+                    main_callback = function () {};
+                }
+                callback();
+            });
+        }, function (err) {
+            main_callback(false);
+        });
+    };
+    // any alias
+    async.any = async.some;
+
+    async.every = function (arr, iterator, main_callback) {
+        async.each(arr, function (x, callback) {
+            iterator(x, function (v) {
+                if (!v) {
+                    main_callback(false);
+                    main_callback = function () {};
+                }
+                callback();
+            });
+        }, function (err) {
+            main_callback(true);
+        });
+    };
+    // all alias
+    async.all = async.every;
+
+    async.sortBy = function (arr, iterator, callback) {
+        async.map(arr, function (x, callback) {
+            iterator(x, function (err, criteria) {
+                if (err) {
+                    callback(err);
+                }
+                else {
+                    callback(null, {value: x, criteria: criteria});
+                }
+            });
+        }, function (err, results) {
+            if (err) {
+                return callback(err);
+            }
+            else {
+                var fn = function (left, right) {
+                    var a = left.criteria, b = right.criteria;
+                    return a < b ? -1 : a > b ? 1 : 0;
+                };
+                callback(null, _map(results.sort(fn), function (x) {
+                    return x.value;
+                }));
+            }
+        });
+    };
+
+    async.auto = function (tasks, callback) {
+        callback = callback || function () {};
+        var keys = _keys(tasks);
+        if (!keys.length) {
+            return callback(null);
+        }
+
+        var results = {};
+
+        var listeners = [];
+        var addListener = function (fn) {
+            listeners.unshift(fn);
+        };
+        var removeListener = function (fn) {
+            for (var i = 0; i < listeners.length; i += 1) {
+                if (listeners[i] === fn) {
+                    listeners.splice(i, 1);
+                    return;
+                }
+            }
+        };
+        var taskComplete = function () {
+            _each(listeners.slice(0), function (fn) {
+                fn();
+            });
+        };
+
+        addListener(function () {
+            if (_keys(results).length === keys.length) {
+                callback(null, results);
+                callback = function () {};
+            }
+        });
+
+        _each(keys, function (k) {
+            var task = (tasks[k] instanceof Function) ? [tasks[k]]: tasks[k];
+            var taskCallback = function (err) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                if (args.length <= 1) {
+                    args = args[0];
+                }
+                if (err) {
+                    var safeResults = {};
+                    _each(_keys(results), function(rkey) {
+                        safeResults[rkey] = results[rkey];
+                    });
+                    safeResults[k] = args;
+                    callback(err, safeResults);
+                    // stop subsequent errors hitting callback multiple times
+                    callback = function () {};
+                }
+                else {
+                    results[k] = args;
+                    async.setImmediate(taskComplete);
+                }
+            };
+            var requires = task.slice(0, Math.abs(task.length - 1)) || [];
+            var ready = function () {
+                return _reduce(requires, function (a, x) {
+                    return (a && results.hasOwnProperty(x));
+                }, true) && !results.hasOwnProperty(k);
+            };
+            if (ready()) {
+                task[task.length - 1](taskCallback, results);
+            }
+            else {
+                var listener = function () {
+                    if (ready()) {
+                        removeListener(listener);
+                        task[task.length - 1](taskCallback, results);
+                    }
+                };
+                addListener(listener);
+            }
+        });
+    };
+
+    async.waterfall = function (tasks, callback) {
+        callback = callback || function () {};
+        if (tasks.constructor !== Array) {
+          var err = new Error('First argument to waterfall must be an array of functions');
+          return callback(err);
+        }
+        if (!tasks.length) {
+            return callback();
+        }
+        var wrapIterator = function (iterator) {
+            return function (err) {
+                if (err) {
+                    callback.apply(null, arguments);
+                    callback = function () {};
+                }
+                else {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    var next = iterator.next();
+                    if (next) {
+                        args.push(wrapIterator(next));
+                    }
+                    else {
+                        args.push(callback);
+                    }
+                    async.setImmediate(function () {
+                        iterator.apply(null, args);
+                    });
+                }
+            };
+        };
+        wrapIterator(async.iterator(tasks))();
+    };
+
+    var _parallel = function(eachfn, tasks, callback) {
+        callback = callback || function () {};
+        if (tasks.constructor === Array) {
+            eachfn.map(tasks, function (fn, callback) {
+                if (fn) {
+                    fn(function (err) {
+                        var args = Array.prototype.slice.call(arguments, 1);
+                        if (args.length <= 1) {
+                            args = args[0];
+                        }
+                        callback.call(null, err, args);
+                    });
+                }
+            }, callback);
+        }
+        else {
+            var results = {};
+            eachfn.each(_keys(tasks), function (k, callback) {
+                tasks[k](function (err) {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    if (args.length <= 1) {
+                        args = args[0];
+                    }
+                    results[k] = args;
+                    callback(err);
+                });
+            }, function (err) {
+                callback(err, results);
+            });
+        }
+    };
+
+    async.parallel = function (tasks, callback) {
+        _parallel({ map: async.map, each: async.each }, tasks, callback);
+    };
+
+    async.parallelLimit = function(tasks, limit, callback) {
+        _parallel({ map: _mapLimit(limit), each: _eachLimit(limit) }, tasks, callback);
+    };
+
+    async.series = function (tasks, callback) {
+        callback = callback || function () {};
+        if (tasks.constructor === Array) {
+            async.mapSeries(tasks, function (fn, callback) {
+                if (fn) {
+                    fn(function (err) {
+                        var args = Array.prototype.slice.call(arguments, 1);
+                        if (args.length <= 1) {
+                            args = args[0];
+                        }
+                        callback.call(null, err, args);
+                    });
+                }
+            }, callback);
+        }
+        else {
+            var results = {};
+            async.eachSeries(_keys(tasks), function (k, callback) {
+                tasks[k](function (err) {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    if (args.length <= 1) {
+                        args = args[0];
+                    }
+                    results[k] = args;
+                    callback(err);
+                });
+            }, function (err) {
+                callback(err, results);
+            });
+        }
+    };
+
+    async.iterator = function (tasks) {
+        var makeCallback = function (index) {
+            var fn = function () {
+                if (tasks.length) {
+                    tasks[index].apply(null, arguments);
+                }
+                return fn.next();
+            };
+            fn.next = function () {
+                return (index < tasks.length - 1) ? makeCallback(index + 1): null;
+            };
+            return fn;
+        };
+        return makeCallback(0);
+    };
+
+    async.apply = function (fn) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        return function () {
+            return fn.apply(
+                null, args.concat(Array.prototype.slice.call(arguments))
+            );
+        };
+    };
+
+    var _concat = function (eachfn, arr, fn, callback) {
+        var r = [];
+        eachfn(arr, function (x, cb) {
+            fn(x, function (err, y) {
+                r = r.concat(y || []);
+                cb(err);
+            });
+        }, function (err) {
+            callback(err, r);
+        });
+    };
+    async.concat = doParallel(_concat);
+    async.concatSeries = doSeries(_concat);
+
+    async.whilst = function (test, iterator, callback) {
+        if (test()) {
+            iterator(function (err) {
+                if (err) {
+                    return callback(err);
+                }
+                async.whilst(test, iterator, callback);
+            });
+        }
+        else {
+            callback();
+        }
+    };
+
+    async.doWhilst = function (iterator, test, callback) {
+        iterator(function (err) {
+            if (err) {
+                return callback(err);
+            }
+            if (test()) {
+                async.doWhilst(iterator, test, callback);
+            }
+            else {
+                callback();
+            }
+        });
+    };
+
+    async.until = function (test, iterator, callback) {
+        if (!test()) {
+            iterator(function (err) {
+                if (err) {
+                    return callback(err);
+                }
+                async.until(test, iterator, callback);
+            });
+        }
+        else {
+            callback();
+        }
+    };
+
+    async.doUntil = function (iterator, test, callback) {
+        iterator(function (err) {
+            if (err) {
+                return callback(err);
+            }
+            if (!test()) {
+                async.doUntil(iterator, test, callback);
+            }
+            else {
+                callback();
+            }
+        });
+    };
+
+    async.queue = function (worker, concurrency) {
+        if (concurrency === undefined) {
+            concurrency = 1;
+        }
+        function _insert(q, data, pos, callback) {
+          if(data.constructor !== Array) {
+              data = [data];
+          }
+          _each(data, function(task) {
+              var item = {
+                  data: task,
+                  callback: typeof callback === 'function' ? callback : null
+              };
+
+              if (pos) {
+                q.tasks.unshift(item);
+              } else {
+                q.tasks.push(item);
+              }
+
+              if (q.saturated && q.tasks.length === concurrency) {
+                  q.saturated();
+              }
+              async.setImmediate(q.process);
+          });
+        }
+
+        var workers = 0;
+        var q = {
+            tasks: [],
+            concurrency: concurrency,
+            saturated: null,
+            empty: null,
+            drain: null,
+            push: function (data, callback) {
+              _insert(q, data, false, callback);
+            },
+            unshift: function (data, callback) {
+              _insert(q, data, true, callback);
+            },
+            process: function () {
+                if (workers < q.concurrency && q.tasks.length) {
+                    var task = q.tasks.shift();
+                    if (q.empty && q.tasks.length === 0) {
+                        q.empty();
+                    }
+                    workers += 1;
+                    var next = function () {
+                        workers -= 1;
+                        if (task.callback) {
+                            task.callback.apply(task, arguments);
+                        }
+                        if (q.drain && q.tasks.length + workers === 0) {
+                            q.drain();
+                        }
+                        q.process();
+                    };
+                    var cb = only_once(next);
+                    worker(task.data, cb);
+                }
+            },
+            length: function () {
+                return q.tasks.length;
+            },
+            running: function () {
+                return workers;
+            }
+        };
+        return q;
+    };
+
+    async.cargo = function (worker, payload) {
+        var working     = false,
+            tasks       = [];
+
+        var cargo = {
+            tasks: tasks,
+            payload: payload,
+            saturated: null,
+            empty: null,
+            drain: null,
+            push: function (data, callback) {
+                if(data.constructor !== Array) {
+                    data = [data];
+                }
+                _each(data, function(task) {
+                    tasks.push({
+                        data: task,
+                        callback: typeof callback === 'function' ? callback : null
+                    });
+                    if (cargo.saturated && tasks.length === payload) {
+                        cargo.saturated();
+                    }
+                });
+                async.setImmediate(cargo.process);
+            },
+            process: function process() {
+                if (working) return;
+                if (tasks.length === 0) {
+                    if(cargo.drain) cargo.drain();
+                    return;
+                }
+
+                var ts = typeof payload === 'number'
+                            ? tasks.splice(0, payload)
+                            : tasks.splice(0);
+
+                var ds = _map(ts, function (task) {
+                    return task.data;
+                });
+
+                if(cargo.empty) cargo.empty();
+                working = true;
+                worker(ds, function () {
+                    working = false;
+
+                    var args = arguments;
+                    _each(ts, function (data) {
+                        if (data.callback) {
+                            data.callback.apply(null, args);
+                        }
+                    });
+
+                    process();
+                });
+            },
+            length: function () {
+                return tasks.length;
+            },
+            running: function () {
+                return working;
+            }
+        };
+        return cargo;
+    };
+
+    var _console_fn = function (name) {
+        return function (fn) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            fn.apply(null, args.concat([function (err) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                if (typeof console !== 'undefined') {
+                    if (err) {
+                        if (console.error) {
+                            console.error(err);
+                        }
+                    }
+                    else if (console[name]) {
+                        _each(args, function (x) {
+                            console[name](x);
+                        });
+                    }
+                }
+            }]));
+        };
+    };
+    async.log = _console_fn('log');
+    async.dir = _console_fn('dir');
+    /*async.info = _console_fn('info');
+    async.warn = _console_fn('warn');
+    async.error = _console_fn('error');*/
+
+    async.memoize = function (fn, hasher) {
+        var memo = {};
+        var queues = {};
+        hasher = hasher || function (x) {
+            return x;
+        };
+        var memoized = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var callback = args.pop();
+            var key = hasher.apply(null, args);
+            if (key in memo) {
+                callback.apply(null, memo[key]);
+            }
+            else if (key in queues) {
+                queues[key].push(callback);
+            }
+            else {
+                queues[key] = [callback];
+                fn.apply(null, args.concat([function () {
+                    memo[key] = arguments;
+                    var q = queues[key];
+                    delete queues[key];
+                    for (var i = 0, l = q.length; i < l; i++) {
+                      q[i].apply(null, arguments);
+                    }
+                }]));
+            }
+        };
+        memoized.memo = memo;
+        memoized.unmemoized = fn;
+        return memoized;
+    };
+
+    async.unmemoize = function (fn) {
+      return function () {
+        return (fn.unmemoized || fn).apply(null, arguments);
+      };
+    };
+
+    async.times = function (count, iterator, callback) {
+        var counter = [];
+        for (var i = 0; i < count; i++) {
+            counter.push(i);
+        }
+        return async.map(counter, iterator, callback);
+    };
+
+    async.timesSeries = function (count, iterator, callback) {
+        var counter = [];
+        for (var i = 0; i < count; i++) {
+            counter.push(i);
+        }
+        return async.mapSeries(counter, iterator, callback);
+    };
+
+    async.compose = function (/* functions... */) {
+        var fns = Array.prototype.reverse.call(arguments);
+        return function () {
+            var that = this;
+            var args = Array.prototype.slice.call(arguments);
+            var callback = args.pop();
+            async.reduce(fns, args, function (newargs, fn, cb) {
+                fn.apply(that, newargs.concat([function () {
+                    var err = arguments[0];
+                    var nextargs = Array.prototype.slice.call(arguments, 1);
+                    cb(err, nextargs);
+                }]))
+            },
+            function (err, results) {
+                callback.apply(that, [err].concat(results));
+            });
+        };
+    };
+
+    var _applyEach = function (eachfn, fns /*args...*/) {
+        var go = function () {
+            var that = this;
+            var args = Array.prototype.slice.call(arguments);
+            var callback = args.pop();
+            return eachfn(fns, function (fn, cb) {
+                fn.apply(that, args.concat([cb]));
+            },
+            callback);
+        };
+        if (arguments.length > 2) {
+            var args = Array.prototype.slice.call(arguments, 2);
+            return go.apply(this, args);
+        }
+        else {
+            return go;
+        }
+    };
+    async.applyEach = doParallel(_applyEach);
+    async.applyEachSeries = doSeries(_applyEach);
+
+    async.forever = function (fn, callback) {
+        function next(err) {
+            if (err) {
+                if (callback) {
+                    return callback(err);
+                }
+                throw err;
+            }
+            fn(next);
+        }
+        next();
+    };
+
+    // AMD / RequireJS
+    if (typeof define !== 'undefined' && define.amd) {
+        define([], function () {
+            return async;
+        });
+    }
+    // Node.js
+    else if (typeof module !== 'undefined' && module.exports) {
+        module.exports = async;
+    }
+    // included directly via <script> tag
+    else {
+        root.async = async;
+    }
+
+}());
+
+},{"__browserify_process":35}],11:[function(require,module,exports){
+/*
+ * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
+ *
+ *  Licensed under the MIT license.
+ *  http://www.opensource.org/licenses/mit-license.php
+ *
+ *  References:
+ *    http://www.ruby-doc.org/core-2.0/Array.html#method-i-combination
+ *    http://www.ruby-doc.org/core-2.0/Array.html#method-i-permutation
+ *    http://en.wikipedia.org/wiki/Factorial_number_system
+ */
+(function(global) {
+    'use strict';
+    if (global.Combinatorics) return;
+    /* combinatory arithmetics */
+    var P = function(m, n) {
+        var t, p = 1;
+        if (m < n) {
+            t = m;
+            m = n;
+            n = t;
+        }
+        while (n--) p *= m--;
+        return p;
+    };
+    var C = function(m, n) {
+        return P(m, n) / P(n, n);
+    };
+    var factorial = function(n) {
+        return P(n, n);
+    };
+    var factoradic = function(n, d) {
+        var f = 1;
+        if (!d) {
+            for (d = 1; f < n; f *= ++d);
+            if (f > n) f /= d--;
+        } else {
+            f = factorial(d);
+        }
+        var result = [0];
+        for (; d; f /= d--) {
+            result[d] = Math.floor(n / f);
+            n %= f;
+        }
+        return result;
+    };
+    /* common methods */
+    var addProperties = function(dst, src) {
+        Object.keys(src).forEach(function(p) {
+            Object.defineProperty(dst, p, {
+                value: src[p]
+            });
+        });
+    };
+    var hideProperty = function(o, p) {
+        Object.defineProperty(o, p, {
+            writable: true
+        });
+    };
+    var toArray = function(f) {
+        var e, result = [];
+        this.init();
+        while (e = this.next()) result.push(f ? f(e) : e);
+        this.init();
+        return result;
+    };
+    var common = {
+        toArray: toArray,
+        map: toArray,
+        forEach: function(f) {
+            var e;
+            this.init();
+            while (e = this.next()) f(e);
+            this.init();
+        },
+        filter: function(f) {
+            var e, result = [];
+            this.init();
+            while (e = this.next()) if (f(e)) result.push(e);
+            this.init();
+            return result;
+        }
+
+    };
+    /* power set */
+    var power = function(ary, fun) {
+        if (ary.length > 32) throw new RangeError;
+        var size = 1 << ary.length,
+            sizeOf = function() {
+                return size;
+            },
+            that = Object.create(ary.slice(), {
+                length: {
+                    get: sizeOf
+                }
+            });
+        hideProperty(that, 'index');
+        addProperties(that, {
+            valueOf: sizeOf,
+            init: function() {
+                that.index = 0;
+            },
+            nth: function(n) {
+                if (n >= size) return;
+                var i = 0,
+                    result = [];
+                for (; n; n >>>= 1, i++) if (n & 1) result.push(this[i]);
+                return result;
+            },
+            next: function() {
+                return this.nth(this.index++);
+            }
+        });
+        addProperties(that, common);
+        that.init();
+        return (typeof (fun) === 'function') ? that.map(fun) : that;
+    };
+    /* combination */
+    var nextIndex = function(n) {
+        var smallest = n & -n,
+            ripple = n + smallest,
+            new_smallest = ripple & -ripple,
+            ones = ((new_smallest / smallest) >> 1) - 1;
+        return ripple | ones;
+    };
+    var combination = function(ary, nelem, fun) {
+        if (ary.length > 32) throw new RangeError;
+        if (!nelem) nelem = ary.length;
+        if (nelem < 1) throw new RangeError;
+        if (nelem > ary.length) throw new RangeError;
+        var first = (1 << nelem) - 1,
+            size = C(ary.length, nelem),
+            maxIndex = 1 << ary.length,
+            sizeOf = function() {
+                return size;
+            },
+            that = Object.create(ary.slice(), {
+                length: {
+                    get: sizeOf
+                }
+            });
+        hideProperty(that, 'index');
+        addProperties(that, {
+            valueOf: sizeOf,
+            init: function() {
+                this.index = first;
+            },
+            next: function() {
+                if (this.index >= maxIndex) return;
+                var i = 0,
+                    n = this.index,
+                    result = [];
+                for (; n; n >>>= 1, i++) if (n & 1) result.push(this[i]);
+                this.index = nextIndex(this.index);
+                return result;
+            }
+        });
+        addProperties(that, common);
+        that.init();
+        return (typeof (fun) === 'function') ? that.map(fun) : that;
+    };
+    /* permutation */
+    var _permutation = function(ary) {
+        var that = ary.slice(),
+            size = factorial(that.length);
+        that.index = 0;
+        that.next = function() {
+            if (this.index >= size) return;
+            var copy = this.slice(),
+                digits = factoradic(this.index, this.length),
+                result = [],
+                i = this.length - 1;
+            for (; i >= 0; --i) result.push(copy.splice(digits[i], 1)[0]);
+            this.index++;
+            return result;
+        };
+        return that;
+    };
+    // which is really a permutation of combination
+    var permutation = function(ary, nelem, fun) {
+        if (!nelem) nelem = ary.length;
+        if (nelem < 1) throw new RangeError;
+        if (nelem > ary.length) throw new RangeError;
+        var size = P(ary.length, nelem),
+            sizeOf = function() {
+                return size;
+            },
+            that = Object.create(ary.slice(), {
+                length: {
+                    get: sizeOf
+                }
+            });
+        hideProperty(that, 'cmb');
+        hideProperty(that, 'per');
+        addProperties(that, {
+            valueOf: function() {
+                return size;
+            },
+            init: function() {
+                this.cmb = combination(ary, nelem);
+                this.per = _permutation(this.cmb.next());
+            },
+            next: function() {
+                var result = this.per.next();
+                if (!result) {
+                    var cmb = this.cmb.next();
+                    if (!cmb) return;
+                    this.per = _permutation(cmb);
+                    return this.next();
+                }
+                return result;
+            }
+        });
+        addProperties(that, common);
+        that.init();
+        return (typeof (fun) === 'function') ? that.map(fun) : that;
+    };
+    /* Cartesian Product */
+    var arraySlice = Array.prototype.slice;
+    var cartesianProduct = function() {
+        if (!arguments.length) throw new RangeError;
+        var args = arraySlice.call(arguments),
+            size = args.reduce(function(p, a) {
+                return p * a.length;
+            }, 1),
+            sizeOf = function() {
+                return size;
+            },
+            dim = args.length,
+            that = Object.create(args, {
+                length: {
+                    get: sizeOf
+                }
+            });
+        if (!size) throw new RangeError;
+        hideProperty(that, 'index');
+        addProperties(that, {
+            valueOf: sizeOf,
+            dim: dim,
+            init: function() {
+                this.index = 0;
+            },
+            get: function() {
+                if (arguments.length !== this.length) return;
+                var result = [],
+                    d = 0;
+                for (; d < dim; d++) {
+                    var i = arguments[d];
+                    if (i >= this[d].length) return;
+                    result.push(this[d][i]);
+                }
+                return result;
+            },
+            nth: function(n) {
+                var result = [],
+                    d = 0;
+                for (; d < dim; d++) {
+                    var l = this[d].length;
+                    var i = n % l;
+                    result.push(this[d][i]);
+                    n -= i;
+                    n /= l;
+                }
+                return result;
+            },
+            next: function() {
+                if (this.index >= size) return;
+                var result = this.nth(this.index);
+                this.index++;
+                return result;
+            }
+        });
+        addProperties(that, common);
+        that.init();
+        return that;
+    };
+    /* export */
+    addProperties(global.Combinatorics = Object.create(null), {
+        C: C,
+        P: P,
+        factorial: factorial,
+        factoradic: factoradic,
+        cartesianProduct: cartesianProduct,
+        combination: combination,
+        permutation: permutation,
+        power: power
+    });
+})(this);
+
+},{}],12:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":11,"javascript.util":12}],11:[function(require,module,exports){
+},{"./lib/jsts":13,"javascript.util":14}],13:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -2815,10 +4096,10 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],12:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 module.exports = require('./src');
 
-},{"./src":31}],13:[function(require,module,exports){
+},{"./src":33}],15:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -2983,7 +4264,7 @@ ArrayList.Iterator.prototype.remove = function() {
 
 module.exports = ArrayList;
 
-},{"./Collection":15,"./IndexOutOfBoundsException":19,"./List":21,"./NoSuchElementException":23,"./OperationNotSupported":24}],14:[function(require,module,exports){
+},{"./Collection":17,"./IndexOutOfBoundsException":21,"./List":23,"./NoSuchElementException":25,"./OperationNotSupported":26}],16:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Arrays.html
  *
@@ -3041,7 +4322,7 @@ Arrays.asList = function(array) {
 
 module.exports = Arrays;
 
-},{}],15:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 /**
  * @requires Iterator.js
  */
@@ -3116,7 +4397,7 @@ Collection.prototype.remove = function(o) {};
 
 module.exports = Collection;
 
-},{"./Iterator":20}],16:[function(require,module,exports){
+},{"./Iterator":22}],18:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3135,7 +4416,7 @@ EmptyStackException.prototype.name = 'EmptyStackException';
 
 module.exports = EmptyStackException;
 
-},{}],17:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 /**
  * @requires Map.js
  * @requires ArrayList.js
@@ -3199,7 +4480,7 @@ HashMap.prototype.size = function() {
 
 module.exports = HashMap;
 
-},{"./ArrayList":13,"./Map":22}],18:[function(require,module,exports){
+},{"./ArrayList":15,"./Map":24}],20:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -3360,7 +4641,7 @@ HashSet.Iterator.prototype.remove = function() {
 
 module.exports = HashSet;
 
-},{"./Collection":15,"./NoSuchElementException":23,"./OperationNotSupported":24,"./Set":25}],19:[function(require,module,exports){
+},{"./Collection":17,"./NoSuchElementException":25,"./OperationNotSupported":26,"./Set":27}],21:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3379,7 +4660,7 @@ IndexOutOfBoundsException.prototype.name = 'IndexOutOfBoundsException';
 
 module.exports = IndexOutOfBoundsException;
 
-},{}],20:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Iterator.html
  * @interface
@@ -3408,7 +4689,7 @@ Iterator.prototype.remove = function() {};
 
 module.exports = Iterator;
 
-},{}],21:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -3442,7 +4723,7 @@ List.prototype.isEmpty = function() {};
 
 module.exports = List;
 
-},{"./Collection":15}],22:[function(require,module,exports){
+},{"./Collection":17}],24:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Map.html
  *
@@ -3488,7 +4769,7 @@ Map.prototype.values = function() {};
 
 module.exports = Map;
 
-},{}],23:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3507,7 +4788,7 @@ NoSuchElementException.prototype.name = 'NoSuchElementException';
 
 module.exports = NoSuchElementException;
 
-},{}],24:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -3526,7 +4807,7 @@ OperationNotSupported.prototype.name = 'OperationNotSupported';
 
 module.exports = OperationNotSupported;
 
-},{}],25:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -3554,7 +4835,7 @@ Set.prototype.contains = function(o) {};
 
 module.exports = Set;
 
-},{"./Collection":15}],26:[function(require,module,exports){
+},{"./Collection":17}],28:[function(require,module,exports){
 /**
  * @requires Map.js
  */
@@ -3571,7 +4852,7 @@ SortedMap.prototype = new Map;
 
 module.exports = SortedMap;
 
-},{"./Map":22}],27:[function(require,module,exports){
+},{"./Map":24}],29:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -3588,7 +4869,7 @@ SortedSet.prototype = new Set;
 
 module.exports = SortedSet;
 
-},{"./Set":25}],28:[function(require,module,exports){
+},{"./Set":27}],30:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -3706,7 +4987,7 @@ Stack.prototype.toArray = function() {
 
 module.exports = Stack;
 
-},{"./EmptyStackException":16,"./List":21}],29:[function(require,module,exports){
+},{"./EmptyStackException":18,"./List":23}],31:[function(require,module,exports){
 /**
  * @requires SortedMap.js
  * @requires ArrayList.js
@@ -3799,7 +5080,7 @@ TreeMap.prototype.size = function() {
 
 module.exports = TreeMap;
 
-},{"./ArrayList":13,"./Map":22,"./SortedMap":26}],30:[function(require,module,exports){
+},{"./ArrayList":15,"./Map":24,"./SortedMap":28}],32:[function(require,module,exports){
 /**
  * @requires SortedSet.js
  */
@@ -3967,7 +5248,7 @@ TreeSet.Iterator.prototype.remove = function() {
 
 module.exports = TreeSet;
 
-},{"./Collection":15,"./NoSuchElementException":23,"./OperationNotSupported":24,"./SortedSet":27}],31:[function(require,module,exports){
+},{"./Collection":17,"./NoSuchElementException":25,"./OperationNotSupported":26,"./SortedSet":29}],33:[function(require,module,exports){
 module.exports.ArrayList = require('./ArrayList');
 module.exports.Arrays = require('./Arrays');
 module.exports.Collection = require('./Collection');
@@ -3983,34 +5264,7 @@ module.exports.Stack = require('./Stack');
 module.exports.TreeMap = require('./TreeMap');
 module.exports.TreeSet = require('./TreeSet');
 
-},{"./ArrayList":13,"./Arrays":14,"./Collection":15,"./HashMap":17,"./HashSet":18,"./Iterator":20,"./List":21,"./Map":22,"./Set":25,"./SortedMap":26,"./SortedSet":27,"./Stack":28,"./TreeMap":29,"./TreeSet":30}],32:[function(require,module,exports){
-/* vim:set ts=2 sw=2 sts=2 expandtab */
-/*jshint asi: true undef: true es5: true node: true browser: true devel: true
-         forin: true latedef: false globalstrict: true*/
-
-"use strict";
-
-var reducer = Array.prototype.reduce
-module.exports = function powerset(input) {
-  /**
-  Creates a [power set](http://en.wikipedia.org/wiki/Power_set) of an array
-  like `input`.
-
-  ## Examples
-
-  powerset([0, 1, 2])   // [[], [0], [1], [0,1], [2], [0,2], [1,2], [0,1,2]]
-  powerset("ab")        // [[], ["a"], ["b"], ["a","b"]]
-  **/
-  return reducer.call(input, function(powerset, item, index) {
-    var next = [ item ]
-    return powerset.reduce(function(powerset, item) {
-      powerset.push(item.concat(next))
-      return powerset
-    }, powerset)
-  }, [[]])
-}
-
-},{}],33:[function(require,module,exports){
+},{"./ArrayList":15,"./Arrays":16,"./Collection":17,"./HashMap":19,"./HashSet":20,"./Iterator":22,"./List":23,"./Map":24,"./Set":27,"./SortedMap":28,"./SortedSet":29,"./Stack":30,"./TreeMap":31,"./TreeSet":32}],34:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -5287,5 +6541,60 @@ module.exports = function powerset(input) {
   });
 
 }).call(this);
+
+},{}],35:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+process.nextTick = (function () {
+    var canSetImmediate = typeof window !== 'undefined'
+    && window.setImmediate;
+    var canPost = typeof window !== 'undefined'
+    && window.postMessage && window.addEventListener
+    ;
+
+    if (canSetImmediate) {
+        return function (f) { return window.setImmediate(f) };
+    }
+
+    if (canPost) {
+        var queue = [];
+        window.addEventListener('message', function (ev) {
+            var source = ev.source;
+            if ((source === window || source === null) && ev.data === 'process-tick') {
+                ev.stopPropagation();
+                if (queue.length > 0) {
+                    var fn = queue.shift();
+                    fn();
+                }
+            }
+        }, true);
+
+        return function nextTick(fn) {
+            queue.push(fn);
+            window.postMessage('process-tick', '*');
+        };
+    }
+
+    return function nextTick(fn) {
+        setTimeout(fn, 0);
+    };
+})();
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+}
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
 
 },{}]},{},[1])

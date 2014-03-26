@@ -67,12 +67,12 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
 
-	var allSubsetsOfIntersectedShapes = Combinatorics.power(partition[1]).
-		filter(jsts.algorithm.arePairwiseDisjointByCache); 	// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
-
-	allSubsetsOfIntersectedShapes.forEach(function(subsetOfIntersectedShapes) {
-		if (currentMaxDisjointSet.length >= stopAtCount)
-			return currentMaxDisjointSet;
+	var allSubsetsOfIntersectedShapes = Combinatorics.power(partition[1]);
+	var subsetOfIntersectedShapes;
+	while (subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes.next()) {
+//		console.log("subsetOfIntersectedShapes="+subsetOfIntersectedShapes)
+		if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes))
+			continue;
 
 		var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
 		var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
@@ -87,19 +87,21 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 		// branch-and-bound (advice by D.W.):
 		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			return;
+			continue;
 
-		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne);
+		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne, stopAtCount);
 		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			return;
+			continue;
 
-		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo);
+		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo, stopAtCount-maxDisjointSetOnSideOne.length);
 
 		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 		if (newDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = newDisjointSet;
-	}); // end of forEach
+		if (currentMaxDisjointSet.length >= stopAtCount)
+			break;
+	}; // end of while loop
 	return currentMaxDisjointSet;
 }
 
