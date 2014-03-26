@@ -162,7 +162,7 @@ function partitionQuality(partition, log) {
 
 //	return 1/numIntersected; 
 //	return smallestPart; 
-	return (smallestPart+1)/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
+	return (smallestPart+1)/(numIntersected^2);  // see http://cs.stackexchange.com/a/20260/1342
 }
 
 function partitionDescription(partition) {

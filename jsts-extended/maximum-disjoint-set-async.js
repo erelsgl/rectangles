@@ -71,9 +71,9 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 //	console.log("maximumDisjointSetRec "+candidates.length);
 	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
 	if (candidates.length<=1)
-		return setImmediate(callback.bind(null,null,candidates));
+		return async.nextTick(callback.bind(null,null,candidates));
 	if (this.interrupted)
-		return setImmediate(callback.bind(null,null,[]));
+		return async.nextTick(callback.bind(null,null,[]));
 
 	var partition = jsts.algorithm.partitionShapes(candidates);
 			//	partition[0] - on one side of separator;
@@ -101,7 +101,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 			function loopBody(loopIterationFinished) {
 //				console.log("\ttime="+(new Date()-t)+" intrp="+self.interrupted);
 				if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes))
-					return setImmediate(loopIterationFinished);
+					return async.nextTick(loopIterationFinished);
 
 				var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
 				var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
@@ -116,7 +116,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 				// branch-and-bound (advice by D.W.):
 				var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 				if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-					return setImmediate(loopIterationFinished);
+					return async.nextTick(loopIterationFinished);
 
 				//	var maxDisjointSetOnSideOne = self.maximumDisjointSetRec(candidatesOnSideOne);
 				//	var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
@@ -142,7 +142,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 							var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 							if (newDisjointSet.length>currentMaxDisjointSet.length)
 								currentMaxDisjointSet = newDisjointSet;
-							setImmediate(loopIterationFinished);
+							async.nextTick(loopIterationFinished);
 						}
 				)
 			}, // end function loopBody

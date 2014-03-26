@@ -2,7 +2,7 @@
 /**
  * main.js - Main Javascript program from svgdisjointsquares.html
  */
-var jsts = require("../jsts-extended/index");
+var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
 var _ = require("underscore");
@@ -60,13 +60,26 @@ function updatePermaLink() {
 
 /* SQUARES */
 
-var points, landplots;
+var points, landplots, solver;
 
-function drawSquares() {
+function drawShapes(err, shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape = shapes[i];
+		landplots.add(shape, {fill: shape.color});
+	}
+	updateStatus();
+	updatePermaLink();
+	$(".interrupt").attr("disabled","disabled");
+}
+
+function drawShapesFromPoints() {
+	if (solver) solver.interrupt();
+
+	$(".interrupt").removeAttr("disabled");
 	landplots.clear();
 	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
-	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
-	if (!drawAllCandidateSquares && !drawDisjointSquares)
+	var drawAllCandidates = document.getElementById('drawAllCandidates').checked;
+	if (!drawAllCandidates && !drawDisjointSquares)
 		return;
 	
 	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
@@ -77,20 +90,19 @@ function drawSquares() {
 	
 	var rotatedSquares = $("#rotatedSquares").is(':checked');
 	var RAITs = $("#RAITs").is(':checked');
-	//makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	var candidates = (
-		rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
-		RAITs? factory.createRAITsTouchingPoints(points, envelope):
-		factory.createSquaresTouchingPoints(points, envelope));
-	if (!drawAllCandidateSquares) 
-		candidates = jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
-
-	for (var i=0; i<candidates.length; ++i) {
-		var shape = candidates[i];
-		landplots.add(shape, {fill: shape.color});
-	}
-	updateStatus();
-	updatePermaLink();
+	setTimeout(function() {
+		var candidates = (
+				rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
+				RAITs? factory.createRAITsTouchingPoints(points, envelope):
+				factory.createSquaresTouchingPoints(points, envelope));
+			if (drawAllCandidates) {
+				drawShapes(null,candidates);
+			} else {
+				solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
+				solver.solve(drawShapes);
+				//jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
+			}
+	},10)
 }
 
 landplots =  ShapeCollection(svgpaper, /*default style =*/ {
@@ -98,11 +110,11 @@ landplots =  ShapeCollection(svgpaper, /*default style =*/ {
 	'stroke-dasharray': '5,5',
 	opacity: 0.5,
 });
-points = DraggablePoints(svgpaper, /* change event = */drawSquares);
+points = DraggablePoints(svgpaper, /* change event = */drawShapesFromPoints);
 
 points.fromString(Arg("points"));
 wallsFromString(Arg("walls"));
-drawSquares();
+drawShapesFromPoints();
 
 
 /* EVENTS */
@@ -137,7 +149,7 @@ $(".shuffley").click(function() {
 		var p = points[i];
 		p.move(p.x, yvalues[i]);
 	}
-	drawSquares();	
+	drawShapesFromPoints();	
 });
 
 $(".randomize").click(function() {
@@ -145,7 +157,7 @@ $(".randomize").click(function() {
 		var p = points[i];
 		p.move(Math.random() * 400,Math.random() * 400); 
 	}
-	drawSquares();	
+	drawShapesFromPoints();	
 });
 
 $(".clear").click(function() {
@@ -155,30 +167,34 @@ $(".clear").click(function() {
 });
 
 $("#drawDisjointSquares").change(function() {
-	$("#drawAllCandidateSquares").attr('checked', false);
-	drawSquares();	
+	$("#drawAllCandidates").attr('checked', false);
+	drawShapesFromPoints();	
 });
 
-$("#drawAllCandidateSquares").change(function() {
+$("#drawAllCandidates").change(function() {
 	$("#drawDisjointSquares").attr('checked', false);
-	drawSquares();	
+	drawShapesFromPoints();	
 });
 
 $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
 	var direction = $(this).attr("id").replace(/^wall-/,"");
 	setWallStyle(direction, isChecked);
-	drawSquares();
+	drawShapesFromPoints();
 })
 
 $(".shape").change(function() {
-	drawSquares();
+	drawShapesFromPoints();
 })
+
+$(".interrupt").click(function() {
+	solver.interrupt();
+});
 
 }); // end of $(document).ready
 
 
-},{"../jsts-extended/index":4,"underscore":34}],2:[function(require,module,exports){
+},{"../jsts-extended":4,"underscore":34}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -457,8 +473,8 @@ var jsts = require("jsts");
 require("./intersection-utils");
 require("./factory-utils");
 require("./AxisParallelRectangle");
-require("./maximum-disjoint-set");
-require("./maximum-disjoint-set-solver");
+require("./maximum-disjoint-set-sync");
+require("./maximum-disjoint-set-async");
 require("./squares-touching-points");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
@@ -470,7 +486,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set":7,"./maximum-disjoint-set-solver":6,"./squares-touching-points":9,"jsts":12}],5:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set-async":6,"./maximum-disjoint-set-sync":7,"./squares-touching-points":9,"jsts":12}],5:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some simple utility functions related to intersection of shapes.
  * @author Erel Segal-Halevi
@@ -660,7 +676,11 @@ jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
 /**
  * Asynchronous version of maximum-disjoint-set, with option to interrupt.
  * 
- * Based on idea of barry-johnson: http://stackoverflow.com/a/22593680/827927
+ * @note For a synchronous function, see maximum-disjoint-set-sync.js
+ * 
+ * CREDITS:
+ * * barry-johnson: http://stackoverflow.com/a/22593680/827927
+ * * vkurchatkin:   http://stackoverflow.com/a/22604420/827927
  * 
  * @author Erel Segal-Halevi
  * @since 2014-03
@@ -726,9 +746,9 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 //	console.log("maximumDisjointSetRec "+candidates.length);
 	if (TRACE_PERFORMANCE) ++numRecursiveCalls;
 	if (candidates.length<=1)
-		return setImmediate(callback.bind(null,null,candidates));
+		return async.nextTick(callback.bind(null,null,candidates));
 	if (this.interrupted)
-		return setImmediate(callback.bind(null,null,[]));
+		return async.nextTick(callback.bind(null,null,[]));
 
 	var partition = jsts.algorithm.partitionShapes(candidates);
 			//	partition[0] - on one side of separator;
@@ -756,7 +776,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 			function loopBody(loopIterationFinished) {
 //				console.log("\ttime="+(new Date()-t)+" intrp="+self.interrupted);
 				if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes))
-					return setImmediate(loopIterationFinished);
+					return async.nextTick(loopIterationFinished);
 
 				var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
 				var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
@@ -771,7 +791,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 				// branch-and-bound (advice by D.W.):
 				var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 				if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-					return setImmediate(loopIterationFinished);
+					return async.nextTick(loopIterationFinished);
 
 				//	var maxDisjointSetOnSideOne = self.maximumDisjointSetRec(candidatesOnSideOne);
 				//	var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
@@ -797,7 +817,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 							var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 							if (newDisjointSet.length>currentMaxDisjointSet.length)
 								currentMaxDisjointSet = newDisjointSet;
-							setImmediate(loopIterationFinished);
+							async.nextTick(loopIterationFinished);
 						}
 				)
 			}, // end function loopBody
@@ -810,6 +830,12 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 },{"./intersection-utils":5,"./partition-utils":8,"async":10,"js-combinatorics":11,"jsts":12,"underscore":34}],7:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
+ * 
+ * @note Works synchronously. For an asynchronous version that can be interrupted, 
+ * see maximum-disjoint-set-async.js
+ * 
+ * CREDITS:
+ * * D.W.: http://cs.stackexchange.com/a/20140/1342
  * 
  * @author Erel Segal-Halevi
  * @since 2014-02
@@ -877,12 +903,12 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 			//	partition[1] - intersected by separator;
 			//	partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
 
-	var allSubsetsOfIntersectedShapes = Combinatorics.power(partition[1]).
-		filter(jsts.algorithm.arePairwiseDisjointByCache); 	// If the intersected shapes themselves are not pairwise-disjoint, they cannot be a part of an MDS.
-
-	allSubsetsOfIntersectedShapes.forEach(function(subsetOfIntersectedShapes) {
-		if (currentMaxDisjointSet.length >= stopAtCount)
-			return currentMaxDisjointSet;
+	var allSubsetsOfIntersectedShapes = Combinatorics.power(partition[1]);
+	var subsetOfIntersectedShapes;
+	while (subsetOfIntersectedShapes = allSubsetsOfIntersectedShapes.next()) {
+//		console.log("subsetOfIntersectedShapes="+subsetOfIntersectedShapes)
+		if (!jsts.algorithm.arePairwiseDisjointByCache(subsetOfIntersectedShapes))
+			continue;
 
 		var candidatesOnSideOne = jsts.algorithm.calcDisjointByCache(partition[0], subsetOfIntersectedShapes);
 		var candidatesOnSideTwo = jsts.algorithm.calcDisjointByCache(partition[2], subsetOfIntersectedShapes);
@@ -897,19 +923,21 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 		// branch-and-bound (advice by D.W.):
 		var upperBoundOnNewDisjointSetSize = candidatesOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			return;
+			continue;
 
-		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne);
+		var maxDisjointSetOnSideOne = maximumDisjointSetRec(candidatesOnSideOne, stopAtCount);
 		var upperBoundOnNewDisjointSetSize = maxDisjointSetOnSideOne.length+candidatesOnSideTwo.length+subsetOfIntersectedShapes.length;
 		if (upperBoundOnNewDisjointSetSize<=currentMaxDisjointSet.length)
-			return;
+			continue;
 
-		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo);
+		var maxDisjointSetOnSideTwo = maximumDisjointSetRec(candidatesOnSideTwo, stopAtCount-maxDisjointSetOnSideOne.length);
 
 		var newDisjointSet = maxDisjointSetOnSideOne.concat(maxDisjointSetOnSideTwo).concat(subsetOfIntersectedShapes);
 		if (newDisjointSet.length > currentMaxDisjointSet.length) 
 			currentMaxDisjointSet = newDisjointSet;
-	}); // end of forEach
+		if (currentMaxDisjointSet.length >= stopAtCount)
+			break;
+	}; // end of while loop
 	return currentMaxDisjointSet;
 }
 
@@ -1080,7 +1108,7 @@ function partitionQuality(partition, log) {
 
 //	return 1/numIntersected; 
 //	return smallestPart; 
-	return (smallestPart+1)/numIntersected;  // see http://cs.stackexchange.com/a/20260/1342
+	return (smallestPart+1)/(numIntersected^2);  // see http://cs.stackexchange.com/a/20260/1342
 }
 
 function partitionDescription(partition) {

@@ -1,7 +1,7 @@
 /**
  * main.js - Main Javascript program from svgdisjointsquares.html
  */
-var jsts = require("../jsts-extended/index");
+var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
 var _ = require("underscore");
@@ -59,13 +59,26 @@ function updatePermaLink() {
 
 /* SQUARES */
 
-var points, landplots;
+var points, landplots, solver;
 
-function drawSquares() {
+function drawShapes(err, shapes) {
+	for (var i=0; i<shapes.length; ++i) {
+		var shape = shapes[i];
+		landplots.add(shape, {fill: shape.color});
+	}
+	updateStatus();
+	updatePermaLink();
+	$(".interrupt").attr("disabled","disabled");
+}
+
+function drawShapesFromPoints() {
+	if (solver) solver.interrupt();
+
+	$(".interrupt").removeAttr("disabled");
 	landplots.clear();
 	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
-	var drawAllCandidateSquares = document.getElementById('drawAllCandidateSquares').checked;
-	if (!drawAllCandidateSquares && !drawDisjointSquares)
+	var drawAllCandidates = document.getElementById('drawAllCandidates').checked;
+	if (!drawAllCandidates && !drawDisjointSquares)
 		return;
 	
 	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
@@ -76,20 +89,19 @@ function drawSquares() {
 	
 	var rotatedSquares = $("#rotatedSquares").is(':checked');
 	var RAITs = $("#RAITs").is(':checked');
-	//makeXYUnique(points, xminWall, xmaxWall, yminWall, ymaxWall);
-	var candidates = (
-		rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
-		RAITs? factory.createRAITsTouchingPoints(points, envelope):
-		factory.createSquaresTouchingPoints(points, envelope));
-	if (!drawAllCandidateSquares) 
-		candidates = jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
-
-	for (var i=0; i<candidates.length; ++i) {
-		var shape = candidates[i];
-		landplots.add(shape, {fill: shape.color});
-	}
-	updateStatus();
-	updatePermaLink();
+	setTimeout(function() {
+		var candidates = (
+				rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
+				RAITs? factory.createRAITsTouchingPoints(points, envelope):
+				factory.createSquaresTouchingPoints(points, envelope));
+			if (drawAllCandidates) {
+				drawShapes(null,candidates);
+			} else {
+				solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
+				solver.solve(drawShapes);
+				//jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
+			}
+	},10)
 }
 
 landplots =  ShapeCollection(svgpaper, /*default style =*/ {
@@ -97,11 +109,11 @@ landplots =  ShapeCollection(svgpaper, /*default style =*/ {
 	'stroke-dasharray': '5,5',
 	opacity: 0.5,
 });
-points = DraggablePoints(svgpaper, /* change event = */drawSquares);
+points = DraggablePoints(svgpaper, /* change event = */drawShapesFromPoints);
 
 points.fromString(Arg("points"));
 wallsFromString(Arg("walls"));
-drawSquares();
+drawShapesFromPoints();
 
 
 /* EVENTS */
@@ -136,7 +148,7 @@ $(".shuffley").click(function() {
 		var p = points[i];
 		p.move(p.x, yvalues[i]);
 	}
-	drawSquares();	
+	drawShapesFromPoints();	
 });
 
 $(".randomize").click(function() {
@@ -144,7 +156,7 @@ $(".randomize").click(function() {
 		var p = points[i];
 		p.move(Math.random() * 400,Math.random() * 400); 
 	}
-	drawSquares();	
+	drawShapesFromPoints();	
 });
 
 $(".clear").click(function() {
@@ -154,25 +166,29 @@ $(".clear").click(function() {
 });
 
 $("#drawDisjointSquares").change(function() {
-	$("#drawAllCandidateSquares").attr('checked', false);
-	drawSquares();	
+	$("#drawAllCandidates").attr('checked', false);
+	drawShapesFromPoints();	
 });
 
-$("#drawAllCandidateSquares").change(function() {
+$("#drawAllCandidates").change(function() {
 	$("#drawDisjointSquares").attr('checked', false);
-	drawSquares();	
+	drawShapesFromPoints();	
 });
 
 $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
 	var direction = $(this).attr("id").replace(/^wall-/,"");
 	setWallStyle(direction, isChecked);
-	drawSquares();
+	drawShapesFromPoints();
 })
 
 $(".shape").change(function() {
-	drawSquares();
+	drawShapesFromPoints();
 })
+
+$(".interrupt").click(function() {
+	solver.interrupt();
+});
 
 }); // end of $(document).ready
 

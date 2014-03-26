@@ -15,7 +15,7 @@ function ShapeCollection(svgpaper, defaultStyle) {
 			var coordinates = shape.getCoordinates().map(function(cur) {
 				return cur.x+","+cur.y;
 			}).join(" ");
-			console.log(coordinates);
+			//console.log(coordinates);
 			shapeOnPaper = svgpaper.polygon(coordinates);
 		} else {
 			console.dir(shape);
