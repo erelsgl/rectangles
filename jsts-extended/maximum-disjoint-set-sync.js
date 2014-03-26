@@ -1,6 +1,12 @@
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
+ * @note Works synchronously. For an asynchronous version that can be interrupted, 
+ * see maximum-disjoint-set-async.js
+ * 
+ * CREDITS:
+ * * D.W.: http://cs.stackexchange.com/a/20140/1342
+ * 
  * @author Erel Segal-Halevi
  * @since 2014-02
  */

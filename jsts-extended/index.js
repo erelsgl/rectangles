@@ -2,8 +2,8 @@ var jsts = require("jsts");
 require("./intersection-utils");
 require("./factory-utils");
 require("./AxisParallelRectangle");
-require("./maximum-disjoint-set");
-require("./maximum-disjoint-set-solver");
+require("./maximum-disjoint-set-sync");
+require("./maximum-disjoint-set-async");
 require("./squares-touching-points");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {

@@ -1,7 +1,11 @@
 /**
  * Asynchronous version of maximum-disjoint-set, with option to interrupt.
  * 
- * Based on idea of barry-johnson: http://stackoverflow.com/a/22593680/827927
+ * @note For a synchronous function, see maximum-disjoint-set-sync.js
+ * 
+ * CREDITS:
+ * * barry-johnson: http://stackoverflow.com/a/22593680/827927
+ * * vkurchatkin:   http://stackoverflow.com/a/22604420/827927
  * 
  * @author Erel Segal-Halevi
  * @since 2014-03

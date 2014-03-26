@@ -1,5 +1,5 @@
 /**
- * time tests for JSTS routings
+ * time tests for JSTS routines
  * 
  * @author Erel Segal-Halevi
  * @since 2014-03
