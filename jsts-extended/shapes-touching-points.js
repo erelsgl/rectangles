@@ -21,6 +21,34 @@ function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
+	
+/**
+ * Find a set of shapes based on a given set of points.
+ * 
+ * @param shapeName (string) name of string to create. Current options are: axisParallelSquares, rotatedSquares, RAITs.
+ * @param points an array of points. Each point should contain the fields: x, y.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
+ * 
+ * @return a set of shapes such that:
+ * a. Each shape touches two points: one at a corner and one anywhere at the boundary.
+ * b. No shape contains a point.
+ */
+jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(shapeName, points, envelope) {
+	var shapes = (
+			shapeName==="rotatedSquares"? this.createRotatedSquaresTouchingPoints(points, envelope):
+			shapeName==="RAITs"? this.createRAITsTouchingPoints(points, envelope):
+			shapeName==="axisParallelSquares"? this.createSquaresTouchingPoints(points, envelope):
+			[]);
+//	if (groupId) {
+//		for (var i=0; i<shapes.length; ++i) {
+//			shapes[i].groupId = groupId;
+//			shapes[i].color = color(groupId);
+//		}
+//	}
+	return shapes;
+}
+
+
 /**
  * Find a set of axis-parallel squares based on a given set of points.
  * 
@@ -159,6 +187,19 @@ jsts.geom.GeometryFactory.prototype.createRAITsTouchingPoints = function(coordin
 	);
 }
 
+
+
+/*---------------- UTILS ---------------*/
+
+
+/**
+ * @return the number of shapes from the "shapes" array that are within the interior of "referenceShape".
+ */
+jsts.algorithm.numWithin = function(shapes, referenceShape) {
+	return shapes.reduce(function(prev,cur) {
+		return prev + cur.within(referenceShape)
+	}, 0);
+};
 
 
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];

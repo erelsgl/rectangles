@@ -15,7 +15,7 @@ var Combinatorics = require('js-combinatorics').Combinatorics;
 var _ = require('underscore');
 
 var jsts = require('jsts');
-require("./intersection-utils");
+require("./intersection-cache");
 require("./partition-utils");
 
 var TRACE_PERFORMANCE = false; 
@@ -49,7 +49,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 /*--- Recursive function ---*/
 
 /**
- * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
+ * Find a largest interior-disjoint set of shapes, from the given set of candidates.
  * 
  * @param candidates an array of candidate rectangles from which to select the MDS.
  * Each rectangle should contain the fields: xmin, xmax, ymin, ymax.

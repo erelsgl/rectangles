@@ -76,31 +76,44 @@ function drawShapesFromPoints() {
 
 	$(".interrupt").removeAttr("disabled");
 	landplots.clear();
-	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
-	var drawAllCandidates = document.getElementById('drawAllCandidates').checked;
-	if (!drawAllCandidates && !drawDisjointSquares)
-		return;
-	
+	var drawMode = $("#draw").val();
+	var shapeName = $("#shape").val();
+
+	if (drawMode==='drawNone') return;
+
 	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
 	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
 	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
 	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
 	
-	var rotatedSquares = $("#rotatedSquares").is(':checked');
-	var RAITs = $("#RAITs").is(':checked');
 	setTimeout(function() {
-		var candidates = (
-				rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
-				RAITs? factory.createRAITsTouchingPoints(points, envelope):
-				factory.createSquaresTouchingPoints(points, envelope));
-			if (drawAllCandidates) {
-				drawShapes(null,candidates);
-			} else {
-				solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
-				solver.solve(drawShapes);
-				//jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
+		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {
+			var candidateSets = [];
+			var groupId = 1;
+			for (var color in points.byColor)  {
+				var candidatesOfColor = factory.createShapesTouchingPoints(
+						shapeName, points.byColor[color], envelope);
+				for (var i=0; i<candidatesOfColor.length; ++i) {
+					candidatesOfColor[i].groupId = groupId++;
+					candidatesOfColor[i].color = color;
+				}
+				candidateSets.push(candidatesOfColor);
 			}
+			var shapes = (drawMode=="drawRepresentatives"?
+					jsts.algorithm.representativeDisjointSet(candidateSets):
+					candidateSets.reduce(function(a,b){return a.concat(b)}));
+			drawShapes(null,shapes);
+		} else {
+				var candidates = factory.createShapesTouchingPoints(
+						shapeName, points, envelope);
+				if (drawMode=="drawAll") {
+					drawShapes(null,candidates);
+				} else {  // drawMode=='drawDisjoint'
+					solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
+					solver.solve(drawShapes);
+				}
+		}
 	},10)
 }
 
@@ -120,7 +133,8 @@ drawShapesFromPoints();
 
 $(".addpoint").click(function() {
 	var color=$(this).text().toLowerCase();
-	points.add(new SVG.math.Point(20,20), color); 
+	var newPoint = new SVG.math.Point(20,20);
+	points.add(newPoint, color); 
 	updateStatus();
 });
 
@@ -165,24 +179,13 @@ $(".clear").click(function() {
 	updateStatus();
 });
 
-$("#drawDisjointSquares").change(function() {
-	$("#drawAllCandidates").attr('checked', false);
-	drawShapesFromPoints();	
-});
-
-$("#drawAllCandidates").change(function() {
-	$("#drawDisjointSquares").attr('checked', false);
-	drawShapesFromPoints();	
-});
+$("#draw").change(drawShapesFromPoints);
+$("#shape").change(drawShapesFromPoints);
 
 $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
 	var direction = $(this).attr("id").replace(/^wall-/,"");
 	setWallStyle(direction, isChecked);
-	drawShapesFromPoints();
-})
-
-$(".shape").change(function() {
 	drawShapesFromPoints();
 })
 

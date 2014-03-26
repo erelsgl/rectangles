@@ -77,31 +77,44 @@ function drawShapesFromPoints() {
 
 	$(".interrupt").removeAttr("disabled");
 	landplots.clear();
-	var drawDisjointSquares = document.getElementById('drawDisjointSquares').checked;
-	var drawAllCandidates = document.getElementById('drawAllCandidates').checked;
-	if (!drawAllCandidates && !drawDisjointSquares)
-		return;
-	
+	var drawMode = $("#draw").val();
+	var shapeName = $("#shape").val();
+
+	if (drawMode==='drawNone') return;
+
 	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
 	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
 	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
 	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
 	
-	var rotatedSquares = $("#rotatedSquares").is(':checked');
-	var RAITs = $("#RAITs").is(':checked');
 	setTimeout(function() {
-		var candidates = (
-				rotatedSquares? factory.createRotatedSquaresTouchingPoints(points, envelope):
-				RAITs? factory.createRAITsTouchingPoints(points, envelope):
-				factory.createSquaresTouchingPoints(points, envelope));
-			if (drawAllCandidates) {
-				drawShapes(null,candidates);
-			} else {
-				solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
-				solver.solve(drawShapes);
-				//jsts.algorithm.maximumDisjointSet(candidates, points.length-1);
+		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {
+			var candidateSets = [];
+			var groupId = 1;
+			for (var color in points.byColor)  {
+				var candidatesOfColor = factory.createShapesTouchingPoints(
+						shapeName, points.byColor[color], envelope);
+				for (var i=0; i<candidatesOfColor.length; ++i) {
+					candidatesOfColor[i].groupId = groupId++;
+					candidatesOfColor[i].color = color;
+				}
+				candidateSets.push(candidatesOfColor);
 			}
+			var shapes = (drawMode=="drawRepresentatives"?
+					jsts.algorithm.representativeDisjointSet(candidateSets):
+					candidateSets.reduce(function(a,b){return a.concat(b)}));
+			drawShapes(null,shapes);
+		} else {
+				var candidates = factory.createShapesTouchingPoints(
+						shapeName, points, envelope);
+				if (drawMode=="drawAll") {
+					drawShapes(null,candidates);
+				} else {  // drawMode=='drawDisjoint'
+					solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
+					solver.solve(drawShapes);
+				}
+		}
 	},10)
 }
 
@@ -121,7 +134,8 @@ drawShapesFromPoints();
 
 $(".addpoint").click(function() {
 	var color=$(this).text().toLowerCase();
-	points.add(new SVG.math.Point(20,20), color); 
+	var newPoint = new SVG.math.Point(20,20);
+	points.add(newPoint, color); 
 	updateStatus();
 });
 
@@ -166,24 +180,13 @@ $(".clear").click(function() {
 	updateStatus();
 });
 
-$("#drawDisjointSquares").change(function() {
-	$("#drawAllCandidates").attr('checked', false);
-	drawShapesFromPoints();	
-});
-
-$("#drawAllCandidates").change(function() {
-	$("#drawDisjointSquares").attr('checked', false);
-	drawShapesFromPoints();	
-});
+$("#draw").change(drawShapesFromPoints);
+$("#shape").change(drawShapesFromPoints);
 
 $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
 	var direction = $(this).attr("id").replace(/^wall-/,"");
 	setWallStyle(direction, isChecked);
-	drawShapesFromPoints();
-})
-
-$(".shape").change(function() {
 	drawShapesFromPoints();
 })
 
@@ -194,7 +197,7 @@ $(".interrupt").click(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":4,"underscore":34}],2:[function(require,module,exports){
+},{"../jsts-extended":4,"underscore":35}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -470,12 +473,13 @@ jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
 
 },{}],4:[function(require,module,exports){
 var jsts = require("jsts");
-require("./intersection-utils");
+require("./intersection-cache");
 require("./factory-utils");
 require("./AxisParallelRectangle");
 require("./maximum-disjoint-set-sync");
 require("./maximum-disjoint-set-async");
-require("./squares-touching-points");
+require("./representative-disjoint-set-sync");
+require("./shapes-touching-points");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
 		return object.map(function(cur) {
@@ -486,9 +490,10 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-utils":5,"./maximum-disjoint-set-async":6,"./maximum-disjoint-set-sync":7,"./squares-touching-points":9,"jsts":12}],5:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./intersection-cache":5,"./maximum-disjoint-set-async":6,"./maximum-disjoint-set-sync":7,"./representative-disjoint-set-sync":9,"./shapes-touching-points":10,"jsts":13}],5:[function(require,module,exports){
 /**
- * Adds to jsts.algorithm some simple utility functions related to intersection of shapes.
+ * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
+ * 
  * @author Erel Segal-Halevi
  * @since 2014-03
  */
@@ -501,100 +506,14 @@ jsts.geom.Geometry.prototype.interiorDisjoint = function(other) {
 }
 
 /**
- * @return true iff no pair of shapes in the given array intersect each other.
+ * Adds to each geometric shape a unique object id, for use by the cache.
  */
-jsts.algorithm.arePairwiseNotIntersecting = function(shapes) {
-	for (var i=0; i<shapes.length; ++i) {
-		var shape1 = shapes[i];
-		for (var j=0; j<i; ++j) {
-			var shape2 = shapes[j];
-			if (shape1.intersects(shape2))
-				return false;
-		}
-	}
-	return true;
+var id = 1;
+jsts.geom.Geometry.prototype.id = function() {
+	if (!this.__uniqueid) 
+		this.__uniqueid = id++;
+	return this.__uniqueid;
 }
-
-/**
- * @return true iff no pair of shapes in the given array overlap each other.
- */
-jsts.algorithm.arePairwiseNotOverlapping = function(shapes) {
-	for (var i=0; i<shapes.length; ++i) {
-		var shape1 = shapes[i];
-		for (var j=0; j<i; ++j) {
-			var shape2 = shapes[j];
-			if (shape1.overlaps(shape2))
-				return false;
-		}
-	}
-	return true;
-}
-
-/**
- * @return true iff all pairs of shapes in the given array are interior-disjoint
- */
-jsts.algorithm.arePairwiseInteriorDisjoint = function(shapes) {
-	for (var i=0; i<shapes.length; ++i) {
-		var shape1 = shapes[i];
-		for (var j=0; j<i; ++j) {
-			var shape2 = shapes[j];
-			if (!shape1.interiorDisjoint(shape2))
-				return false;
-		}
-	}
-	return true;
-}
-
-/**
- * @return the number of shapes from the "shapes" array that intersect "referenceShape".
- */
-jsts.algorithm.numIntersecting = function(shapes, referenceShape) {
-	return shapes.reduce(function(prev,cur) {
-		return prev + cur.intersects(referenceShape)
-	}, 0);
-}
-
-/**
- * @return the number of shapes from the "shapes" array that intersect "referenceShape".
- */
-jsts.algorithm.numOverlapping = function(shapes, referenceShape) {
-	return shapes.reduce(function(prev,cur) {
-		return prev + cur.overlaps(referenceShape)
-	}, 0);
-}
-
-/**
- * @return the number of shapes from the "shapes" array that are within the interior of "referenceShape".
- */
-jsts.algorithm.numWithin = function(shapes, referenceShape) {
-	return shapes.reduce(function(prev,cur) {
-		return prev + cur.within(referenceShape)
-	}, 0);
-}
-
-
-/**
- * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
- */
-jsts.algorithm.calcNotOverlapping = function(shapes, referenceShapes) {
-	return shapes.filter(function(cur) {
-		return (jsts.algorithm.numOverlapping(referenceShapes,cur)==0);
-	});
-}
-
-/**
- * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
- */
-jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
-	return shapes.filter(function(cur) {
-		return (jsts.algorithm.numIntersecting(referenceShapes,cur)==0);
-	});
-}
-
-
-
-
-
 
 
 /*--- Interior-Disjoint Cache ---*/
@@ -602,11 +521,10 @@ jsts.algorithm.calcNotIntersecting = function(shapes, referenceShapes) {
 jsts.algorithm.prepareDisjointCache = function(candidates) {
 	for (var ii=0; ii<candidates.length; ++ii) {
 		var cur = candidates[ii];
-		cur.id = ii;
 		
 		// pre-calculate interior-disjoint relations with other shapes, to save time:
 		cur.disjointCache = [];
-		cur.disjointCache[ii] = true; // a shape overlaps itself
+		cur.disjointCache[cur.id()] = false; // a shape overlaps itself
 		for (var jj=0; jj<ii; jj++) {
 			var other = candidates[jj];
 			var disjoint = ('groupId' in cur && 'groupId' in other && cur.groupId==other.groupId?
@@ -617,15 +535,7 @@ jsts.algorithm.prepareDisjointCache = function(candidates) {
 				console.dir(other);
 				throw new Error("interiorDisjoint returned an undefined value");
 			}
-			cur.disjointCache[jj] = other.disjointCache[ii] = disjoint;
-		}
-		cur.overlaps = function(another) {
-			if ('id' in another)
-				return this.disjointCache[another.id];
-			else {
-				console.dir(another);
-				throw new Error("id not found");
-			}
+			cur.disjointCache[other.id()] = other.disjointCache[cur.id()] = disjoint;
 		}
 	}
 	return candidates;
@@ -636,7 +546,7 @@ jsts.algorithm.prepareDisjointCache = function(candidates) {
  */
 jsts.algorithm.arePairwiseDisjointByCache = function(shapes) {
 	for (var i=0; i<shapes.length; ++i) {
-		var shape_i_id = shapes[i].id;
+		var shape_i_id = shapes[i].id();
 		for (var j=0; j<i; ++j) 
 			if (!shapes[j].disjointCache[shape_i_id])
 				return false;
@@ -649,7 +559,7 @@ jsts.algorithm.arePairwiseDisjointByCache = function(shapes) {
  * @return true if shape is disjoint from any of the shapes in the "referenceShapes" array.
  */
 jsts.algorithm.isDisjointByCache = function(shape, referenceShapes) {
-	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id});
+	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id()});
 	for (var i=0; i<referenceShapesIds.length; ++i) 
 		if (!shape.disjointCache[referenceShapesIds[i]])
 			return false;
@@ -661,7 +571,7 @@ jsts.algorithm.isDisjointByCache = function(shape, referenceShapes) {
  * @return all shapes from the "shapes" array that do not overlap any of the shapes in the "referenceShapes" array.
  */
 jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
-	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id});
+	var referenceShapesIds = referenceShapes.map(function(cur){return cur.id()});
 	return shapes.filter(function(shape) {
 		for (var i=0; i<referenceShapesIds.length; ++i) 
 			if (!shape.disjointCache[referenceShapesIds[i]])
@@ -690,7 +600,7 @@ var Combinatorics = require('js-combinatorics').Combinatorics;
 var _ = require('underscore');
 
 var jsts = require('jsts');
-require("./intersection-utils");
+require("./intersection-cache");
 require("./partition-utils");
 var async = require("async");
 
@@ -827,7 +737,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-utils":5,"./partition-utils":8,"async":10,"js-combinatorics":11,"jsts":12,"underscore":34}],7:[function(require,module,exports){
+},{"./intersection-cache":5,"./partition-utils":8,"async":11,"js-combinatorics":12,"jsts":13,"underscore":35}],7:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -845,7 +755,7 @@ var Combinatorics = require('js-combinatorics').Combinatorics;
 var _ = require('underscore');
 
 var jsts = require('jsts');
-require("./intersection-utils");
+require("./intersection-cache");
 require("./partition-utils");
 
 var TRACE_PERFORMANCE = false; 
@@ -879,7 +789,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
 /*--- Recursive function ---*/
 
 /**
- * Find a largest interior-disjoint set of rectangles, from the given set of candidates.
+ * Find a largest interior-disjoint set of shapes, from the given set of candidates.
  * 
  * @param candidates an array of candidate rectangles from which to select the MDS.
  * Each rectangle should contain the fields: xmin, xmax, ymin, ymax.
@@ -943,7 +853,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-utils":5,"./partition-utils":8,"js-combinatorics":11,"jsts":12,"underscore":34}],8:[function(require,module,exports){
+},{"./intersection-cache":5,"./partition-utils":8,"js-combinatorics":12,"jsts":13,"underscore":35}],8:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to partitioning.
  * These utility functions are used mainly by the maximum-disjoint-set algorithm.
@@ -1116,7 +1026,76 @@ function partitionDescription(partition) {
 }
 
 
-},{"underscore":34}],9:[function(require,module,exports){
+},{"underscore":35}],9:[function(require,module,exports){
+/**
+ * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-03
+ */
+
+var Combinatorics = require('js-combinatorics').Combinatorics;
+var _ = require('underscore');
+
+var jsts = require('jsts');
+require("./intersection-cache");
+require("./partition-utils");
+
+
+/*--- Main Algorithm ---*/
+
+/**
+ * Calculate a largest subset of non-intersecting shapes from a given set of candidates.
+ * @param candidates a set of shapes (geometries).
+ * @param stopAtCount - After finding this number of disjoint shapes, don't look further (default: infinity)
+ * @return a subset of these shapes, that are guaranteed to be pairwise disjoint.
+ */
+jsts.algorithm.representativeDisjointSet = function(candidateSets) {
+	if (!candidateSets) 	return [];
+	
+	candidateSets = candidateSets.filter(function(set){return set.length>0});
+	if (!candidateSets.length) return [];
+
+	candidateSets = candidateSets.map(jsts.algorithm.prepareShapesToPartition);
+	
+	var allCandidates = candidateSets.reduce(function(a, b) { return a.concat(b); });
+	jsts.algorithm.prepareDisjointCache(allCandidates);
+
+	var repDisjointSet = null;
+	while (!(repDisjointSet = representativeDisjointSetRec(candidateSets))) {
+		candidateSets = candidateSets.slice(1);
+	}
+	return repDisjointSet;
+}
+
+
+/**
+ * Find an interior-disjoint set of representative shapes, from the given set of candidates,
+ * or null if not found.
+ * 
+ * @param candidateSets an array of arrays of candidate shapes.
+ * 
+ * @return a set of shapes that do not interior-intersect, or null if not found.
+ *
+ * @author Erel Segal-Halevi
+ * @since 2014-03
+ */
+function representativeDisjointSetRec(candidateSets) {
+	var allSets = Combinatorics.cartesianProduct.apply(null,candidateSets);
+	while (subset = allSets.next()) {
+//		console.log("\t"+jsts.stringify(subset));
+//		console.log(subset[0].id()+": "+subset[0].disjointCache);
+		if (jsts.algorithm.arePairwiseDisjointByCache(subset))
+			return subset;
+	}
+	return null;
+}
+
+
+
+
+
+},{"./intersection-cache":5,"./partition-utils":8,"js-combinatorics":12,"jsts":13,"underscore":35}],10:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -1139,6 +1118,34 @@ require("./AxisParallelRectangle");
 function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
+
+	
+/**
+ * Find a set of shapes based on a given set of points.
+ * 
+ * @param shapeName (string) name of string to create. Current options are: axisParallelSquares, rotatedSquares, RAITs.
+ * @param points an array of points. Each point should contain the fields: x, y.
+ * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
+ * 
+ * @return a set of shapes such that:
+ * a. Each shape touches two points: one at a corner and one anywhere at the boundary.
+ * b. No shape contains a point.
+ */
+jsts.geom.GeometryFactory.prototype.createShapesTouchingPoints = function(shapeName, points, envelope) {
+	var shapes = (
+			shapeName==="rotatedSquares"? this.createRotatedSquaresTouchingPoints(points, envelope):
+			shapeName==="RAITs"? this.createRAITsTouchingPoints(points, envelope):
+			shapeName==="axisParallelSquares"? this.createSquaresTouchingPoints(points, envelope):
+			[]);
+//	if (groupId) {
+//		for (var i=0; i<shapes.length; ++i) {
+//			shapes[i].groupId = groupId;
+//			shapes[i].color = color(groupId);
+//		}
+//	}
+	return shapes;
+}
+
 
 /**
  * Find a set of axis-parallel squares based on a given set of points.
@@ -1280,6 +1287,19 @@ jsts.geom.GeometryFactory.prototype.createRAITsTouchingPoints = function(coordin
 
 
 
+/*---------------- UTILS ---------------*/
+
+
+/**
+ * @return the number of shapes from the "shapes" array that are within the interior of "referenceShape".
+ */
+jsts.algorithm.numWithin = function(shapes, referenceShape) {
+	return shapes.reduce(function(prev,cur) {
+		return prev + cur.within(referenceShape)
+	}, 0);
+};
+
+
 var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
 function color(i) {return colors[i % colors.length]}
 function colorByGroupId(shapes) {
@@ -1288,8 +1308,7 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":12}],10:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":13}],11:[function(require,module,exports){
 var process=require("__browserify_process");/*global setImmediate: false, setTimeout: false, console: false */
 (function () {
 
@@ -2249,7 +2268,7 @@ var process=require("__browserify_process");/*global setImmediate: false, setTim
 
 }());
 
-},{"__browserify_process":35}],11:[function(require,module,exports){
+},{"__browserify_process":36}],12:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -2539,14 +2558,14 @@ var process=require("__browserify_process");/*global setImmediate: false, setTim
     });
 })(this);
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":13,"javascript.util":14}],13:[function(require,module,exports){
+},{"./lib/jsts":14,"javascript.util":15}],14:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -4124,10 +4143,10 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = require('./src');
 
-},{"./src":33}],15:[function(require,module,exports){
+},{"./src":34}],16:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -4292,7 +4311,7 @@ ArrayList.Iterator.prototype.remove = function() {
 
 module.exports = ArrayList;
 
-},{"./Collection":17,"./IndexOutOfBoundsException":21,"./List":23,"./NoSuchElementException":25,"./OperationNotSupported":26}],16:[function(require,module,exports){
+},{"./Collection":18,"./IndexOutOfBoundsException":22,"./List":24,"./NoSuchElementException":26,"./OperationNotSupported":27}],17:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Arrays.html
  *
@@ -4350,7 +4369,7 @@ Arrays.asList = function(array) {
 
 module.exports = Arrays;
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 /**
  * @requires Iterator.js
  */
@@ -4425,7 +4444,7 @@ Collection.prototype.remove = function(o) {};
 
 module.exports = Collection;
 
-},{"./Iterator":22}],18:[function(require,module,exports){
+},{"./Iterator":23}],19:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -4444,7 +4463,7 @@ EmptyStackException.prototype.name = 'EmptyStackException';
 
 module.exports = EmptyStackException;
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 /**
  * @requires Map.js
  * @requires ArrayList.js
@@ -4508,7 +4527,7 @@ HashMap.prototype.size = function() {
 
 module.exports = HashMap;
 
-},{"./ArrayList":15,"./Map":24}],20:[function(require,module,exports){
+},{"./ArrayList":16,"./Map":25}],21:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -4669,7 +4688,7 @@ HashSet.Iterator.prototype.remove = function() {
 
 module.exports = HashSet;
 
-},{"./Collection":17,"./NoSuchElementException":25,"./OperationNotSupported":26,"./Set":27}],21:[function(require,module,exports){
+},{"./Collection":18,"./NoSuchElementException":26,"./OperationNotSupported":27,"./Set":28}],22:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -4688,7 +4707,7 @@ IndexOutOfBoundsException.prototype.name = 'IndexOutOfBoundsException';
 
 module.exports = IndexOutOfBoundsException;
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Iterator.html
  * @interface
@@ -4717,7 +4736,7 @@ Iterator.prototype.remove = function() {};
 
 module.exports = Iterator;
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -4751,7 +4770,7 @@ List.prototype.isEmpty = function() {};
 
 module.exports = List;
 
-},{"./Collection":17}],24:[function(require,module,exports){
+},{"./Collection":18}],25:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Map.html
  *
@@ -4797,7 +4816,7 @@ Map.prototype.values = function() {};
 
 module.exports = Map;
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -4816,7 +4835,7 @@ NoSuchElementException.prototype.name = 'NoSuchElementException';
 
 module.exports = NoSuchElementException;
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -4835,7 +4854,7 @@ OperationNotSupported.prototype.name = 'OperationNotSupported';
 
 module.exports = OperationNotSupported;
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -4863,7 +4882,7 @@ Set.prototype.contains = function(o) {};
 
 module.exports = Set;
 
-},{"./Collection":17}],28:[function(require,module,exports){
+},{"./Collection":18}],29:[function(require,module,exports){
 /**
  * @requires Map.js
  */
@@ -4880,7 +4899,7 @@ SortedMap.prototype = new Map;
 
 module.exports = SortedMap;
 
-},{"./Map":24}],29:[function(require,module,exports){
+},{"./Map":25}],30:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -4897,7 +4916,7 @@ SortedSet.prototype = new Set;
 
 module.exports = SortedSet;
 
-},{"./Set":27}],30:[function(require,module,exports){
+},{"./Set":28}],31:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -5015,7 +5034,7 @@ Stack.prototype.toArray = function() {
 
 module.exports = Stack;
 
-},{"./EmptyStackException":18,"./List":23}],31:[function(require,module,exports){
+},{"./EmptyStackException":19,"./List":24}],32:[function(require,module,exports){
 /**
  * @requires SortedMap.js
  * @requires ArrayList.js
@@ -5108,7 +5127,7 @@ TreeMap.prototype.size = function() {
 
 module.exports = TreeMap;
 
-},{"./ArrayList":15,"./Map":24,"./SortedMap":28}],32:[function(require,module,exports){
+},{"./ArrayList":16,"./Map":25,"./SortedMap":29}],33:[function(require,module,exports){
 /**
  * @requires SortedSet.js
  */
@@ -5276,7 +5295,7 @@ TreeSet.Iterator.prototype.remove = function() {
 
 module.exports = TreeSet;
 
-},{"./Collection":17,"./NoSuchElementException":25,"./OperationNotSupported":26,"./SortedSet":29}],33:[function(require,module,exports){
+},{"./Collection":18,"./NoSuchElementException":26,"./OperationNotSupported":27,"./SortedSet":30}],34:[function(require,module,exports){
 module.exports.ArrayList = require('./ArrayList');
 module.exports.Arrays = require('./Arrays');
 module.exports.Collection = require('./Collection');
@@ -5292,7 +5311,7 @@ module.exports.Stack = require('./Stack');
 module.exports.TreeMap = require('./TreeMap');
 module.exports.TreeSet = require('./TreeSet');
 
-},{"./ArrayList":15,"./Arrays":16,"./Collection":17,"./HashMap":19,"./HashSet":20,"./Iterator":22,"./List":23,"./Map":24,"./Set":27,"./SortedMap":28,"./SortedSet":29,"./Stack":30,"./TreeMap":31,"./TreeSet":32}],34:[function(require,module,exports){
+},{"./ArrayList":16,"./Arrays":17,"./Collection":18,"./HashMap":20,"./HashSet":21,"./Iterator":23,"./List":24,"./Map":25,"./Set":28,"./SortedMap":29,"./SortedSet":30,"./Stack":31,"./TreeMap":32,"./TreeSet":33}],35:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -6570,7 +6589,7 @@ module.exports.TreeSet = require('./TreeSet');
 
 }).call(this);
 
-},{}],35:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};

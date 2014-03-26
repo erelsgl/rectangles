@@ -1,5 +1,5 @@
 /**
- * a test for maximum-disjoint-set of the output of squares-touching-points
+ * a test for maximum-disjoint-set of the output of shapes-touching-points
  * 
  * @author Erel Segal-Halevi
  * @since 2014-03

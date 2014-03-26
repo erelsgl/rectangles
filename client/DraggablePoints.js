@@ -7,6 +7,7 @@
 
 function DraggablePoints(svgpaper, onDragEnd) {
 	var points = [];
+	points.byColor = {};
 	
 	var drawPoint=function(point) {
 		point.draw(svgpaper, {
@@ -18,6 +19,12 @@ function DraggablePoints(svgpaper, onDragEnd) {
 
 	// Add a new point (of type SVG.math.Point)
 	points.add = function(point, color) {
+		points.push(point);
+		
+		if (!points.byColor[color])
+			points.byColor[color] = [];
+		points.byColor[color].push(point);
+
 		point.color = color;
 		drawPoint(point);
 
@@ -26,6 +33,9 @@ function DraggablePoints(svgpaper, onDragEnd) {
 			var index = points.indexOf(this);
 			if (index>=0)
 				points.splice(index,1);
+			index = points.byColor[this.color].indexOf(this);
+			if (index>=0)
+				points.byColor[this.color].splice(index,1);
 		};
 
 		point.circle.dragend = function(delta, event) {
@@ -35,7 +45,7 @@ function DraggablePoints(svgpaper, onDragEnd) {
 				point.remove();
 			onDragEnd();
 		};
-		
+
 		point.move = function (x,y) {
 			point.x = x;
 			point.y = y;
@@ -44,15 +54,6 @@ function DraggablePoints(svgpaper, onDragEnd) {
 		}
 
 		point.circle.draggable();
-
-		// remove the point on right-click:
-		//point.circle.on('contextmenu', function(event) {
-		//	point.remove();
-		//	onDragEnd();
-		//	return false;
-		//});
-
-		points.push(point);
 	}
 	
 	// Re-draw all the points

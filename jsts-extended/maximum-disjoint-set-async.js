@@ -15,7 +15,7 @@ var Combinatorics = require('js-combinatorics').Combinatorics;
 var _ = require('underscore');
 
 var jsts = require('jsts');
-require("./intersection-utils");
+require("./intersection-cache");
 require("./partition-utils");
 var async = require("async");
 
