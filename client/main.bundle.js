@@ -63,9 +63,9 @@ function updatePermaLink() {
 var points, landplots, solver;
 
 function drawShapes(err, shapes) {
-	for (var i=0; i<shapes.length; ++i) {
+	for (var i in shapes) {
 		var shape = shapes[i];
-		landplots.add(shape, {fill: shape.color});
+		landplots.add(shape, {fill:shape.color, stroke:shape.color});
 	}
 	updateStatus();
 	updatePermaLink();
@@ -91,20 +91,31 @@ function drawShapesFromPoints() {
 	setTimeout(function() {
 		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {
 			var candidateSets = [];
+			var candidatesByColor = {};
 			var groupId = 1;
 			for (var color in points.byColor)  {
 				var candidatesOfColor = factory.createShapesTouchingPoints(
 						shapeName, points.byColor[color], envelope);
-				for (var i=0; i<candidatesOfColor.length; ++i) {
+				for (var i in candidatesOfColor) {
 					candidatesOfColor[i].groupId = groupId++;
 					candidatesOfColor[i].color = color;
 				}
 				candidateSets.push(candidatesOfColor);
+				candidatesByColor[color]=candidatesOfColor;
 			}
-			var shapes = (drawMode=="drawRepresentatives"?
-					jsts.algorithm.representativeDisjointSet(candidateSets):
-					candidateSets.reduce(function(a,b){return a.concat(b)}));
-			drawShapes(null,shapes);
+			if (drawMode=="drawRepresentatives") {
+				for (var color in candidatesByColor) {
+					var maxDisjointSetOfColor = jsts.algorithm.maximumDisjointSet(candidatesByColor[color], candidateSets.length);
+					for (var i in maxDisjointSetOfColor) {
+						var shape = maxDisjointSetOfColor[i];
+						landplots.add(shape, {stroke: shape.color, fill: 'transparent'});
+					}	
+				}
+				var shapes = jsts.algorithm.representativeDisjointSet(candidateSets);
+				drawShapes(null, shapes);
+			} else {
+				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
+			}
 		} else {
 				var candidates = factory.createShapesTouchingPoints(
 						shapeName, points, envelope);
