@@ -32,11 +32,14 @@ jsts.algorithm.representativeDisjointSet = function(candidateSets) {
 	var allCandidates = candidateSets.reduce(function(a, b) { return a.concat(b); });
 	jsts.algorithm.prepareDisjointCache(allCandidates);
 
-	var repDisjointSet = null;
-	while (!(repDisjointSet = representativeDisjointSetRec(candidateSets))) {
-		candidateSets = candidateSets.slice(1);
-	}
-	return repDisjointSet;
+	var repDisjointSet = representativeDisjointSetSub(candidateSets);
+	if (repDisjointSet) return repDisjointSet;
+
+	// If a set of n representatives is not found, we should return null,
+	//    but for the sake of presentation to users 
+	//    we try to find a set of n-1 representatives.
+	//    this is not optimized as this is not the main goal of the algorithm.
+	else return jsts.algorithm.representativeDisjointSet(candidateSets.slice(1));
 }
 
 
@@ -51,11 +54,9 @@ jsts.algorithm.representativeDisjointSet = function(candidateSets) {
  * @author Erel Segal-Halevi
  * @since 2014-03
  */
-function representativeDisjointSetRec(candidateSets) {
+function representativeDisjointSetSub(candidateSets) {
 	var allSets = Combinatorics.cartesianProduct.apply(null,candidateSets);
 	while (subset = allSets.next()) {
-//		console.log("\t"+jsts.stringify(subset));
-//		console.log(subset[0].id()+": "+subset[0].disjointCache);
 		if (jsts.algorithm.arePairwiseDisjointByCache(subset))
 			return subset;
 	}
