@@ -8,13 +8,6 @@
 <script src="svg.export.js"></script>
 <script src="arg.js.v1.1.min.js"></script>
 
-<script type="text/javascript">
-	var smoothie = {
-		requirePaths: ['.']
-	};
-</script>
-<script src="require.js"></script>
-
 <script src="DraggablePoints.js"></script>
 <script src="ShapeCollection.js"></script>
 <script src="Walls.js"></script>
@@ -87,34 +80,32 @@ Add a point by clicking a color. Due to efficiency issues, up to <span id='max-p
 <li><button class='interrupt'>Interrupt the current calculation.</button>.</li>
 </ul>
 
-<div>
-Shapes: <select id='shape'>
+<form method='get' action=''>
+
+
+<table>
+<tr><th>Shapes:</th><td><select id='shape' name='shape'>
 	<option value='axisParallelSquares' selected='selected'>Axis-parallel squares</option>
 	<option value='rotatedSquares'>Rotated Squares</option>
 	<option value='RAITs'>Right-Angled Isosceles Triangles</option>
-</select>
-
-<div>
-Drawing: <select id='draw'>
+</select></td></tr>
+<tr><th>Drawing:</th><td>: <select id='draw' name='draw'>
 	<option value='drawDisjoint' selected='selected'>Max set of disjoint candidates</option>
 	<option value='drawAll'>All candidates</option>
 	<option value='drawRepresentatives'>Disjoint representatives</option>
 	<option value='drawAllRepresentatives'>All representatives</option>
 	<option value='drawNone'>Draw nothing</option>
 </select>
+</td></tr>
+<tr><th>Walls:</th><td><input id='walls' name='walls' value='' /></td></tr>
+<tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
+<tr><th colspan='2'><input type='submit' /></th></tr>
+</table>
+</form>
 
 </td>
 </tr>
 </table>
-
-<form method='get' action=''>
-<h2>Manual data entry</h2>
-<table>
-<tr><th>walls:</th><td><input id='walls' name='walls' value='' /></td></tr>
-<tr><th>points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
-<tr><th colspan='2'><input type='submit' /></th></tr>
-</table>
-</form>
 
 </body>
 </html>

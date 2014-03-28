@@ -45,7 +45,8 @@ function updatePermaLink() {
 	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
 	var permalink = 
 		location.host+"/"+
-		location.pathname+"?walls="+encodeURI(wallsString)+"&points="+encodeURI(pointsString);
+		location.pathname+"?walls="+encodeURI(wallsString)+"&points="+encodeURI(pointsString) +
+			"&draw="+$("#draw").val()+"&shape="+$("#shape").val();
 	permalink = permalink.replace(/[?]+/g,"?");
 	permalink = permalink.replace(/[/]+/g,"/");
 	permalink = location.protocol+"//"+permalink;
@@ -103,15 +104,19 @@ function drawShapesFromPoints() {
 				candidatesByColor[color]=candidatesOfColor;
 			}
 			if (drawMode=="drawRepresentatives") {
+				var newStatus = "";
 				for (var color in candidatesByColor) {
 					var maxDisjointSetOfColor = jsts.algorithm.maximumDisjointSet(candidatesByColor[color], candidateSets.length);
+					newStatus += color+":"+points.byColor[color].length+"p"+maxDisjointSetOfColor.length+"s ";
 					for (var i in maxDisjointSetOfColor) {
 						var shape = maxDisjointSetOfColor[i];
 						landplots.add(shape, {stroke: shape.color, fill: 'transparent'});
 					}	
 				}
 				var shapes = jsts.algorithm.representativeDisjointSet(candidateSets);
+				newStatus += "   representatives:"+shapes.length;
 				drawShapes(null, shapes);
+				statusText.text(newStatus);
 			} else {
 				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
 			}
@@ -137,6 +142,8 @@ points = DraggablePoints(svgpaper, /* change event = */drawShapesFromPoints);
 
 points.fromString(Arg("points"));
 wallsFromString(Arg("walls"));
+$("#draw").val(Arg("draw"));
+$("#shape").val(Arg("shape"));
 drawShapesFromPoints();
 
 
