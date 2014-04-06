@@ -21,8 +21,10 @@ function DraggablePoints(svgpaper, onDragEnd) {
 	points.add = function(point, color) {
 		points.push(point);
 		
-		if (!points.byColor[color])
+		if (!points.byColor[color]) {
 			points.byColor[color] = [];
+			points.byColor[color].color = color;
+		}
 		points.byColor[color].push(point);
 
 		point.color = color;
