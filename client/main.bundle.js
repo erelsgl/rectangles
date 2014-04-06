@@ -16,7 +16,7 @@ canvas.height = 400;
 var svgpaper = SVG('svg');
 svgpaper.size(canvas.width,canvas.height);
 
-var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
+// var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
 
 
 
@@ -34,10 +34,10 @@ statusText.font({
 function updateStatus() {
 	statusText.text(""+points.length+" points ; "+landplots.length+" squares"+
 		"");
-	if (points.length>=MAX_POINT_COUNT)
-		$(".addpoint").attr("disabled","disabled");
-	else 
-		$(".addpoint").removeAttr("disabled");
+	//if (points.length>=MAX_POINT_COUNT)
+	//	$(".addpoint").attr("disabled","disabled");
+	//else 
+	//	$(".addpoint").removeAttr("disabled");
 }
 
 function updatePermaLink() {
@@ -93,6 +93,7 @@ function drawShapesFromPoints() {
 		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {
 			var candidateSets = [];
 			var candidatesByColor = {};
+			var numPerColor = parseInt($("#numPerColor").val()) || 1;
 			var groupId = 1;
 			for (var color in points.byColor)  {
 				var candidatesOfColor = factory.createShapesTouchingPoints(
@@ -101,7 +102,8 @@ function drawShapesFromPoints() {
 					candidatesOfColor[i].groupId = groupId++;
 					candidatesOfColor[i].color = color;
 				}
-				candidateSets.push(candidatesOfColor);
+				for (var i=0; i<numPerColor; ++i)
+					candidateSets.push(candidatesOfColor);
 				candidatesByColor[color]=candidatesOfColor;
 			}
 			if (drawMode=="drawRepresentatives") {
@@ -143,8 +145,8 @@ points = DraggablePoints(svgpaper, /* change event = */drawShapesFromPoints);
 
 points.fromString(Arg("points"));
 wallsFromString(Arg("walls"));
-$("#draw").val(Arg("draw"));
-$("#shape").val(Arg("shape"));
+if (Arg("draw")) $("#draw").val(Arg("draw"));
+if (Arg("shape")) $("#shape").val(Arg("shape"));
 drawShapesFromPoints();
 
 
@@ -195,11 +197,10 @@ $(".randomize").click(function() {
 $(".clear").click(function() {
 	points.clear(); 
 	landplots.clear();
-	updateStatus();
+	drawShapesFromPoints();
 });
 
-$("#draw").change(drawShapesFromPoints);
-$("#shape").change(drawShapesFromPoints);
+$(".control").change(drawShapesFromPoints);
 
 $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
@@ -1079,11 +1080,14 @@ jsts.algorithm.representativeDisjointSet = function(candidateSets) {
 	var allCandidates = candidateSets.reduce(function(a, b) { return a.concat(b); });
 	jsts.algorithm.prepareDisjointCache(allCandidates);
 
-	var repDisjointSet = null;
-	while (!(repDisjointSet = representativeDisjointSetRec(candidateSets))) {
-		candidateSets = candidateSets.slice(1);
-	}
-	return repDisjointSet;
+	var repDisjointSet = representativeDisjointSetSub(candidateSets);
+	if (repDisjointSet) return repDisjointSet;
+
+	// If a set of n representatives is not found, we should return null,
+	//    but for the sake of presentation to users 
+	//    we try to find a set of n-1 representatives.
+	//    this is not optimized as this is not the main goal of the algorithm.
+	else return jsts.algorithm.representativeDisjointSet(candidateSets.slice(1));
 }
 
 
@@ -1098,11 +1102,9 @@ jsts.algorithm.representativeDisjointSet = function(candidateSets) {
  * @author Erel Segal-Halevi
  * @since 2014-03
  */
-function representativeDisjointSetRec(candidateSets) {
+function representativeDisjointSetSub(candidateSets) {
 	var allSets = Combinatorics.cartesianProduct.apply(null,candidateSets);
 	while (subset = allSets.next()) {
-//		console.log("\t"+jsts.stringify(subset));
-//		console.log(subset[0].id()+": "+subset[0].disjointCache);
 		if (jsts.algorithm.arePairwiseDisjointByCache(subset))
 			return subset;
 	}

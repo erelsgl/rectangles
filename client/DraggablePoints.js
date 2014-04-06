@@ -69,6 +69,7 @@ function DraggablePoints(svgpaper, onDragEnd) {
 		for (var p=0; p<this.length; ++p)
 			this[p].draw();
 		this.length = 0;
+		this.byColor = {};
 	}
 
 	// Return a string representation of the x,y values of the points
