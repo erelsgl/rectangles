@@ -33,9 +33,9 @@ statusText.font({
 function updateStatus() {
 	statusText.text(""+points.length+" points ; "+landplots.length+" squares"+
 		"");
-	if (points.length>=MAX_POINT_COUNT)
-		$(".addpoint").attr("disabled","disabled");
-	else 
+//	if (points.length>=MAX_POINT_COUNT)
+//		$(".addpoint").attr("disabled","disabled");
+//	else 
 		$(".addpoint").removeAttr("disabled");
 }
 
@@ -120,7 +120,14 @@ function drawShapesFromPoints() {
 			} else {
 				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
 			}
-		} else {
+		} else if (drawMode=="drawFairDivision") {
+			var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
+			var maxSlimness = parseFloat($("#maxSlimness").val());
+			var setsOfPoints = _.values(points.byColor);
+			var fairDivision = factory.createFairAndSquareDivision(
+				setsOfPoints, envelopeTemp, maxSlimness);
+			drawShapes(null,fairDivision);
+		} else { // drawDisjoint or drawAll
 				var candidates = factory.createShapesTouchingPoints(
 						shapeName, points, envelope);
 				if (drawMode=="drawAll") {
@@ -142,8 +149,8 @@ points = DraggablePoints(svgpaper, /* change event = */drawShapesFromPoints);
 
 points.fromString(Arg("points"));
 wallsFromString(Arg("walls"));
-$("#draw").val(Arg("draw"));
-$("#shape").val(Arg("shape"));
+if (Arg("draw")) $("#draw").val(Arg("draw"));
+if (Arg("shape")) $("#shape").val(Arg("shape"));
 drawShapesFromPoints();
 
 
@@ -199,6 +206,7 @@ $(".clear").click(function() {
 
 $("#draw").change(drawShapesFromPoints);
 $("#shape").change(drawShapesFromPoints);
+$(".control").change(drawShapesFromPoints);
 
 $(".wall").change(function() {
 	var isChecked = $(this).is(':checked');
