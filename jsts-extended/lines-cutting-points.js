@@ -1,5 +1,5 @@
 /**
- * Calculate a square containing a maximal number of points.
+ * Calculate a set of parallel lines dividing a set of points equally.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-04
@@ -10,11 +10,10 @@ var _ = require("underscore");
 
 /**
  * @param points array of points, e.g. [{x:0,y:0}, {x:100,y:100}, etc.]
- * @param envelope defines the bounding rectangle, e.g. {minx: 0, maxx: 100, miny: 0, maxy: 200}
- * @param maxAspectRatio number>=1: the maximum width/height ratio of the returned rectangle.
+ * @param numOfPieces positive integer: number of pieces (the number of cuts is numOfPieces+1).
  * @return a rectangle contained within the envelope, with aspect ratio at most maxAspectRatio, that contains a largest number of points. 
  */
-jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRatio) {
+jsts.algorithm.yCuts = function(points, numOfPieces) {
 	if (!maxAspectRatio) maxAspectRatio=1;
 	var width = envelope.maxx-envelope.minx;
 	var height = envelope.maxy-envelope.miny;
@@ -45,9 +44,9 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 				if (curNum>maxNum) {
 					maxNum = curNum;
 					result.minx = minx;
-					result.maxx = maxx;
 				}
 			}
+			result.maxx = result.minx+largestWidthPerHeight;
 		}
 	} else {  // height>largestHeightPerWidth
 		var minx = result.minx = envelope.minx;
@@ -70,16 +69,20 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 				if (curNum>maxNum) {
 					maxNum = curNum;
 					result.miny = miny;
-					result.maxy = maxy;
 				}
 			}
+			result.maxy = result.miny+largestHeightPerWidth;
 		}
 	}
 	return result;
 }
 
-var numPointsWithinXY = function(points, minx,miny,maxx,maxy) {
-	return points.reduce(function(prev,cur) {
-		return prev + (minx<=cur.x && cur.x<=maxx && miny<=cur.y && cur.y<=maxy);
-	}, 0);
+/**
+ * @param sortedValues a sorted array of values, e.g. [0, 2, 6, 7...]
+ * @param numOfPieces positive integer: number of pieces (the number of cuts is numOfPieces+1).
+ * @return an array of values such that, the number of points between each two consecutive values (including the values themselves) is approximately equal.  
+ */
+jsts.algorithm.cuts = function(sortedValues, numOfPieces) {
+	
 }
+

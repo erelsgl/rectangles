@@ -1,5 +1,5 @@
 /**
- * Divide a cake such that each color gets a fair number of points.
+ * Divide a square cake such that each color gets a square with 1/2n of its points.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-04
@@ -86,7 +86,8 @@ var numPointsWithinEnvelope = function(points, envelope) {
 	}, 0);
 }
 
-var numPartners = function(points, envelope, n, maxAspectRatio) {
+
+var yCuts = function(points, numOfPieces) {
 	var A, B, T;
 	if (maxAspectRatio<2) {
 		A=6; B=8; T=2;
