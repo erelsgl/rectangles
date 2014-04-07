@@ -6,7 +6,9 @@
  */
 
 var jsts = require('jsts');
+require("./point-utils");
 var _ = require("underscore");
+var utils = require('./numeric-utils');
 
 /**
  * @param points array of points, e.g. [{x:0,y:0}, {x:100,y:100}, etc.]
@@ -21,18 +23,16 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	var largestWidthPerHeight = maxAspectRatio*height;
 	var largestHeightPerWidth = maxAspectRatio*width;
 	var result = {};
+	points = jsts.algorithm.pointsInEnvelope(points, envelope);
 	if (width<=largestWidthPerHeight && height<=largestHeightPerWidth) {  
 		// the envelope has aspect ratio at most maxAspectRatio, so just return it entirely:
 		result = envelope;
 	} else if (width>largestWidthPerHeight) {
 		var miny = result.miny = envelope.miny;
 		var maxy = result.maxy = envelope.maxy;
-		var xValues = _.chain(points)
-			.pluck("x")                           // get the x values
-			.sort(function(a,b) { return a-b; })  // sort them in increasing order
-			.uniq(/*sorted=*/true)                // keep each value only once
-			.filter(function(x) { return envelope.minx<=x && x<=envelope.maxx})  // keep only values in the envelope
-			.value();
+		var xValues = utils.
+			sortedUniqueValues(points, ["x"]).
+			filter(function(x) { return envelope.minx<=x && x<=envelope.maxx});  // keep only values in the envelope
 		if (xValues.length==0) {  // no x values in the envelope - just return any rectangle within the envelope
 			result.minx = envelope.minx;
 			result.maxx = result.minx+largestWidthPerHeight;
@@ -41,7 +41,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 			for (var i=0; i<xValues.length; ++i) {
 				var minx = xValues[i];
 				var maxx = Math.min(minx+largestWidthPerHeight, envelope.maxx);
-				var curNum = numPointsWithinXY(points, minx,miny,maxx,maxy);
+				var curNum = jsts.algorithm.numPointsInXY(points, minx,miny,maxx,maxy);
 				if (curNum>maxNum) {
 					maxNum = curNum;
 					result.minx = minx;
@@ -52,12 +52,9 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	} else {  // height>largestHeightPerWidth
 		var minx = result.minx = envelope.minx;
 		var maxx = result.maxx = envelope.maxx;
-		var yValues = _.chain(points)
-			.pluck("y")                           // get the x values
-			.sort(function(a,b) { return a-b; })  // sort them in increasing order
-			.uniq(/*sorted=*/true)                // keep each value only once
-			.filter(function(y) { return envelope.miny<=y && y<=envelope.maxy})  // keep only values in the envelope
-			.value();
+		var yValues = utils.
+			sortedUniqueValues(points, ["y"]).
+			filter(function(y) { return envelope.miny<=y && y<=envelope.maxy});  // keep only values in the envelope
 		if (yValues.length==0) {  // no y values in the envelope - just return any rectangle within the envelope
 			result.miny = envelope.miny;
 			result.maxy = result.miny+largestHeightPerWidth;
@@ -66,7 +63,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 			for (var i=0; i<yValues.length; ++i) {
 				var miny = yValues[i];
 				var maxy = Math.min(miny+largestHeightPerWidth, envelope.maxy);
-				var curNum = numPointsWithinXY(points, minx,miny,maxx,maxy);
+				var curNum = jsts.algorithm.numPointsInXY(points, minx,miny,maxx,maxy);
 				if (curNum>maxNum) {
 					maxNum = curNum;
 					result.miny = miny;
@@ -76,10 +73,4 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 		}
 	}
 	return result;
-}
-
-var numPointsWithinXY = function(points, minx,miny,maxx,maxy) {
-	return points.reduce(function(prev,cur) {
-		return prev + (minx<=cur.x && cur.x<=maxx && miny<=cur.y && cur.y<=maxy);
-	}, 0);
 }

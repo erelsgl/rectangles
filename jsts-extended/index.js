@@ -1,6 +1,7 @@
 var jsts = require("jsts");
 require("./intersection-cache");
 require("./factory-utils");
+require("./point-utils");
 require("./AxisParallelRectangle");
 require("./maximum-disjoint-set-sync");
 require("./maximum-disjoint-set-async");

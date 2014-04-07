@@ -1,11 +1,13 @@
 /**
- * Adds to jsts.algorithm some utility functions related to partitioning.
+ * Adds to jsts.algorithm some utility functions related to partitioning collections of shapes.
+ * 
  * These utility functions are used mainly by the maximum-disjoint-set algorithm.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-03
  */
 var _ = require('underscore');
+var utils = require('./numeric-utils');
 
 
 jsts.algorithm.prepareShapesToPartition = function(candidates) {
@@ -28,7 +30,7 @@ jsts.algorithm.prepareShapesToPartition = function(candidates) {
 		partition[0] - on one side of separator;
 		partition[1] - intersected by separator;
 		partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
-	@note Tries to minimize the size of partition[1]. I.e., out of all possible separators, selects a separator that intersects a smallest number of rectangles.
+	@note Tries to maximize the quality of the partition, as defined by the function partitionQuality.
  * 
  */
 jsts.algorithm.partitionShapes = function(candidates) {
@@ -36,7 +38,8 @@ jsts.algorithm.partitionShapes = function(candidates) {
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 
 	var bestXPartition = null;
-	var xValues = sortedXValues(candidates).slice(1,-1);
+	var xValues = utils.sortedUniqueValues(candidates, ['xmin','xmax']).slice(1,-1);
+	
 	if (xValues.length>0) {
 		var bestX = _.max(xValues, function(x) {
 			return partitionQuality(partitionByX(candidates, x));
@@ -45,7 +48,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 	}
 
 	var bestYPartition = null;
-	var yValues = sortedYValues(candidates).slice(1,-1);
+	var yValues = utils.sortedUniqueValues(candidates, ['ymin','ymax']).slice(1,-1);
 	if (yValues.length>0) {
 		var bestY = _.max(yValues, function(y) {
 			return partitionQuality(partitionByY(candidates, y));
@@ -68,37 +71,6 @@ jsts.algorithm.partitionShapes = function(candidates) {
 	}
 }
 
-
-/**
- * @param shapes an array of shapes, each of which contains pre-calculated "xmin" and "xmax" fields.
- * @returns a sorted array of all unique X values of the envelopes.
- */
-function sortedXValues(shapes) {
-	var xvalues = {};
-	for (var i=0; i<shapes.length; ++i) {
-		var s = shapes[i];
-		xvalues[s.xmin]=xvalues[s.xmax]=true;
-	}
-	var xlist = Object.keys(xvalues);
-	xlist.sort(function(a,b){return a-b});
-//	console.log(xlist)
-	return xlist;
-}
-
-/**
- * @param shapes an array of shapes, each of which contains pre-calculated "ymin" and "ymax" fields.
- * @returns a sorted array of all unique Y values of the envelopes.
- */
-function sortedYValues(shapes) {
-	var yvalues = {};
-	for (var i=0; i<shapes.length; ++i) {
-		var s = shapes[i];
-		yvalues[s.ymin]=yvalues[s.ymax]=true;
-	}
-	var ylist = Object.keys(yvalues);
-	ylist.sort(function(a,b){return a-b});
-	return ylist;
-}
 
 
 /**

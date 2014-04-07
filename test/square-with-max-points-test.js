@@ -52,10 +52,18 @@ describe('square-with-max-points with points with exponential distances', functi
 				{minx:0,miny:0, maxx:80,maxy:200},
 				1).should.eql({minx:0,maxx:80,miny:60,maxy:140});
 	})
-	it('works for the SE comment', function() {
+	it('works for the comment by abuzittin gillifirca', function() {
+		// http://codereview.stackexchange.com/questions/46531/reducing-code-duplication-in-a-geometric-function
 		squareWithMaxNumOfPoints(
 				[{x:1,y:200},{x:2,y:200},{x:3,y:200},{x:4,y:200}],
 				{minx:0,miny:0, maxx:80,maxy:200},
 				1).should.eql({minx:0,maxx:80,miny:200,maxy:200});
+	})
+	it('works for the bug found by Flambino', function() {
+		// http://codereview.stackexchange.com/a/46543/20684
+		squareWithMaxNumOfPoints(
+				[{x:100,y:300}],
+				{minx:0,miny:0, maxx:200,maxy:100},
+				1).should.eql({minx:0,miny:0,maxx:100,maxy:100});
 	})
 });
