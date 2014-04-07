@@ -45,9 +45,9 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 				if (curNum>maxNum) {
 					maxNum = curNum;
 					result.minx = minx;
+					result.maxx = maxx;
 				}
 			}
-			result.maxx = result.minx+largestWidthPerHeight;
 		}
 	} else {  // height>largestHeightPerWidth
 		var minx = result.minx = envelope.minx;
@@ -70,9 +70,9 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 				if (curNum>maxNum) {
 					maxNum = curNum;
 					result.miny = miny;
+					result.maxy = maxy;
 				}
 			}
-			result.maxy = result.miny+largestHeightPerWidth;
 		}
 	}
 	return result;

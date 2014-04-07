@@ -52,4 +52,10 @@ describe('square-with-max-points with points with exponential distances', functi
 				{minx:0,miny:0, maxx:80,maxy:200},
 				1).should.eql({minx:0,maxx:80,miny:60,maxy:140});
 	})
+	it('works for the SE comment', function() {
+		squareWithMaxNumOfPoints(
+				[{x:1,y:200},{x:2,y:200},{x:3,y:200},{x:4,y:200}],
+				{minx:0,miny:0, maxx:80,maxy:200},
+				1).should.eql({minx:0,maxx:80,miny:200,maxy:200});
+	})
 });
