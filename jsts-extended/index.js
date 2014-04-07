@@ -6,6 +6,7 @@ require("./maximum-disjoint-set-sync");
 require("./maximum-disjoint-set-async");
 require("./representative-disjoint-set-sync");
 require("./shapes-touching-points");
+require("./square-with-max-points");
 require("./fair-division-of-points");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {

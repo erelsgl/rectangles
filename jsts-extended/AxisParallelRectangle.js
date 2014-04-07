@@ -230,13 +230,19 @@
    * or with a single parameter with 4 fields (xmin,ymin, xmax,ymax).
    */
   jsts.geom.GeometryFactory.prototype.createAxisParallelRectangle = function(xmin,ymin, xmax,ymax) {
-	if (arguments.length==1) 
-		return this.createAxisParallelRectangle(xmin.xmin, xmin.ymin, xmin.xmax, xmin.ymax);
-
-//	return this.createPolygon(this.createLinearRing([
-//		coord(xmin,ymin), coord(xmax,ymin), coord(xmax,ymax), coord(xmin,ymax), coord(xmin,ymin)
-//	]));
-	return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
+	if (arguments.length==1) {
+		var envelope = xmin;
+		if ('xmin' in envelope)
+			return this.createAxisParallelRectangle(envelope.xmin, envelope.ymin, envelope.xmax, envelope.ymax);
+		else if ('minx' in envelope)
+			return this.createAxisParallelRectangle(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy);
+		else 
+			throw new Error("envelope contains neither xmin nor minx: "+JSON.stringify(envelope));
+	} else if (arguments.length==4) {
+		return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
+	} else {
+		throw new Error("createAxisParallelRectangle expected 1 or 4 arguments, but found "+arguments.length)
+	}
   };
   
 })();
