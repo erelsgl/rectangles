@@ -46,24 +46,44 @@ describe('square-with-max-points with points with exponential distances', functi
 		squareWithMaxNumOfPoints(pointsx,thinrect1,2).should.eql({minx:0,maxx:100,miny:0,maxy:200});
 		squareWithMaxNumOfPoints(pointsx,thinrect2,2).should.eql({minx:200,maxx:380,miny:0,maxy:90});
 	})
+});
+
+describe('square-with-max-points', function() {
 	it('works for the SE example', function() {
 		squareWithMaxNumOfPoints(
 				[{x:0,y:0},{x:0,y:60},{x:0,y:100},{x:0,y:140},{x:0,y:200}],
 				{minx:0,miny:0, maxx:80,maxy:200},
 				1).should.eql({minx:0,maxx:80,miny:60,maxy:140});
 	})
-	it('works for the comment by abuzittin gillifirca', function() {
+	it('works for the bug found by abuzittin gillifirca', function() {
 		// http://codereview.stackexchange.com/questions/46531/reducing-code-duplication-in-a-geometric-function
 		squareWithMaxNumOfPoints(
 				[{x:1,y:200},{x:2,y:200},{x:3,y:200},{x:4,y:200}],
 				{minx:0,miny:0, maxx:80,maxy:200},
-				1).should.eql({minx:0,maxx:80,miny:200,maxy:200});
+				1).should.eql({minx:0,maxx:80,miny:120,maxy:200});
 	})
-	it('works for the bug found by Flambino', function() {
+	it('works for bug #1 found by Flambino', function() {
 		// http://codereview.stackexchange.com/a/46543/20684
 		squareWithMaxNumOfPoints(
 				[{x:100,y:300}],
 				{minx:0,miny:0, maxx:200,maxy:100},
 				1).should.eql({minx:0,miny:0,maxx:100,maxy:100});
+	})
+	it('works for bug #2 found by Flambino', function() {
+		// http://codereview.stackexchange.com/a/46543/20684
+		squareWithMaxNumOfPoints(
+				[
+				 {x:0,y:0},{x:0,y:10},{x:0,y:20},{x:0,y:30},{x:0,y:40},{x:0,y:50},{x:0,y:60},{x:0,y:70},
+				 {x:200,y:0},{x:199,y:10},{x:198,y:20},{x:197,y:30},{x:196,y:40},
+				 ],
+				{minx:0,miny:0, maxx:200,maxy:100},
+				1).should.eql({minx:0,miny:0,maxx:100,maxy:100});
+		squareWithMaxNumOfPoints(
+				[
+				 {x:0,y:0},{x:1,y:10},{x:2,y:20},{x:3,y:30},{x:4,y:40},
+				 {x:200,y:0},{x:200,y:10},{x:200,y:20},{x:200,y:30},{x:200,y:40},{x:200,y:50},{x:200,y:60},{x:200,y:70},
+				 ],
+				{minx:0,miny:0, maxx:200,maxy:100},
+				1).should.eql({minx:100,miny:0,maxx:200,maxy:100});
 	})
 });

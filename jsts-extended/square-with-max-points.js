@@ -3,6 +3,11 @@
  * 
  * @author Erel Segal-Halevi
  * @since 2014-04
+ * 
+ * REVIEWED AND CORRECTED BY:
+ * * Flambino
+ * * abuzittin gillifirca
+ * http://codereview.stackexchange.com/questions/46531/reducing-code-duplication-in-a-geometric-function
  */
 
 var jsts = require('jsts');
@@ -30,17 +35,15 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	} else if (width>largestWidthPerHeight) {
 		var miny = result.miny = envelope.miny;
 		var maxy = result.maxy = envelope.maxy;
-		var xValues = utils.
-			sortedUniqueValues(points, ["x"]).
-			filter(function(x) { return envelope.minx<=x && x<=envelope.maxx});  // keep only values in the envelope
+		var xValues = utils.sortedUniqueValues(points, ["x"]);
 		if (xValues.length==0) {  // no x values in the envelope - just return any rectangle within the envelope
 			result.minx = envelope.minx;
 			result.maxx = result.minx+largestWidthPerHeight;
 		} else {
 			var maxNum   = 0;
 			for (var i=0; i<xValues.length; ++i) {
-				var minx = xValues[i];
-				var maxx = Math.min(minx+largestWidthPerHeight, envelope.maxx);
+				var minx = Math.min(xValues[i], envelope.maxx-largestWidthPerHeight);
+				var maxx = minx+largestWidthPerHeight;
 				var curNum = jsts.algorithm.numPointsInXY(points, minx,miny,maxx,maxy);
 				if (curNum>maxNum) {
 					maxNum = curNum;
@@ -52,17 +55,15 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	} else {  // height>largestHeightPerWidth
 		var minx = result.minx = envelope.minx;
 		var maxx = result.maxx = envelope.maxx;
-		var yValues = utils.
-			sortedUniqueValues(points, ["y"]).
-			filter(function(y) { return envelope.miny<=y && y<=envelope.maxy});  // keep only values in the envelope
+		var yValues = utils.sortedUniqueValues(points, ["y"]);
 		if (yValues.length==0) {  // no y values in the envelope - just return any rectangle within the envelope
 			result.miny = envelope.miny;
 			result.maxy = result.miny+largestHeightPerWidth;
 		} else { 
 			var maxNum   = 0;
 			for (var i=0; i<yValues.length; ++i) {
-				var miny = yValues[i];
-				var maxy = Math.min(miny+largestHeightPerWidth, envelope.maxy);
+				var miny = Math.min(yValues[i], envelope.maxy-largestHeightPerWidth);
+				var maxy = miny+largestHeightPerWidth;
 				var curNum = jsts.algorithm.numPointsInXY(points, minx,miny,maxx,maxy);
 				if (curNum>maxNum) {
 					maxNum = curNum;
