@@ -16,7 +16,7 @@ canvas.height = 400;
 var svgpaper = SVG('svg');
 svgpaper.size(canvas.width,canvas.height);
 
-var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
+// var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
 
 
 
@@ -34,10 +34,17 @@ statusText.font({
 function updateStatus() {
 	statusText.text(""+points.length+" points ; "+landplots.length+" squares"+
 		"");
+<<<<<<< HEAD
+	//if (points.length>=MAX_POINT_COUNT)
+	//	$(".addpoint").attr("disabled","disabled");
+	//else 
+	//	$(".addpoint").removeAttr("disabled");
+=======
 //	if (points.length>=MAX_POINT_COUNT)
 //		$(".addpoint").attr("disabled","disabled");
 //	else 
 		$(".addpoint").removeAttr("disabled");
+>>>>>>> branch 'master' of git@github.com:erelsgl/rectangles.git
 }
 
 function updatePermaLink() {
@@ -93,6 +100,7 @@ function drawShapesFromPoints() {
 		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {
 			var candidateSets = [];
 			var candidatesByColor = {};
+			var numPerColor = parseInt($("#numPerColor").val()) || 1;
 			var groupId = 1;
 			for (var color in points.byColor)  {
 				var candidatesOfColor = factory.createShapesTouchingPoints(
@@ -101,7 +109,8 @@ function drawShapesFromPoints() {
 					candidatesOfColor[i].groupId = groupId++;
 					candidatesOfColor[i].color = color;
 				}
-				candidateSets.push(candidatesOfColor);
+				for (var i=0; i<numPerColor; ++i)
+					candidateSets.push(candidatesOfColor);
 				candidatesByColor[color]=candidatesOfColor;
 			}
 			if (drawMode=="drawRepresentatives") {
@@ -202,11 +211,14 @@ $(".randomize").click(function() {
 $(".clear").click(function() {
 	points.clear(); 
 	landplots.clear();
-	updateStatus();
+	drawShapesFromPoints();
 });
 
+<<<<<<< HEAD
+=======
 $("#draw").change(drawShapesFromPoints);
 $("#shape").change(drawShapesFromPoints);
+>>>>>>> branch 'master' of git@github.com:erelsgl/rectangles.git
 $(".control").change(drawShapesFromPoints);
 
 $(".wall").change(function() {

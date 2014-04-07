@@ -61,7 +61,7 @@ Puzzle:
 Controls:
 <ul>
 <li>
-Add a point by clicking a color. Due to efficiency issues, up to <span id='max-point-count'>20</span> points are allowed.
+Add a point by clicking a color. It is recommended to add no more than <span id='max-point-count'>20</span> points.
 <br/>
 <button class='addpoint'>Blue</button>
 <button class='addpoint'>Cyan</button>
@@ -84,21 +84,21 @@ Add a point by clicking a color. Due to efficiency issues, up to <span id='max-p
 
 
 <table>
-<tr><th>Shapes:</th><td><select id='shape' name='shape'>
+<tr><th>Shapes:</th><td><select id='shape' name='shape' class='control'>
 	<option value='axisParallelSquares' selected='selected'>Axis-parallel rectangles</option>
 	<option value='rotatedSquares'>Rotated Squares</option>
 	<option value='RAITs'>Right-Angled Isosceles Triangles</option>
 </select>
 <input class='control' name='maxSlimness' id='maxSlimness' size='1' value='1' style='width:2em'/>-fat
 </td></tr>
-<tr><th>Drawing:</th><td>: <select id='draw' name='draw'>
+<tr><th>Drawing:</th><td>: <select id='draw' name='draw' class='control'>
 	<option value='drawDisjoint' selected='selected'>Max set of disjoint candidates</option>
 	<option value='drawAll'>All candidates</option>
 	<option value='drawRepresentatives'>Disjoint representatives</option>
 	<option value='drawAllRepresentatives'>All representatives</option>
 	<option value='drawFairDivision'>Fair Division</option>
 	<option value='drawNone'>Draw nothing</option>
-</select>
+</select> <input id='numPerColor' name='numPerColor' class='control' size='2' value='1' />
 </td></tr>
 <tr><th>Walls:</th><td><input id='walls' name='walls' value='' /></td></tr>
 <tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
