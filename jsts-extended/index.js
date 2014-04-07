@@ -9,6 +9,7 @@ require("./representative-disjoint-set-sync");
 require("./shapes-touching-points");
 require("./square-with-max-points");
 require("./fair-division-of-points");
+require("./half-proportional-division");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
 		return object.map(function(cur) {

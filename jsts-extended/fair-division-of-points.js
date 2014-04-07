@@ -10,30 +10,36 @@ require("./factory-utils");
 require("./AxisParallelRectangle");
 require("./square-with-max-points");
 var _ = require("underscore");
+var utils = require('./numeric-utils');
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
 /**
- * Find a set of axis-parallel squares based on a given set of points.>
+ * Find a set of axis-parallel squares representing a fair-and-square division of the points.
  * 
- * @param points an array of points. Each point should contain the fields: x, y.
+ * @param agents an array in which each entry represents the valuation of a single agent.
+ * The valuation of an agent is represented by points with fields {x,y}.
+ * 
  * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
  * 
- * @return a set of shapes (Polygon's) such that:
- * a. Each square touches two points: one at a corner and one anywhere at the boundary.
- * b. No square contains a point.
+ * @param maxAspectRatio maximum aspect ratio allowed for the pieces.
+ * 
+ * @return a list of AxisParallelRectangle's.
  */
-jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsOfPoints, envelope, maxAspectRatio) {
-	var numOfAgents = setsOfPoints.length;
+jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(agents, envelope, maxAspectRatio) {
+	var numOfAgents = agents.length;
 	if (numOfAgents==0) 
 		return [];
 
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	if (!maxAspectRatio) maxAspectRatio=1;
 	if (numOfAgents==1) { // base case - single agent - find a square covering
-		var shape = this.createAxisParallelRectangle(jsts.algorithm.squareWithMaxNumOfPoints(setsOfPoints[0],envelope,maxAspectRatio));
-		if (points.color)
-			shape.color = points.color;
+		var agent = agents[0];
+		var shape = this.createAxisParallelRectangle(
+			jsts.algorithm.squareWithMaxNumOfPoints(
+					agent, envelope, maxAspectRatio));
+		if (agent.color)
+			shape.color = agent.color;
 		return [shape];
 	}
 	
@@ -52,9 +58,9 @@ jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsO
 		var piece2 = new jsts.geom.Envelope(envelope.minx,envelope.maxx, cutPoint,envelope.maxy);
 	}
 	var partners1 = [], partners2 = [];
-	for (var i=0; i<setsOfPoints.length; ++i) {
-		partners1[i] = [i,numPartners(setsOfPoints[i],piece1,numOfAgents,maxAspectRatio)];
-		partners2[i] = [i,numPartners(setsOfPoints[i],piece2,numOfAgents,maxAspectRatio)];
+	for (var i=0; i<agents.length; ++i) {
+		partners1[i] = [i,numPartners(agents[i],piece1,numOfAgents,maxAspectRatio)];
+		partners2[i] = [i,numPartners(agents[i],piece2,numOfAgents,maxAspectRatio)];
 	}
 	var sortByPartnersDecreasingOrder = function(a,b) { return b[1]-a[1]; }
 	partners1.sort(sortByPartnersDecreasingOrder);
@@ -63,9 +69,9 @@ jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsO
 	for (var i=0; i<partners1.length; ++i) {
 		var agentIndex = partners1[i][0];
 		if (agentsForPiece1.length<partners1[i][1])
-			agentsForPiece1.push(setsOfPoints[agentIndex]);
+			agentsForPiece1.push(agents[agentIndex]);
 		else
-			agentsForPiece2.push(setsOfPoints[agentIndex]);
+			agentsForPiece2.push(agents[agentIndex]);
 	}
 //	if (agentsForPiece1.length<numOfAgents && agentsForPiece2<numOfAgents) {
 		var fairDivision1 = this.createFairAndSquareDivision(agentsForPiece1, piece1, maxAspectRatio);
@@ -79,13 +85,6 @@ jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsO
 
 /*---------------- UTILS ---------------*/
 
-
-var numPointsWithinEnvelope = function(points, envelope) {
-	return points.reduce(function(prev,cur) {
-		return prev + envelope.containsValues(cur.x,cur.y);
-	}, 0);
-}
-
 var numPartners = function(points, envelope, n, maxAspectRatio) {
 	var A, B, T;
 	if (maxAspectRatio<2) {
@@ -93,7 +92,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	} else {
 		A=4; B=5; T=1;
 	}
-	var pointsInside = numPointsWithinEnvelope(points, envelope);
+	var pointsInside = utils.numPointsInXY(points, envelope);
 	var normalizedValue = (pointsInside/points.length*(A*n-B));
 	if (normalizedValue<T)
 		return 0;
