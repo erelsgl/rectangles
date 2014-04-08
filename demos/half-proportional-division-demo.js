@@ -31,14 +31,14 @@ var points2 =
 points2.color='blue';
 
 console.log("One person can get at least 1/2 of the points");
-console.log(jsts.stringify(factory.createAxisParallelRectangles(jsts.algorithm.halfProportionalDivision4Walls([points1],square))));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points2],square)));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points1],fatrect1)));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points2],fatrect1)));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points1],fatrect2)));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points2],fatrect2)));
-//
-//console.log("Two people can get at least 1/4 of their points");
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points1,points2],square)));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points1,points2],fatrect1)));
-//console.log(jsts.stringify(factory.halfProportionalDivision4Walls([points1,points2],fatrect2)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1],square)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points2],square)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1],fatrect1)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points2],fatrect1)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1],fatrect2)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points2],fatrect2)));
+
+console.log("Two people can get at least 1/4 of their points");
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1,points2],square)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1,points2],fatrect1)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1,points2],fatrect2)));

@@ -97,7 +97,7 @@ function DraggablePoints(svgpaper, onDragEnd) {
 				var xyc = pointsStrings[i].replace(/\s*/g,"").split(/,/);
 				if (xyc.length<2) continue;
 				if (!xyc[2] || xyc[2]=='undefined') xyc[2]="blue";
-				points.add(new SVG.math.Point(xyc[0], xyc[1]), xyc[2]);
+				points.add(new SVG.math.Point(parseFloat(xyc[0]), parseFloat(xyc[1])), xyc[2]);
 			}
 		}
 	}

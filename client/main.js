@@ -125,9 +125,9 @@ function drawShapesFromPoints() {
 		} else if (drawMode=="drawFairDivision") {
 			var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
 			var maxSlimness = parseFloat($("#maxSlimness").val());
-			var setsOfPoints = _.values(points.byColor);
-			var fairDivision = factory.createFairAndSquareDivision(
-				setsOfPoints, envelopeTemp, maxSlimness);
+			var pointsPerAgent = _.values(points.byColor);
+			var fairDivision = factory.createHalfProportionalDivision(
+				pointsPerAgent, envelopeTemp, maxSlimness);
 			drawShapes(null,fairDivision);
 		} else { // drawDisjoint or drawAll
 				var candidates = factory.createShapesTouchingPoints(

@@ -239,12 +239,6 @@
 		throw new Error("createAxisParallelRectangle expected 1 or 4 arguments, but found "+arguments.length)
 	}
   };
-  
-  jsts.geom.GeometryFactory.prototype.createAxisParallelRectangles = function(envelopes) {
-	  return envelopes.map(function(envelope) {
-		return new jsts.geom.AxisParallelRectangle(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy, this);
-	  });
-  };
 })();
 
 

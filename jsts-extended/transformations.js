@@ -60,11 +60,11 @@ jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
 	}
 };
 
-jsts.algorithm.reverseTransformation = function(transformation) {
+jsts.algorithm.reverseTransformation = function(t) {
 	return {
-		translateX: -transformation.translateX,
-		translateY: -transformation.translateY,
-		scale:      1/transformation.scale,
-		transpose:  transformation.transpose
+		translateX: t.transpose? -t.translateY*t.scale: -t.translateX*t.scale,
+		translateY: t.transpose? -t.translateX*t.scale: -t.translateY*t.scale,
+		scale:      1/t.scale,
+		transpose:  t.transpose
 	}
 };

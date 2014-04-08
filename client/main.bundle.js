@@ -126,9 +126,9 @@ function drawShapesFromPoints() {
 		} else if (drawMode=="drawFairDivision") {
 			var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
 			var maxSlimness = parseFloat($("#maxSlimness").val());
-			var setsOfPoints = _.values(points.byColor);
-			var fairDivision = factory.createFairAndSquareDivision(
-				setsOfPoints, envelopeTemp, maxSlimness);
+			var pointsPerAgent = _.values(points.byColor);
+			var fairDivision = factory.createHalfProportionalDivision(
+				pointsPerAgent, envelopeTemp, maxSlimness);
 			drawShapes(null,fairDivision);
 		} else { // drawDisjoint or drawAll
 				var candidates = factory.createShapesTouchingPoints(
@@ -223,7 +223,7 @@ $(".interrupt").click(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":5,"underscore":36}],2:[function(require,module,exports){
+},{"../jsts-extended":6,"underscore":41}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -456,16 +456,18 @@ $(".interrupt").click(function() {
    * or with a single parameter with 4 fields (minx,miny, maxx,maxy).
    */
   jsts.geom.GeometryFactory.prototype.createAxisParallelRectangle = function(minx,miny, maxx,maxy) {
-	if (arguments.length==1) 
-		return this.createAxisParallelRectangle(minx.minx, minx.miny, minx.maxx, minx.maxy);
-
-//	return this.createPolygon(this.createLinearRing([
-//		coord(minx,miny), coord(maxx,miny), coord(maxx,maxy), coord(minx,maxy), coord(minx,miny)
-//	]));
-	return new jsts.geom.AxisParallelRectangle(minx,miny, maxx,maxy, this);
+	if (arguments.length==1) {
+		var envelope = minx;
+		return new jsts.geom.AxisParallelRectangle(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy, this);
+	} else if (arguments.length==4) {
+		return new jsts.geom.AxisParallelRectangle(minx,miny, maxx,maxy, this);
+	} else {
+		throw new Error("createAxisParallelRectangle expected 1 or 4 arguments, but found "+arguments.length)
+	}
   };
-  
 })();
+
+
 
 },{}],3:[function(require,module,exports){
 /**
@@ -508,105 +510,59 @@ jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
 var jsts = require('jsts');
 require("./factory-utils");
 require("./AxisParallelRectangle");
+require("./square-with-max-points");
 var _ = require("underscore");
-
-function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
+var utils = require('./numeric-utils');
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
-jsts.geom.GeometryFactory.prototype.createSquareWithMaxNumOfPoints = function(points, envelope, maxSlimness) {
-	if (!maxSlimness) maxSlimness=1;
-	var width = envelope.getWidth(), height = envelope.getHeight();
-//	var minPointsX = _.min(points1, function(cur){return cur.x});
-//	var maxPointsX = _.max(points1, function(cur){return cur.x});
-//	var minPointsY = _.min(points1, function(cur){return cur.y});
-//	var maxPointsY = _.max(points1, function(cur){return cur.y});
-	var shape = null;
-	var slimmestHeight = maxSlimness*height;
-	var slimmestWidth = maxSlimness*width;
-	if (width<=slimmestHeight && height<=slimmestWidth) {  // the envelope is R-fat - give it entirely to agent 1
-		shape = this.createAxisParallelRectangle(envelope.getMinX(),envelope.getMinY(),envelope.getMaxX(),envelope.getMaxY());
-	} else if (width>slimmestHeight) {
-		var numOfSquaresInCovering = Math.ceil(width/slimmestHeight);  // at least 2
-		var stepSize = (width-slimmestHeight)/(numOfSquaresInCovering-1);
-		var miny = envelope.getMinY();
-		var maxy = envelope.getMaxY();
-		var bestValue = 0;
-		var iBestValue = 0;
-		for (var i=0; i<numOfSquaresInCovering; ++i) {
-			var minx = envelope.getMinX()+i*stepSize;
-			var maxx = minx+slimmestHeight;
-			var curValue = numPointsWithinXY(points, minx,miny,maxx,maxy);
-			if (curValue>bestValue) {
-				bestValue = curValue;
-				iBestValue = i;
-			}
-		}
-		var minx = envelope.getMinX()+iBestValue*stepSize;
-		var maxx = minx+slimmestHeight;
-		shape = this.createAxisParallelRectangle(minx,miny,maxx,maxy);
-	} else {  // height>slimmestWidth
-		var numOfSquaresInCovering = Math.ceil(height/slimmestWidth);  // at least 2
-		var stepSize = (height-slimmestWidth)/(numOfSquaresInCovering-1);
-		var minx = envelope.getMinX();
-		var maxx = envelope.getMaxX();
-		var bestValue = 0;
-		var iBestValue = 0;
-		for (var i=0; i<numOfSquaresInCovering; ++i) {
-			var miny = envelope.getMinY()+i*stepSize;
-			var maxy = miny+slimmestWidth;
-			var curValue = numPointsWithinXY(points, minx,miny,maxx,maxy);
-			if (curValue>bestValue) {
-				bestValue = curValue;
-				iBestValue = i;
-			}
-		}
-		var miny = envelope.getMinY()+iBestValue*stepSize;
-		var maxy = miny+slimmestWidth;
-		shape = this.createAxisParallelRectangle(minx,miny,maxx,maxy);
-	}
-	if (points.color)
-		shape.color = points.color;
-	return shape;
-}
-
 /**
- * Find a set of axis-parallel squares based on a given set of points.>
+ * Find a set of axis-parallel squares representing a fair-and-square division of the points.
  * 
- * @param points an array of points. Each point should contain the fields: x, y.
+ * @param agents an array in which each entry represents the valuation of a single agent.
+ * The valuation of an agent is represented by points with fields {x,y}.
+ * 
  * @param envelope a jsts.geom.Envelope, defining the boundaries for the shapes.
  * 
- * @return a set of shapes (Polygon's) such that:
- * a. Each square touches two points: one at a corner and one anywhere at the boundary.
- * b. No square contains a point.
+ * @param maxAspectRatio maximum aspect ratio allowed for the pieces.
+ * 
+ * @return a list of AxisParallelRectangle's.
  */
-jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsOfPoints, envelope, maxSlimness) {
-	if (!maxSlimness) maxSlimness=1;
-	var numOfAgents = setsOfPoints.length;
+jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(agents, envelope, maxAspectRatio) {
+	var numOfAgents = agents.length;
 	if (numOfAgents==0) 
 		return [];
+
 	if (!envelope)  envelope = DEFAULT_ENVELOPE;
-	if (numOfAgents==1)   // base case - single agent - find a square covering
-		return [this.createSquareWithMaxNumOfPoints(setsOfPoints[0],envelope,maxSlimness)];
+	if (!maxAspectRatio) maxAspectRatio=1;
+	if (numOfAgents==1) { // base case - single agent - find a square covering
+		var agent = agents[0];
+		var shape = this.createAxisParallelRectangle(
+			jsts.algorithm.squareWithMaxNumOfPoints(
+					agent, envelope, maxAspectRatio));
+		if (agent.color)
+			shape.color = agent.color;
+		return [shape];
+	}
 	
 	// here there are at least two agents.
 	
-	var width = envelope.getWidth(), height = envelope.getHeight();
-	
+	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
+
 	var piece1, piece2;
 	if (width>=height) {
-		var cutPoint = (envelope.getMaxX()+envelope.getMinX())/2;
-		var piece1 = new jsts.geom.Envelope(envelope.getMinX(),cutPoint, envelope.getMinY(),envelope.getMaxY());
-		var piece2 = new jsts.geom.Envelope(cutPoint,envelope.getMaxX(), envelope.getMinY(),envelope.getMaxY());
+		var cutPoint = (envelope.c+envelope.minx)/2;
+		var piece1 = new jsts.geom.Envelope(envelope.minx,cutPoint, envelope.miny,envelope.maxy);
+		var piece2 = new jsts.geom.Envelope(cutPoint,envelope.maxx, envelope.miny,envelope.maxy);
 	} else {  // width<height
-		var cutPoint = (envelope.getMaxY()+envelope.getMinY())/2;
-		var piece1 = new jsts.geom.Envelope(envelope.getMinX(),envelope.getMaxX(), envelope.getMinY(),cutPoint);
-		var piece2 = new jsts.geom.Envelope(envelope.getMinX(),envelope.getMaxX(), cutPoint,envelope.getMaxY());
+		var cutPoint = (envelope.maxy+envelope.miny)/2;
+		var piece1 = new jsts.geom.Envelope(envelope.minx,envelope.maxx, envelope.miny,cutPoint);
+		var piece2 = new jsts.geom.Envelope(envelope.minx,envelope.maxx, cutPoint,envelope.maxy);
 	}
 	var partners1 = [], partners2 = [];
-	for (var i=0; i<setsOfPoints.length; ++i) {
-		partners1[i] = [i,numPartners(setsOfPoints[i],piece1,numOfAgents,maxSlimness)];
-		partners2[i] = [i,numPartners(setsOfPoints[i],piece2,numOfAgents,maxSlimness)];
+	for (var i=0; i<agents.length; ++i) {
+		partners1[i] = [i,numPartners(agents[i],piece1,numOfAgents,maxAspectRatio)];
+		partners2[i] = [i,numPartners(agents[i],piece2,numOfAgents,maxAspectRatio)];
 	}
 	var sortByPartnersDecreasingOrder = function(a,b) { return b[1]-a[1]; }
 	partners1.sort(sortByPartnersDecreasingOrder);
@@ -615,13 +571,13 @@ jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsO
 	for (var i=0; i<partners1.length; ++i) {
 		var agentIndex = partners1[i][0];
 		if (agentsForPiece1.length<partners1[i][1])
-			agentsForPiece1.push(setsOfPoints[agentIndex]);
+			agentsForPiece1.push(agents[agentIndex]);
 		else
-			agentsForPiece2.push(setsOfPoints[agentIndex]);
+			agentsForPiece2.push(agents[agentIndex]);
 	}
 //	if (agentsForPiece1.length<numOfAgents && agentsForPiece2<numOfAgents) {
-		var fairDivision1 = this.createFairAndSquareDivision(agentsForPiece1, piece1, maxSlimness);
-		var fairDivision2 = this.createFairAndSquareDivision(agentsForPiece2, piece2, maxSlimness);
+		var fairDivision1 = this.createFairAndSquareDivision(agentsForPiece1, piece1, maxAspectRatio);
+		var fairDivision2 = this.createFairAndSquareDivision(agentsForPiece2, piece2, maxAspectRatio);
 		return fairDivision1.concat(fairDivision2);
 //	} else {
 //		return [];
@@ -631,26 +587,14 @@ jsts.geom.GeometryFactory.prototype.createFairAndSquareDivision = function(setsO
 
 /*---------------- UTILS ---------------*/
 
-var numPointsWithinXY = function(points, minx,miny,maxx,maxy) {
-	return points.reduce(function(prev,cur) {
-		return prev + (minx<=cur.x && cur.x<=maxx && miny<=cur.y && cur.y<=maxy);
-	}, 0);
-}
-
-var numPointsWithinEnvelope = function(points, envelope) {
-	return points.reduce(function(prev,cur) {
-		return prev + envelope.containsValues(cur.x,cur.y);
-	}, 0);
-}
-
-var numPartners = function(points, envelope, n, maxSlimness) {
+var numPartners = function(points, envelope, n, maxAspectRatio) {
 	var A, B, T;
-	if (maxSlimness<2) {
+	if (maxAspectRatio<2) {
 		A=6; B=8; T=2;
 	} else {
 		A=4; B=5; T=1;
 	}
-	var pointsInside = numPointsWithinEnvelope(points, envelope);
+	var pointsInside = utils.numPointsInXY(points, envelope);
 	var normalizedValue = (pointsInside/points.length*(A*n-B));
 	if (normalizedValue<T)
 		return 0;
@@ -666,16 +610,221 @@ var numPartners = function(points, envelope, n, maxSlimness) {
 	return n;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":14,"underscore":36}],5:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./numeric-utils":10,"./square-with-max-points":15,"jsts":19,"underscore":41}],5:[function(require,module,exports){
+/**
+ * Divide a cake such that each color gets a square with 1/2n of its points.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+
+var jsts = require('jsts');
+require("./factory-utils");
+require("./AxisParallelRectangle");
+require("./square-with-max-points");
+require("./transformations");
+require("./point-utils");
+var _ = require("underscore");
+var utils = require('./numeric-utils');
+
+var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
+
+var TRACE = function(s) {
+	console.log(s);
+};
+
+var round2 = function(x) {
+	return Math.round(x*100)/100;
+}
+
+/**
+ * Find a set of axis-parallel squares representing a fair-and-square division for the agents
+ * 
+ * @param agents an array in which each entry represents the valuation of a single agent.
+ * The valuation of an agent is represented by points with fields {x,y}. Each point has the same value.
+ *    Each agent may also have a field "color", that is copied to the rectangle.
+ * 
+ * @param envelope object with fields {minx,miny, maxx,maxy}; defines the boundaries for the landplots.
+ * 
+ * @param maxAspectRatio maximum aspect ratio allowed for the pieces.
+ * 
+ * @return a list of rectangles; each rectangle is {minx,miny, maxx,maxy [,color]}.
+ */
+
+
+
+/************ NORMALIZATION *******************/
+
+jsts.algorithm.halfProportionalDivision = function(normalizedDivisionFunction, assumedValue, agents, envelope, maxAspectRatio) {
+	if (agents.length==0) 
+		return [];
+	if (!envelope)  envelope = DEFAULT_ENVELOPE;
+	if (!maxAspectRatio) maxAspectRatio=1;
+	
+	// here there are at least two agents:
+	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
+	var scaleFactor = 1/Math.min(width,height);
+	var yLength = Math.max(width,height)*scaleFactor;
+
+	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
+	var transformation = {
+		translateX: -envelope.minx,
+		translateY: -envelope.miny,
+		scale: scaleFactor,
+		transpose: (width>height),
+	};
+	
+	var transformedAgents = agents.map(function(pointsOfAgent) {
+		// transform the points of the agent to the envelope [0,1]x[0,L]:
+		var newPoints = jsts.algorithm.pointsInEnvelope(pointsOfAgent,envelope).map(jsts.algorithm.transformedPoint.bind(0,transformation));
+		if (pointsOfAgent.color)  newPoints.color = pointsOfAgent.color;
+		
+		// Calculate the y-cuts of the agent:
+		var yVals = _.pluck(newPoints,"y");
+		yVals.sort(function(a,b){return a-b});
+		newPoints.yCuts = utils.cutPoints(yVals, assumedValue);
+		newPoints.yCuts.unshift(0);
+		
+		return newPoints;
+	});
+	
+	var landplots = normalizedDivisionFunction(transformedAgents, yLength, maxAspectRatio);
+
+	// transform the system back:
+	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
+//	console.dir(envelope);
+//	console.dir(agents);
+//	console.dir(landplots);
+//	console.dir(reverseTransformation);
+	landplots.forEach(
+		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
+//	console.dir(landplots);
+
+	return landplots;
+}
+
+
+
+
+/************ 4-walls *******************/
+
+/**
+ * A subroutine where:
+ * - agents.length>=1
+ * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1
+ * - maxAspectRatio>=1
+ */
+jsts.algorithm.halfProportionalDivision4WallsNormalized = function(agents, yLength, maxAspectRatio) {
+	var numOfAgents = agents.length;
+	var assumedValue = 2*numOfAgents;
+	TRACE("4 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+	if (numOfAgents==0) 
+		return [];
+
+	if (numOfAgents==1) { // base case - single agent - find a square covering
+		var agent = agents[0];
+		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
+		var landplot = jsts.algorithm.squareWithMaxNumOfPoints(
+					agent, envelope, maxAspectRatio);
+		if (agent.color)
+			landplot.color = agent.color;
+		return [landplot];
+	}
+	
+	// Here there are at least 2 agents:
+
+	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_minus2 = [];
+	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_minus2[0] = yCuts_2k_minus2[1] = 0;
+	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
+		agents.sort(function(a,b){return a.yCuts[v]-b.yCuts[v]}); // order the agents by their v-line. complexity O(n log n)
+		if (v&1) { // v is odd -  v = 2k-1
+			var k = (v+1)>>1;
+			yCuts_2k_minus1[k] = agents[k-1].yCuts[v];
+		} else {     // v is even - v = 2k
+			var k = v>>1;
+			yCuts_2k[k] = agents[k-1].yCuts[v];
+			k = k+1;       // v = 2k-2
+			if (k<numOfAgents)
+				yCuts_2k_minus2[k] = agents[k-1].yCuts[v];
+		}
+	}
+	yCuts_2k_minus2[numOfAgents] = yLength;
+
+//	console.dir(agents);
+//	console.dir(yCuts_2k_minus1);
+//	console.dir(yCuts_2k);
+	for (var k=1; k<=numOfAgents-1; ++k) {
+		var y_2k = yCuts_2k[k];   // the k-th 2k line
+		var Y_2k_minus2 = yCuts_2k_minus2[k+1]; // the k+1-th 2k line
+		if (!(y_2k<=Y_2k_minus2)) {
+			console.error("Bug: y_2k="+y_2k+" Y_2k_minus2="+Y_2k_minus2+"  L="+yLength);
+			console.dir(agents);
+		}
+		if (0.5 <= Y_2k_minus2 && y_2k <= yLength-0.5) {  // both North and South are 2-fat
+			var y = Math.max(y_2k,0.5);
+			var south = {minx:0, maxx:1, miny:0, maxy:y},
+			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
+			
+			var k2 = 2*k;
+			agents.sort(function(a,b){return a.yCuts[k2]-b.yCuts[k2]}); // order the agents by their k2-line.
+			var southAgents = agents.slice(0, k),
+			    northAgents = agents.slice(k, numOfAgents);
+			TRACE("\tPartition to two 2-fat pieces at y="+y+": k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+			if (southAgents.length==0 || northAgents.length==0)  {
+				console.dir(agentPartition);
+				throw new Error("Empty partition of agents for k="+k+", y_2k="+y_2k);
+			}
+			var southPlots = jsts.algorithm.halfProportionalDivision(jsts.algorithm.halfProportionalDivision4WallsNormalized, southAgents.length*2, southAgents, south, maxAspectRatio),
+			    northPlots = jsts.algorithm.halfProportionalDivision(jsts.algorithm.halfProportionalDivision4WallsNormalized, northAgents.length*2, northAgents, north, maxAspectRatio);
+			return southPlots.concat(northPlots);
+		}
+	}
+	
+	console.dir(agents);
+	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
+	return [];
+}
+
+
+
+
+// Create versions for non-normalized envelopes by binding the normalized functios to the generic function:
+jsts.algorithm.halfProportionalDivision4Walls = function(agents, envelope, maxAspectRatio) {
+	var landplots = jsts.algorithm.halfProportionalDivision(
+			jsts.algorithm.halfProportionalDivision4WallsNormalized, agents.length*2,
+			agents, envelope, maxAspectRatio);
+	landplots.forEach(function(landplot) {
+		for (var field in landplot)
+			if (typeof landplot[field] === 'number')
+				landplot[field]=round2(landplot[field]);
+	});
+	return landplots;
+}
+
+
+
+jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(agents, envelope, maxAspectRatio) {
+	var landplots = jsts.algorithm.halfProportionalDivision4Walls(agents, envelope, maxAspectRatio);
+	return landplots.map(function(landplot) {
+		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
+		rect.color = landplot.color;
+		return rect;
+	});
+};
+
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./numeric-utils":10,"./point-utils":12,"./square-with-max-points":15,"./transformations":16,"jsts":19,"underscore":41}],6:[function(require,module,exports){
 var jsts = require("jsts");
 require("./intersection-cache");
 require("./factory-utils");
+require("./point-utils");
 require("./AxisParallelRectangle");
 require("./maximum-disjoint-set-sync");
 require("./maximum-disjoint-set-async");
 require("./representative-disjoint-set-sync");
 require("./shapes-touching-points");
+require("./square-with-max-points");
 require("./fair-division-of-points");
+require("./half-proportional-division");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
 		return object.map(function(cur) {
@@ -686,7 +835,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./fair-division-of-points":4,"./intersection-cache":6,"./maximum-disjoint-set-async":7,"./maximum-disjoint-set-sync":8,"./representative-disjoint-set-sync":10,"./shapes-touching-points":11,"jsts":14}],6:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./fair-division-of-points":4,"./half-proportional-division":5,"./intersection-cache":7,"./maximum-disjoint-set-async":8,"./maximum-disjoint-set-sync":9,"./point-utils":12,"./representative-disjoint-set-sync":13,"./shapes-touching-points":14,"./square-with-max-points":15,"jsts":19}],7:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -778,7 +927,7 @@ jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
 
 
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 /**
  * Asynchronous version of maximum-disjoint-set, with option to interrupt.
  * 
@@ -933,7 +1082,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-cache":6,"./partition-utils":9,"async":12,"js-combinatorics":13,"jsts":14,"underscore":36}],8:[function(require,module,exports){
+},{"./intersection-cache":7,"./partition-utils":11,"async":17,"js-combinatorics":18,"jsts":19,"underscore":41}],9:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -1049,15 +1198,63 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-cache":6,"./partition-utils":9,"js-combinatorics":13,"jsts":14,"underscore":36}],9:[function(require,module,exports){
+},{"./intersection-cache":7,"./partition-utils":11,"js-combinatorics":18,"jsts":19,"underscore":41}],10:[function(require,module,exports){
 /**
- * Adds to jsts.algorithm some utility functions related to partitioning.
+ * Some utils for structss of numbers.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+
+module.exports = {
+	sortedUniqueValues: function(structs, fieldNames) {
+		var values = {};
+		for (var i=0; i<structs.length; ++i) {
+			var cur = structs[i];
+			for (var f=0; f<fieldNames.length; ++f) {
+				fieldName = fieldNames[f];
+				if (fieldName in cur)
+					values[cur[fieldName]]=true;
+			}
+		}
+		var list = Object.keys(values);
+		for (var i=0; i<list.length; ++i)
+			list[i] = parseFloat(list[i]);
+		list.sort(function(a,b){return a-b});
+		return list;
+	},
+
+	/**
+	 * @param points a sorted array of numbers.
+	 * @param numOfPieces a positive integer.
+	 * @return an array of numbers that partition "points" such that each piece has the same amount of (fractions of) points
+	 */
+	cutPoints: function(points, numOfPieces) {
+		var cuts = [];
+		var pointsPerPiece = points.length/numOfPieces;
+		var curPointsInPiece = 0;
+		for (var i=0; i<points.length; ++i) {
+			curPointsInPiece += 1;
+			while (curPointsInPiece>=pointsPerPiece) {
+				cuts.push(points[i]);
+				curPointsInPiece -= pointsPerPiece;
+			}
+		}
+		return cuts;
+	},
+}
+
+},{}],11:[function(require,module,exports){
+/**
+ * Adds to jsts.algorithm some utility functions related to partitioning collections of shapes.
+ * 
  * These utility functions are used mainly by the maximum-disjoint-set algorithm.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-03
  */
 var _ = require('underscore');
+var utils = require('./numeric-utils');
 
 
 jsts.algorithm.prepareShapesToPartition = function(candidates) {
@@ -1080,7 +1277,7 @@ jsts.algorithm.prepareShapesToPartition = function(candidates) {
 		partition[0] - on one side of separator;
 		partition[1] - intersected by separator;
 		partition[2] - on the other side of separator (- guaranteed to be disjoint from rectangles in partition[0]);
-	@note Tries to minimize the size of partition[1]. I.e., out of all possible separators, selects a separator that intersects a smallest number of rectangles.
+	@note Tries to maximize the quality of the partition, as defined by the function partitionQuality.
  * 
  */
 jsts.algorithm.partitionShapes = function(candidates) {
@@ -1088,7 +1285,8 @@ jsts.algorithm.partitionShapes = function(candidates) {
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 
 	var bestXPartition = null;
-	var xValues = sortedXValues(candidates).slice(1,-1);
+	var xValues = utils.sortedUniqueValues(candidates, ['minx','maxx']).slice(1,-1);
+	
 	if (xValues.length>0) {
 		var bestX = _.max(xValues, function(x) {
 			return partitionQuality(partitionByX(candidates, x));
@@ -1097,7 +1295,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 	}
 
 	var bestYPartition = null;
-	var yValues = sortedYValues(candidates).slice(1,-1);
+	var yValues = utils.sortedUniqueValues(candidates, ['miny','maxy']).slice(1,-1);
 	if (yValues.length>0) {
 		var bestY = _.max(yValues, function(y) {
 			return partitionQuality(partitionByY(candidates, y));
@@ -1120,37 +1318,6 @@ jsts.algorithm.partitionShapes = function(candidates) {
 	}
 }
 
-
-/**
- * @param shapes an array of shapes, each of which contains pre-calculated "minx" and "maxx" fields.
- * @returns a sorted array of all unique X values of the envelopes.
- */
-function sortedXValues(shapes) {
-	var xvalues = {};
-	for (var i=0; i<shapes.length; ++i) {
-		var s = shapes[i];
-		xvalues[s.minx]=xvalues[s.maxx]=true;
-	}
-	var xlist = Object.keys(xvalues);
-	xlist.sort(function(a,b){return a-b});
-//	console.log(xlist)
-	return xlist;
-}
-
-/**
- * @param shapes an array of shapes, each of which contains pre-calculated "miny" and "maxy" fields.
- * @returns a sorted array of all unique Y values of the envelopes.
- */
-function sortedYValues(shapes) {
-	var yvalues = {};
-	for (var i=0; i<shapes.length; ++i) {
-		var s = shapes[i];
-		yvalues[s.miny]=yvalues[s.maxy]=true;
-	}
-	var ylist = Object.keys(yvalues);
-	ylist.sort(function(a,b){return a-b});
-	return ylist;
-}
 
 
 /**
@@ -1222,7 +1389,45 @@ function partitionDescription(partition) {
 }
 
 
-},{"underscore":36}],10:[function(require,module,exports){
+},{"./numeric-utils":10,"underscore":41}],12:[function(require,module,exports){
+/**
+ * Adds to jsts.algorithm some utility functions related to collections of points.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+var _ = require('underscore');
+
+jsts.algorithm.isPointInXY = function isPointInXY(point, minx,miny,maxx,maxy) {
+	return minx<=point.x && point.x<=maxx && 
+	       miny<=point.y && point.y<=maxy ;
+}
+
+jsts.algorithm.isPointInEnvelope = function (point,envelope) {
+	return jsts.algorithm.isPointInXY(point, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.numPointsInXY = function(points, minx,miny,maxx,maxy) {
+	return points.reduce(function(num,point) {
+		return num + jsts.algorithm.isPointInXY(point, minx,miny,maxx,maxy);
+	}, 0);	
+}
+
+jsts.algorithm.numPointsInEnvelope = function(points, envelope) {
+	return jsts.algorithm.numPointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.pointsInXY = function(points, minx,miny,maxx,maxy) {
+	return points.filter(function(point) {
+		return jsts.algorithm.isPointInXY(point, minx,miny,maxx,maxy)
+	});
+}
+
+jsts.algorithm.pointsInEnvelope = function(points, envelope) {
+	return jsts.algorithm.pointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+},{"underscore":41}],13:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
  * 
@@ -1292,7 +1497,7 @@ function representativeDisjointSetSub(candidateSets) {
 
 
 
-},{"./intersection-cache":6,"./partition-utils":9,"js-combinatorics":13,"jsts":14,"underscore":36}],11:[function(require,module,exports){
+},{"./intersection-cache":7,"./partition-utils":11,"js-combinatorics":18,"jsts":19,"underscore":41}],14:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -1505,7 +1710,158 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":14}],12:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":19}],15:[function(require,module,exports){
+/**
+ * Calculate a square containing a maximal number of points.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ * 
+ * REVIEWED AND CORRECTED BY:
+ * * Flambino
+ * * abuzittin gillifirca
+ * http://codereview.stackexchange.com/questions/46531/reducing-code-duplication-in-a-geometric-function
+ */
+
+var jsts = require('jsts');
+require("./point-utils");
+var _ = require("underscore");
+var utils = require('./numeric-utils');
+
+/**
+ * @param points array of points, e.g. [{x:0,y:0}, {x:100,y:100}, etc.]
+ * @param envelope defines the bounding rectangle, e.g. {minx: 0, maxx: 100, miny: 0, maxy: 200}
+ * @param maxAspectRatio number>=1: the maximum width/height ratio of the returned rectangle.
+ * @return a rectangle contained within the envelope, with aspect ratio at most maxAspectRatio, that contains a largest number of points. 
+ */
+jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRatio) {
+	if (!maxAspectRatio) maxAspectRatio=1;
+	var width = envelope.maxx-envelope.minx;
+	var height = envelope.maxy-envelope.miny;
+	var largestWidthPerHeight = maxAspectRatio*height;
+	var largestHeightPerWidth = maxAspectRatio*width;
+	var result = {};
+	points = jsts.algorithm.pointsInEnvelope(points, envelope);
+	if (width<=largestWidthPerHeight && height<=largestHeightPerWidth) {  
+		// the envelope has aspect ratio at most maxAspectRatio, so just return it entirely:
+		result = envelope;
+	} else if (width>largestWidthPerHeight) {
+		var miny = result.miny = envelope.miny;
+		var maxy = result.maxy = envelope.maxy;
+		var xValues = utils.sortedUniqueValues(points, ["x"]);
+		if (xValues.length==0) {  // no x values in the envelope - just return any rectangle within the envelope
+			result.minx = envelope.minx;
+			result.maxx = result.minx+largestWidthPerHeight;
+		} else {
+			var maxNum   = 0;
+			for (var i=0; i<xValues.length; ++i) {
+				var minx = Math.min(xValues[i], envelope.maxx-largestWidthPerHeight);
+				var maxx = minx+largestWidthPerHeight;
+				var curNum = jsts.algorithm.numPointsInXY(points, minx,miny,maxx,maxy);
+				if (curNum>maxNum) {
+					maxNum = curNum;
+					result.minx = minx;
+					result.maxx = maxx;
+				}
+			}
+		}
+	} else {  // height>largestHeightPerWidth
+		var minx = result.minx = envelope.minx;
+		var maxx = result.maxx = envelope.maxx;
+		var yValues = utils.sortedUniqueValues(points, ["y"]);
+		if (yValues.length==0) {  // no y values in the envelope - just return any rectangle within the envelope
+			result.miny = envelope.miny;
+			result.maxy = result.miny+largestHeightPerWidth;
+		} else { 
+			var maxNum   = 0;
+			for (var i=0; i<yValues.length; ++i) {
+				var miny = Math.min(yValues[i], envelope.maxy-largestHeightPerWidth);
+				var maxy = miny+largestHeightPerWidth;
+				var curNum = jsts.algorithm.numPointsInXY(points, minx,miny,maxx,maxy);
+				if (curNum>maxNum) {
+					maxNum = curNum;
+					result.miny = miny;
+					result.maxy = maxy;
+				}
+			}
+		}
+	}
+	return result;
+}
+
+},{"./numeric-utils":10,"./point-utils":12,"jsts":19,"underscore":41}],16:[function(require,module,exports){
+/**
+ * Adds to jsts.algorithm some utility functions related to affine transformations.
+ * 
+ * The following fields are supported: 
+ * - translateX (real) - added to the x value.
+ * - translateY (real) - added to the y value.
+ * - scale      (real) - multiplies the x and y values after translation.
+ * - transpose  (boolean) - true to swap x with y after scaling.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+
+/**
+ * Transforms a point using the given transformation.
+ * @param point {x,y}
+ * @param transformation {translateX, translateY, scale, transpose}
+ */
+jsts.algorithm.transformedPoint = function(transformation, point) {
+	var newX = (point.x + transformation.translateX)*transformation.scale;
+	var newY = (point.y + transformation.translateY)*transformation.scale;
+	return transformation.transpose? {x:newY, y:newX}: {x:newX, y:newY};
+};
+
+/**
+ * Transforms an AxisParallelRectangle using the given transformation.
+ * @param rect class AxisParallelRectangle
+ * @param transformation {translateX, translateY, scale, transpose}
+ */
+jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
+	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
+	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
+	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
+	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
+	return transformation.transpose?
+			rect.factory.createAxisParallelRectangle(newminy,newminx, newmaxy,newmaxx):
+			rect.factory.createAxisParallelRectangle(newminx,newminy, newmaxx,newmaxy);
+};
+
+/**
+ * Transforms an AxisParallelRectangle using the given transformation.
+ * @param rect class AxisParallelRectangle
+ * @param transformation {translateX, translateY, scale, transpose}
+ */
+jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
+	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
+	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
+	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
+	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
+	if (transformation.transpose) {
+		rect.miny = newminx;
+		rect.maxy = newmaxx;
+		rect.minx = newminy;
+		rect.maxx = newmaxy;
+	} else {
+		rect.minx = newminx;
+		rect.maxx = newmaxx;
+		rect.miny = newminy;
+		rect.maxy = newmaxy;
+	}
+};
+
+jsts.algorithm.reverseTransformation = function(t) {
+	return {
+		translateX: t.transpose? -t.translateY*t.scale: -t.translateX*t.scale,
+		translateY: t.transpose? -t.translateX*t.scale: -t.translateY*t.scale,
+		scale:      1/t.scale,
+		transpose:  t.transpose
+	}
+};
+
+},{}],17:[function(require,module,exports){
 var process=require("__browserify_process");/*global setImmediate: false, setTimeout: false, console: false */
 (function () {
 
@@ -2465,7 +2821,7 @@ var process=require("__browserify_process");/*global setImmediate: false, setTim
 
 }());
 
-},{"__browserify_process":37}],13:[function(require,module,exports){
+},{"__browserify_process":42}],18:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -2755,14 +3111,14 @@ var process=require("__browserify_process");/*global setImmediate: false, setTim
     });
 })(this);
 
-},{}],14:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":15,"javascript.util":16}],15:[function(require,module,exports){
+},{"./lib/jsts":20,"javascript.util":21}],20:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -4340,10 +4696,10 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],16:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = require('./src');
 
-},{"./src":35}],17:[function(require,module,exports){
+},{"./src":40}],22:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -4508,7 +4864,7 @@ ArrayList.Iterator.prototype.remove = function() {
 
 module.exports = ArrayList;
 
-},{"./Collection":19,"./IndexOutOfBoundsException":23,"./List":25,"./NoSuchElementException":27,"./OperationNotSupported":28}],18:[function(require,module,exports){
+},{"./Collection":24,"./IndexOutOfBoundsException":28,"./List":30,"./NoSuchElementException":32,"./OperationNotSupported":33}],23:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Arrays.html
  *
@@ -4566,7 +4922,7 @@ Arrays.asList = function(array) {
 
 module.exports = Arrays;
 
-},{}],19:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /**
  * @requires Iterator.js
  */
@@ -4641,7 +4997,7 @@ Collection.prototype.remove = function(o) {};
 
 module.exports = Collection;
 
-},{"./Iterator":24}],20:[function(require,module,exports){
+},{"./Iterator":29}],25:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -4660,7 +5016,7 @@ EmptyStackException.prototype.name = 'EmptyStackException';
 
 module.exports = EmptyStackException;
 
-},{}],21:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 /**
  * @requires Map.js
  * @requires ArrayList.js
@@ -4724,7 +5080,7 @@ HashMap.prototype.size = function() {
 
 module.exports = HashMap;
 
-},{"./ArrayList":17,"./Map":26}],22:[function(require,module,exports){
+},{"./ArrayList":22,"./Map":31}],27:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -4885,7 +5241,7 @@ HashSet.Iterator.prototype.remove = function() {
 
 module.exports = HashSet;
 
-},{"./Collection":19,"./NoSuchElementException":27,"./OperationNotSupported":28,"./Set":29}],23:[function(require,module,exports){
+},{"./Collection":24,"./NoSuchElementException":32,"./OperationNotSupported":33,"./Set":34}],28:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -4904,7 +5260,7 @@ IndexOutOfBoundsException.prototype.name = 'IndexOutOfBoundsException';
 
 module.exports = IndexOutOfBoundsException;
 
-},{}],24:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Iterator.html
  * @interface
@@ -4933,7 +5289,7 @@ Iterator.prototype.remove = function() {};
 
 module.exports = Iterator;
 
-},{}],25:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -4967,7 +5323,7 @@ List.prototype.isEmpty = function() {};
 
 module.exports = List;
 
-},{"./Collection":19}],26:[function(require,module,exports){
+},{"./Collection":24}],31:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Map.html
  *
@@ -5013,7 +5369,7 @@ Map.prototype.values = function() {};
 
 module.exports = Map;
 
-},{}],27:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -5032,7 +5388,7 @@ NoSuchElementException.prototype.name = 'NoSuchElementException';
 
 module.exports = NoSuchElementException;
 
-},{}],28:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -5051,7 +5407,7 @@ OperationNotSupported.prototype.name = 'OperationNotSupported';
 
 module.exports = OperationNotSupported;
 
-},{}],29:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -5079,7 +5435,7 @@ Set.prototype.contains = function(o) {};
 
 module.exports = Set;
 
-},{"./Collection":19}],30:[function(require,module,exports){
+},{"./Collection":24}],35:[function(require,module,exports){
 /**
  * @requires Map.js
  */
@@ -5096,7 +5452,7 @@ SortedMap.prototype = new Map;
 
 module.exports = SortedMap;
 
-},{"./Map":26}],31:[function(require,module,exports){
+},{"./Map":31}],36:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -5113,7 +5469,7 @@ SortedSet.prototype = new Set;
 
 module.exports = SortedSet;
 
-},{"./Set":29}],32:[function(require,module,exports){
+},{"./Set":34}],37:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -5231,7 +5587,7 @@ Stack.prototype.toArray = function() {
 
 module.exports = Stack;
 
-},{"./EmptyStackException":20,"./List":25}],33:[function(require,module,exports){
+},{"./EmptyStackException":25,"./List":30}],38:[function(require,module,exports){
 /**
  * @requires SortedMap.js
  * @requires ArrayList.js
@@ -5324,7 +5680,7 @@ TreeMap.prototype.size = function() {
 
 module.exports = TreeMap;
 
-},{"./ArrayList":17,"./Map":26,"./SortedMap":30}],34:[function(require,module,exports){
+},{"./ArrayList":22,"./Map":31,"./SortedMap":35}],39:[function(require,module,exports){
 /**
  * @requires SortedSet.js
  */
@@ -5492,7 +5848,7 @@ TreeSet.Iterator.prototype.remove = function() {
 
 module.exports = TreeSet;
 
-},{"./Collection":19,"./NoSuchElementException":27,"./OperationNotSupported":28,"./SortedSet":31}],35:[function(require,module,exports){
+},{"./Collection":24,"./NoSuchElementException":32,"./OperationNotSupported":33,"./SortedSet":36}],40:[function(require,module,exports){
 module.exports.ArrayList = require('./ArrayList');
 module.exports.Arrays = require('./Arrays');
 module.exports.Collection = require('./Collection');
@@ -5508,7 +5864,7 @@ module.exports.Stack = require('./Stack');
 module.exports.TreeMap = require('./TreeMap');
 module.exports.TreeSet = require('./TreeSet');
 
-},{"./ArrayList":17,"./Arrays":18,"./Collection":19,"./HashMap":21,"./HashSet":22,"./Iterator":24,"./List":25,"./Map":26,"./Set":29,"./SortedMap":30,"./SortedSet":31,"./Stack":32,"./TreeMap":33,"./TreeSet":34}],36:[function(require,module,exports){
+},{"./ArrayList":22,"./Arrays":23,"./Collection":24,"./HashMap":26,"./HashSet":27,"./Iterator":29,"./List":30,"./Map":31,"./Set":34,"./SortedMap":35,"./SortedSet":36,"./Stack":37,"./TreeMap":38,"./TreeSet":39}],41:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -6786,7 +7142,7 @@ module.exports.TreeSet = require('./TreeSet');
 
 }).call(this);
 
-},{}],37:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
