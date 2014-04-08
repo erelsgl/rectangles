@@ -28,13 +28,13 @@ jsts.algorithm.transformedPoint = function(transformation, point) {
  * @param transformation {translateX, translateY, scale, transpose}
  */
 jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
-	var newXmin = (rect.xmin + transformation.translateX)*transformation.scale;
-	var newYmin = (rect.ymin + transformation.translateY)*transformation.scale;
-	var newXmax = (rect.xmax + transformation.translateX)*transformation.scale;
-	var newYmax = (rect.ymax + transformation.translateY)*transformation.scale;
+	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
+	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
+	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
+	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
 	return transformation.transpose?
-			rect.factory.createAxisParallelRectangle(newYmin,newXmin, newYmax,newXmax):
-			rect.factory.createAxisParallelRectangle(newXmin,newYmin, newXmax,newYmax);
+			rect.factory.createAxisParallelRectangle(newminy,newminx, newmaxy,newmaxx):
+			rect.factory.createAxisParallelRectangle(newminx,newminy, newmaxx,newmaxy);
 };
 
 /**
@@ -43,20 +43,20 @@ jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect)
  * @param transformation {translateX, translateY, scale, transpose}
  */
 jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
-	var newXmin = (rect.xmin + transformation.translateX)*transformation.scale;
-	var newYmin = (rect.ymin + transformation.translateY)*transformation.scale;
-	var newXmax = (rect.xmax + transformation.translateX)*transformation.scale;
-	var newYmax = (rect.ymax + transformation.translateY)*transformation.scale;
+	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
+	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
+	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
+	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
 	if (transformation.transpose) {
-		rect.ymin = newXmin;
-		rect.ymax = newXmax;
-		rect.xmin = newYmin;
-		rect.xmax = newYmax;
+		rect.miny = newminx;
+		rect.maxy = newmaxx;
+		rect.minx = newminy;
+		rect.maxx = newmaxy;
 	} else {
-		rect.xmin = newXmin;
-		rect.xmax = newXmax;
-		rect.ymin = newYmin;
-		rect.ymax = newYmax;
+		rect.minx = newminx;
+		rect.maxx = newmaxx;
+		rect.miny = newminy;
+		rect.maxy = newmaxy;
 	}
 };
 

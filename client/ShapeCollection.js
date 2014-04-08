@@ -9,8 +9,8 @@ function ShapeCollection(svgpaper, defaultStyle) {
 				style[i] = defaultStyle[i];
 		var shapeOnPaper;
 		if (shape instanceof jsts.geom.AxisParallelRectangle)	{
-			shapeOnPaper = svgpaper.rect(shape.xmax-shape.xmin, shape.ymax-shape.ymin);
-			shapeOnPaper.move(shape.xmin,shape.ymin);
+			shapeOnPaper = svgpaper.rect(shape.maxx-shape.minx, shape.maxy-shape.miny);
+			shapeOnPaper.move(shape.minx,shape.miny);
 		} else if (shape instanceof jsts.geom.Polygon) {
 			var coordinates = shape.getCoordinates().map(function(cur) {
 				return cur.x+","+cur.y;

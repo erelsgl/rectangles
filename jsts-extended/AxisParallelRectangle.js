@@ -2,7 +2,7 @@
 
   /**
    * Represents an axis-parallel rectangle.
-   * Defined by: xmin, ymin, xmax, ymax.
+   * Defined by: minx, miny, maxx, maxy.
    * @author Erel Segal-Halevi
    * @since 2014-03
    */
@@ -16,11 +16,11 @@
    * @extends {jsts.geom.Geometry}
    * @constructor
    */
-  jsts.geom.AxisParallelRectangle = function(xmin,ymin, xmax,ymax, factory) {
-	  this.xmin = Math.min(xmin,xmax);
-	  this.ymin = Math.min(ymin,ymax);
-	  this.xmax = Math.max(xmin,xmax);
-	  this.ymax = Math.max(ymin,ymax);
+  jsts.geom.AxisParallelRectangle = function(minx,miny, maxx,maxy, factory) {
+	  this.minx = Math.min(minx,maxx);
+	  this.miny = Math.min(miny,maxy);
+	  this.maxx = Math.max(minx,maxx);
+	  this.maxy = Math.max(miny,maxy);
       this.factory = factory;
   };
 
@@ -40,7 +40,7 @@
    * @return {boolean}
    */
   jsts.geom.AxisParallelRectangle.prototype.isEmpty = function() {
-    return (this.xmin==this.xmax || this.ymin==this.ymax);
+    return (this.minx==this.maxx || this.miny==this.maxy);
   };
 
   jsts.geom.AxisParallelRectangle.prototype.getExteriorRing = function() {
@@ -62,7 +62,7 @@
    */
   jsts.geom.AxisParallelRectangle.prototype.getArea = function() {
 	  if (!this.area)  {
-		  this.area = (this.xmax-this.xmin)*(this.ymax-this.ymin);
+		  this.area = (this.maxx-this.minx)*(this.maxy-this.miny);
 	  }
 	  return this.area;
   };
@@ -74,7 +74,7 @@
    */
   jsts.geom.AxisParallelRectangle.prototype.getLength = function() {
 	  if (!this.length)  {
-		  this.length = 2*((xmax-xmin)+(ymax-ymin));
+		  this.length = 2*((maxx-minx)+(maxy-miny));
 	  }
 	  return this.length;
   };
@@ -90,7 +90,7 @@
   };
 
   jsts.geom.AxisParallelRectangle.prototype.computeEnvelopeInternal = function() {
-    return new jsts.geom.Envelope(this.xmin, this.xmax, this.ymin, this.ymax);
+    return new jsts.geom.Envelope(this.minx, this.maxx, this.miny, this.maxy);
   };
 
   jsts.geom.AxisParallelRectangle.prototype.getDimension = function() {
@@ -119,11 +119,11 @@
     if (this.isEmpty() !== other.isEmpty()) {
       return false;
     }
-    return this.xmin==other.xmin && this.xmax==other.xmax && this.ymin==other.ymin && this.ymax==other.ymax;
+    return this.minx==other.minx && this.maxx==other.maxx && this.miny==other.miny && this.maxy==other.maxy;
   };
 
   jsts.geom.AxisParallelRectangle.prototype.compareToSameClass = function(o) {
-	  return this.xmin==other.xmin && this.xmax==other.xmax && this.ymin==other.ymin && this.ymax==other.ymax;
+	  return this.minx==other.minx && this.maxx==other.maxx && this.miny==other.miny && this.maxy==other.maxy;
   };
 
   jsts.geom.AxisParallelRectangle.prototype.apply = function(filter) {
@@ -141,7 +141,7 @@
    * @return a clone of this instance.
    */
   jsts.geom.AxisParallelRectangle.prototype.clone = function() {
-    return new jsts.geom.AxisParallelRectangle(this.xmin, this.ymin, this.xmax, this.ymax, this.factory);
+    return new jsts.geom.AxisParallelRectangle(this.minx, this.miny, this.maxx, this.maxy, this.factory);
   };
 
   jsts.geom.AxisParallelRectangle.prototype.normalize = function() {
@@ -150,8 +150,8 @@
   jsts.geom.AxisParallelRectangle.prototype.intersects = function(other) {
 	  if (other instanceof jsts.geom.AxisParallelRectangle) {
 		  return (
-				  this.xmax>=other.xmin && other.xmax>=this.xmin && 
-				  this.ymax>=other.ymin && other.ymax>=this.ymin
+				  this.maxx>=other.minx && other.maxx>=this.minx && 
+				  this.maxy>=other.miny && other.maxy>=this.miny
 				 )
 	  } else {
 		  throw new "not implemented for "+other;
@@ -163,8 +163,8 @@
 //  jsts.geom.AxisParallelRectangle.prototype.relate2 = function(other) {
 //	var im = new jsts.geom.IntersectionMatrix();
 //	var II = (
-//			  this.xmax>other.xmin && other.xmax>this.xmin && 
-//			  this.ymax>other.ymin && other.ymax>this.ymin
+//			  this.maxx>other.minx && other.maxx>this.minx && 
+//			  this.maxy>other.miny && other.maxy>this.miny
 //			 );
 //    im.setAtLeast('FFFFFFFFF');
 //	im.set(Location.INTERIOR, Location.INTERIOR, II? "2": "F");
@@ -182,8 +182,8 @@
   jsts.geom.AxisParallelRectangle.prototype.interiorDisjoint = function(other) {
 	  if (other instanceof jsts.geom.AxisParallelRectangle) {
 		  return (
-				  this.xmax<=other.xmin || other.xmax<=this.xmin || 
-				  this.ymax<=other.ymin || other.ymax<=this.ymin
+				  this.maxx<=other.minx || other.maxx<=this.minx || 
+				  this.maxy<=other.miny || other.maxy<=this.miny
 				 );
 	  } else {
 		  throw new "not implemented for "+other;
@@ -195,8 +195,8 @@
 		  var x = other.coordinate.x;
 		  var y = other.coordinate.y;
 		  return (
-				  this.xmin<x && x<this.xmax &&
-				  this.ymin<y && y<this.ymax
+				  this.minx<x && x<this.maxx &&
+				  this.miny<y && y<this.maxy
 				 )
 	  } else {
 		  throw new "not implemented for "+other;
@@ -214,7 +214,7 @@
    * @return {String} String representation of Polygon type.
    */
   jsts.geom.AxisParallelRectangle.prototype.toString = function() {
-    return 'RECTANGLE(['+this.xmin+","+this.xmax+"]x["+this.ymin+","+this.ymax+"])";
+    return 'RECTANGLE(['+this.minx+","+this.maxx+"]x["+this.miny+","+this.maxy+"])";
   };
   
   jsts.geom.AxisParallelRectangle.prototype.CLASS_NAME = 'jsts.geom.AxisParallelRectangle';
@@ -226,23 +226,25 @@
   /**
    * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
    * 
-   * Can be called either with 4 parameters (xmin,ymin, xmax,ymax)
-   * or with a single parameter with 4 fields (xmin,ymin, xmax,ymax).
+   * Can be called either with 4 parameters (minx,miny, maxx,maxy)
+   * or with a single parameter with 4 fields (minx,miny, maxx,maxy).
    */
-  jsts.geom.GeometryFactory.prototype.createAxisParallelRectangle = function(xmin,ymin, xmax,ymax) {
+  jsts.geom.GeometryFactory.prototype.createAxisParallelRectangle = function(minx,miny, maxx,maxy) {
 	if (arguments.length==1) {
-		var envelope = xmin;
-		if ('xmin' in envelope)
-			return this.createAxisParallelRectangle(envelope.xmin, envelope.ymin, envelope.xmax, envelope.ymax);
-		else if ('minx' in envelope)
-			return this.createAxisParallelRectangle(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy);
-		else 
-			throw new Error("envelope contains neither xmin nor minx: "+JSON.stringify(envelope));
+		var envelope = minx;
+		return new jsts.geom.AxisParallelRectangle(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy, this);
 	} else if (arguments.length==4) {
-		return new jsts.geom.AxisParallelRectangle(xmin,ymin, xmax,ymax, this);
+		return new jsts.geom.AxisParallelRectangle(minx,miny, maxx,maxy, this);
 	} else {
 		throw new Error("createAxisParallelRectangle expected 1 or 4 arguments, but found "+arguments.length)
 	}
   };
   
+  jsts.geom.GeometryFactory.prototype.createAxisParallelRectangles = function(envelopes) {
+	  return envelopes.map(function(envelope) {
+		return new jsts.geom.AxisParallelRectangle(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy, this);
+	  });
+  };
 })();
+
+

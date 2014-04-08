@@ -82,11 +82,11 @@ function drawShapesFromPoints() {
 
 	if (drawMode==='drawNone') return;
 
-	var xminWall = $("#wall-left").is(':checked')? 0: -Infinity;
-	var xmaxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
-	var yminWall = $("#wall-top").is(':checked')? 0: -Infinity;
-	var ymaxWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
-	var envelope = new jsts.geom.Envelope(xminWall, xmaxWall, yminWall, ymaxWall);
+	var minxWall = $("#wall-left").is(':checked')? 0: -Infinity;
+	var maxxWall = $("#wall-right").is(':checked')? canvas.width: Infinity;
+	var minyWall = $("#wall-top").is(':checked')? 0: -Infinity;
+	var maxyWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
+	var envelope = new jsts.geom.Envelope(minxWall, maxxWall, minyWall, maxyWall);
 	
 	setTimeout(function() {
 		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {

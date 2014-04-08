@@ -52,7 +52,7 @@ jsts.algorithm.maximumDisjointSet = function(candidates, stopAtCount) {
  * Find a largest interior-disjoint set of shapes, from the given set of candidates.
  * 
  * @param candidates an array of candidate rectangles from which to select the MDS.
- * Each rectangle should contain the fields: xmin, xmax, ymin, ymax.
+ * Each rectangle should contain the fields: minx, maxx, miny, maxy.
  * 
  * @return a largest set of rectangles that do not interior-intersect.
  * 

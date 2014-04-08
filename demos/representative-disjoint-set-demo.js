@@ -2,14 +2,14 @@ var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
 var blueShapes = [
-            factory.createAxisParallelRectangle({xmin:10,xmax:30, ymin:0,ymax:20}),
-            factory.createAxisParallelRectangle({xmin:10,xmax:30, ymin:20,ymax:40})];
+            factory.createAxisParallelRectangle({minx:10,maxx:30, miny:0,maxy:20}),
+            factory.createAxisParallelRectangle({minx:10,maxx:30, miny:20,maxy:40})];
 var redShapes = [
-           factory.createAxisParallelRectangle({xmin:0,xmax:40, ymin:0,ymax:40}),
-           factory.createAxisParallelRectangle({xmin:0,xmax:40, ymin:40,ymax:80})];
+           factory.createAxisParallelRectangle({minx:0,maxx:40, miny:0,maxy:40}),
+           factory.createAxisParallelRectangle({minx:0,maxx:40, miny:40,maxy:80})];
 var greenShapes = [
-                   factory.createAxisParallelRectangle({xmin:0,xmax:20, ymin:10,ymax:30}),
-                   factory.createAxisParallelRectangle({xmin:20,xmax:40, ymin:10,ymax:30})];
+                   factory.createAxisParallelRectangle({minx:0,maxx:20, miny:10,maxy:30}),
+                   factory.createAxisParallelRectangle({minx:20,maxx:40, miny:10,maxy:30})];
 
 var representativesBlueRed = jsts.algorithm.representativeDisjointSet([blueShapes, redShapes]);
 console.log("Blue shapes: "+jsts.stringify(blueShapes));

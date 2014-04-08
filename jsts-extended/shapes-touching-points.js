@@ -67,23 +67,23 @@ jsts.geom.GeometryFactory.prototype.createSquaresTouchingPoints = function(point
 		for (var j=0; j<i; ++j) {
 			var p1 = points[i];
 			var p2 = points[j];
-			var xmin = Math.min(p1.x,p2.x);
-			var xmax = Math.max(p1.x,p2.x);
-			var dist_x = xmax-xmin;
-			var ymin = Math.min(p1.y,p2.y);
-			var ymax = Math.max(p1.y,p2.y);
-			var dist_y = ymax-ymin;
+			var minx = Math.min(p1.x,p2.x);
+			var maxx = Math.max(p1.x,p2.x);
+			var dist_x = maxx-minx;
+			var miny = Math.min(p1.y,p2.y);
+			var maxy = Math.max(p1.y,p2.y);
+			var dist_y = maxy-miny;
 
 			if (dist_x>dist_y) {
-				var ySmall = Math.max(ymax-dist_x, envelope.getMinY());
-				var yLarge = Math.min(ymin+dist_x, envelope.getMaxY());
-				var square1 = this.createAxisParallelRectangle({xmin: xmin, ymin: ySmall, xmax: xmax, ymax: ySmall+dist_x});
-				var square2 = this.createAxisParallelRectangle({xmin: xmin, ymin: yLarge-dist_x, xmax: xmax, ymax: yLarge});
+				var ySmall = Math.max(maxy-dist_x, envelope.getMinY());
+				var yLarge = Math.min(miny+dist_x, envelope.getMaxY());
+				var square1 = this.createAxisParallelRectangle({minx: minx, miny: ySmall, maxx: maxx, maxy: ySmall+dist_x});
+				var square2 = this.createAxisParallelRectangle({minx: minx, miny: yLarge-dist_x, maxx: maxx, maxy: yLarge});
 			} else {
-				var xSmall = Math.max(xmax-dist_y, envelope.getMinX());
-				var xLarge = Math.min(xmin+dist_y, envelope.getMaxX());
-				var square1 = this.createAxisParallelRectangle({xmin: xSmall, ymin: ymin, xmax: xSmall+dist_y, ymax: ymax});
-				var square2 = this.createAxisParallelRectangle({xmin: xLarge-dist_y, ymin: ymin, xmax: xLarge, ymax: ymax});
+				var xSmall = Math.max(maxx-dist_y, envelope.getMinX());
+				var xLarge = Math.min(minx+dist_y, envelope.getMaxX());
+				var square1 = this.createAxisParallelRectangle({minx: xSmall, miny: miny, maxx: xSmall+dist_y, maxy: maxy});
+				var square2 = this.createAxisParallelRectangle({minx: xLarge-dist_y, miny: miny, maxx: xLarge, maxy: maxy});
 			}
 
 			square1.groupId = square2.groupId = shapes.length;

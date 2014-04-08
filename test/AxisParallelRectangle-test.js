@@ -9,23 +9,23 @@ var should = require('should');
 var jsts = require("../jsts-extended");
 var factory = new jsts.geom.GeometryFactory();
 
-var r0101 = factory.createAxisParallelRectangle({xmin:0,xmax:1, ymin:0,ymax:1});
-var r0112 = factory.createAxisParallelRectangle({xmin:0,xmax:1, ymin:1,ymax:2});
-var r0123 = factory.createAxisParallelRectangle({xmin:0,xmax:1, ymin:2,ymax:3});
-var r1201 = factory.createAxisParallelRectangle({xmin:1,xmax:2, ymin:0,ymax:1});
-var r2301 = factory.createAxisParallelRectangle({xmin:2,xmax:3, ymin:0,ymax:1});
+var r0101 = factory.createAxisParallelRectangle({minx:0,maxx:1, miny:0,maxy:1});
+var r0112 = factory.createAxisParallelRectangle({minx:0,maxx:1, miny:1,maxy:2});
+var r0123 = factory.createAxisParallelRectangle({minx:0,maxx:1, miny:2,maxy:3});
+var r1201 = factory.createAxisParallelRectangle({minx:1,maxx:2, miny:0,maxy:1});
+var r2301 = factory.createAxisParallelRectangle({minx:2,maxx:3, miny:0,maxy:1});
 
-var r1212 = factory.createAxisParallelRectangle({xmin:1,xmax:2, ymin:1,ymax:2});
-var r2323 = factory.createAxisParallelRectangle({xmin:2,xmax:3, ymin:2,ymax:3});
+var r1212 = factory.createAxisParallelRectangle({minx:1,maxx:2, miny:1,maxy:2});
+var r2323 = factory.createAxisParallelRectangle({minx:2,maxx:3, miny:2,maxy:3});
 
-var r0202 = factory.createAxisParallelRectangle({xmin:0,xmax:2, ymin:0,ymax:2});
-var r0213 = factory.createAxisParallelRectangle({xmin:0,xmax:2, ymin:1,ymax:3});
-var r0224 = factory.createAxisParallelRectangle({xmin:0,xmax:2, ymin:2,ymax:4});
-var r1302 = factory.createAxisParallelRectangle({xmin:1,xmax:3, ymin:0,ymax:2});
-var r2402 = factory.createAxisParallelRectangle({xmin:2,xmax:4, ymin:0,ymax:2});
+var r0202 = factory.createAxisParallelRectangle({minx:0,maxx:2, miny:0,maxy:2});
+var r0213 = factory.createAxisParallelRectangle({minx:0,maxx:2, miny:1,maxy:3});
+var r0224 = factory.createAxisParallelRectangle({minx:0,maxx:2, miny:2,maxy:4});
+var r1302 = factory.createAxisParallelRectangle({minx:1,maxx:3, miny:0,maxy:2});
+var r2402 = factory.createAxisParallelRectangle({minx:2,maxx:4, miny:0,maxy:2});
 
-var r1313 = factory.createAxisParallelRectangle({xmin:1,xmax:3, ymin:1,ymax:3});
-var r2424 = factory.createAxisParallelRectangle({xmin:2,xmax:4, ymin:2,ymax:4});
+var r1313 = factory.createAxisParallelRectangle({minx:1,maxx:3, miny:1,maxy:3});
+var r2424 = factory.createAxisParallelRectangle({minx:2,maxx:4, miny:2,maxy:4});
 
 describe('AxisParallelRectangle', function() {
 	it('knows the interiorDisjoint relation', function() {

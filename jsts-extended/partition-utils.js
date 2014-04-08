@@ -15,8 +15,8 @@ jsts.algorithm.prepareShapesToPartition = function(candidates) {
 	candidates.forEach(function(cur) {
 		cur.normalize();
 		var envelope = cur.getEnvelopeInternal();
-		cur.xmin = envelope.getMinX(); cur.xmax = envelope.getMaxX();
-		cur.ymin = envelope.getMinY(); cur.ymax = envelope.getMaxY();
+		cur.minx = envelope.getMinX(); cur.maxx = envelope.getMaxX();
+		cur.miny = envelope.getMinY(); cur.maxy = envelope.getMaxY();
 	});
 	return _.uniq(candidates, function(cur) { return cur.toString(); })    // remove duplicates
 }
@@ -38,7 +38,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 		throw new Error("less than two candidate rectangles - nothing to partition!");
 
 	var bestXPartition = null;
-	var xValues = utils.sortedUniqueValues(candidates, ['xmin','xmax']).slice(1,-1);
+	var xValues = utils.sortedUniqueValues(candidates, ['minx','maxx']).slice(1,-1);
 	
 	if (xValues.length>0) {
 		var bestX = _.max(xValues, function(x) {
@@ -48,7 +48,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 	}
 
 	var bestYPartition = null;
-	var yValues = utils.sortedUniqueValues(candidates, ['ymin','ymax']).slice(1,-1);
+	var yValues = utils.sortedUniqueValues(candidates, ['miny','maxy']).slice(1,-1);
 	if (yValues.length>0) {
 		var bestY = _.max(yValues, function(y) {
 			return partitionQuality(partitionByY(candidates, y));
@@ -74,7 +74,7 @@ jsts.algorithm.partitionShapes = function(candidates) {
 
 
 /**
- * @param shapes an array of shapes, each of which contains pre-calculated "xmin" and "xmax" fields.
+ * @param shapes an array of shapes, each of which contains pre-calculated "minx" and "maxx" fields.
  * @param x a number.
  * @return a partitioning of shapes to 3 lists: before, intersecting, after x.
  */
@@ -83,9 +83,9 @@ function partitionByX(shapes, x) {
 	var intersectedByX = [];
 	var afterX = [];
 	shapes.forEach(function(cur) {
-		if (cur.xmax<x)
+		if (cur.maxx<x)
 			beforeX.push(cur);
-		else if (x<=cur.xmin)
+		else if (x<=cur.minx)
 			afterX.push(cur);
 		else
 			intersectedByX.push(cur);
@@ -94,7 +94,7 @@ function partitionByX(shapes, x) {
 }
 
 /**
- * @param shapes an array of shapes, each of which contains pre-calculated "ymin" and "ymax" fields.
+ * @param shapes an array of shapes, each of which contains pre-calculated "miny" and "maxy" fields.
  * @param y a number.
  * @return a partitioning of shapes to 3 lists: before, intersecting, after y.
  */
@@ -103,9 +103,9 @@ function partitionByY(shapes, y) {
 	var intersectedByY = [];
 	var afterY = [];
 	shapes.forEach(function(cur) {
-		if (cur.ymax<y)
+		if (cur.maxy<y)
 			beforeY.push(cur);
-		else if (y<=cur.ymin)
+		else if (y<=cur.miny)
 			afterY.push(cur);
 		else
 			intersectedByY.push(cur);
