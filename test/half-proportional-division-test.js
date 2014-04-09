@@ -23,7 +23,7 @@ describe('4 walls algorithm', function() {
 		alg4walls([agent1],thinrect1).should.eql([{ minx: 0, maxx: 100, miny: 100, maxy: 200 }]);
 	})
 
-	it('single agent with 3 points', function() {
+	it('single agent with 3 points on a diagonal', function() {
 		var agent1 = [ { x: 0.25, y: 0.25 },
 		               { x: 0.5, y: 0.5 },
 		               { x: 0.75, y: 0.75 }];

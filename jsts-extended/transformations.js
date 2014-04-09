@@ -11,30 +11,68 @@
  * @since 2014-04
  */
 
+var transformPoint1 = function(t, point) {
+	if (t.translate) {
+		point.x += t.translate[0];
+		point.y += t.translate[1];
+	}
+	if (t.scale) {
+		point.x *= t.scale;
+		point.y *= t.scale;
+	}
+	if (t.rotateRadians) {  // PROBLEM: rounding errors
+		var sin = Math.sin(t.rotateRadians);
+		var cos = Math.cos(t.rotateRadians);
+		var newX = cos*point.x - sin*point.y;
+		var newY = sin*point.x + cos*point.y;
+		point.x = newX;
+		point.y = newY;
+	}
+	if (t.rotateQuarters) {
+		var q = (t.rotateQuarters+4)%4;
+		var sin = q==1? 1: q==3? -1: 0;
+		var cos = q==0? 1: q==2? -1: 0;
+		var newX = cos*point.x - sin*point.y;
+		var newY = sin*point.x + cos*point.y;
+		point.x = newX;
+		point.y = newY;
+	}
+	if (t.reflectXaxis) {
+		point.y = -point.y;
+	}
+	if (t.reflectYaxis) {
+		point.x = -point.x;
+	}
+	if (t.reflectXY) {
+		var z = point.x;
+		point.x = point.y;
+		point.y = z;
+	}
+}
+
+
 /**
  * Transforms a point using the given transformation.
  * @param point {x,y}
- * @param transformation {translateX, translateY, scale, transpose}
+ * @param transformation array with objects {translate, scale, reflectXaxis, reflectYaxis, reflectXY}
  */
-jsts.algorithm.transformedPoint = function(transformation, point) {
-	var newX = (point.x + transformation.translateX)*transformation.scale;
-	var newY = (point.y + transformation.translateY)*transformation.scale;
-	return transformation.transpose? {x:newY, y:newX}: {x:newX, y:newY};
+jsts.algorithm.transformPoint = function(transformation, point) {
+	if (transformation.forEach)
+		transformation.forEach(function(t) {
+			transformPoint1(t,point);
+		});
+	else
+		transformPoint1(transformation,point);
+	return point;
 };
 
 /**
- * Transforms an AxisParallelRectangle using the given transformation.
- * @param rect class AxisParallelRectangle
- * @param transformation {translateX, translateY, scale, transpose}
+ * Transforms a point using the given transformation.
+ * @param point {x,y}
+ * @param transformation array with objects {translate, scale, rotateRadians}
  */
-jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
-	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
-	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
-	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
-	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
-	return transformation.transpose?
-			rect.factory.createAxisParallelRectangle(newminy,newminx, newmaxy,newmaxx):
-			rect.factory.createAxisParallelRectangle(newminx,newminy, newmaxx,newmaxy);
+jsts.algorithm.transformedPoint = function(transformation, point) {
+	return jsts.algorithm.transformPoint(transformation, {x:point.x, y:point.y});
 };
 
 /**
@@ -43,28 +81,45 @@ jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect)
  * @param transformation {translateX, translateY, scale, transpose}
  */
 jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
-	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
-	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
-	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
-	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
-	if (transformation.transpose) {
-		rect.miny = newminx;
-		rect.maxy = newmaxx;
-		rect.minx = newminy;
-		rect.maxx = newmaxy;
-	} else {
-		rect.minx = newminx;
-		rect.maxx = newmaxx;
-		rect.miny = newminy;
-		rect.maxy = newmaxy;
-	}
+	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
+	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
+	rect.minx = Math.min(newMin.x,newMax.x);	rect.miny = Math.min(newMin.y,newMax.y);
+	rect.maxx = Math.max(newMin.x,newMax.x);	rect.maxy = Math.max(newMin.y,newMax.y);
+	return rect;
 };
 
-jsts.algorithm.reverseTransformation = function(t) {
-	return {
-		translateX: t.transpose? -t.translateY*t.scale: -t.translateX*t.scale,
-		translateY: t.transpose? -t.translateX*t.scale: -t.translateY*t.scale,
-		scale:      1/t.scale,
-		transpose:  t.transpose
-	}
+/**
+ * Transforms an AxisParallelRectangle using the given transformation.
+ * @param rect class AxisParallelRectangle
+ * @param transformation array with objects {translate, scale, rotateRadians}
+ */
+jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
+	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
+	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
+	return 	rect.factory.createAxisParallelRectangle(newMin.x,newMin.Y, newMax.x,newMax.y);
+};
+
+var reverseSingleTransformation = function(t) {
+	var r = {};
+	if (t.translate) 
+		r.translate = [-t.translate[0], -t.translate[1]];
+	if (t.scale)
+		r.scale = 1/t.scale;
+	if (t.rotateRadians)
+		r.rotateRadians = -t.rotateRadians;
+	if (t.rotateQuarters)
+		r.rotateQuarters = 4-t.rotateQuarters;
+	if (t.reflectXaxis)
+		r.reflectXaxis = t.reflectXaxis;
+	if (t.reflectYaxis)
+		r.reflectYaxis = t.reflectYaxis;
+	if (t.reflectXY)
+		r.reflectXY = t.reflectXY;
+	return r;
+}
+
+jsts.algorithm.reverseTransformation = function(transformation) {
+	var reverseTransformation = transformation.map(reverseSingleTransformation);
+	reverseTransformation.reverse();
+	return reverseTransformation;
 };
