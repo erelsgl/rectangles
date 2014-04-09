@@ -92,7 +92,7 @@ describe('4 walls algorithm', function() {
 		testAlgorithm(alg4walls, [[agent1,agent2], square], 2);
 	})
 
-	it.skip('2 agents with same 5 points - L-shapes', function() {
+	it.only('2 agents with same 5 points - L-shapes', function() {
 		var agent1 = [{x:0,y:0},{x:0,y:100},{x:0,y:400},{x:100,y:0},{x:400,y:0}];  agent1.color='blue';
 		var agent2 = agent1.slice(0);  agent2.color='red';
 		testAlgorithm(alg4walls, [[agent1,agent2], square], 2);
@@ -144,5 +144,12 @@ describe('3 walls algorithm', function() {
 		var blue = [{x:10,y:390},{x:150,y:390},{x:250,y:390},{x:350,y:390},]; blue.color='blue'
 		var red  = [{x:10,y:340},{x:350,y:340},{x:10,y:370},{x:350,y:370},];  red.color='red'
 		testAlgorithm(alg3walls, [[blue,red], square,  1, jsts.Side.South], 2);
+	})
+	
+	it('3 agents with 6 points, simple solution fails', function() {
+		var blue = [{x:10,y:390},{x:80,y:390},{x:160,y:390},{x:240,y:390},{x:320,y:390},{x:390,y:390},]; blue.color='blue'
+		var green = blue.slice(0);   green.color='green';
+		var red  = [{x:10,y:340},{x:350,y:340},{x:10,y:355},{x:350,y:355},{x:10,y:370},{x:350,y:370},];  red.color='red'
+		testAlgorithm(alg3walls, [[blue,red,green], square,  1, jsts.Side.South], 2);
 	})
 })

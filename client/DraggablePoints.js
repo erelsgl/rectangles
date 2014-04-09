@@ -36,8 +36,11 @@ function DraggablePoints(svgpaper, onDragEnd) {
 			if (index>=0)
 				points.splice(index,1);
 			index = points.byColor[this.color].indexOf(this);
-			if (index>=0)
+			if (index>=0) {
 				points.byColor[this.color].splice(index,1);
+				if (points.byColor[this.color].length==0)
+					delete points.byColor[this.color];
+			}
 		};
 
 		point.circle.dragend = function(delta, event) {
