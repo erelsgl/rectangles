@@ -107,7 +107,7 @@ function drawShapesFromPoints() {
 			}
 			if (drawMode=="drawRepresentatives") {
 				var newStatus = "";
-				for (var color in candidatesByColor) {
+				for (var color in points.byColor) {
 					var maxDisjointSetOfColor = jsts.algorithm.maximumDisjointSet(candidatesByColor[color], candidateSets.length);
 					newStatus += color+":"+points.byColor[color].length+"p"+maxDisjointSetOfColor.length+"s ";
 					for (var i in maxDisjointSetOfColor) {
@@ -123,12 +123,30 @@ function drawShapesFromPoints() {
 				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
 			}
 		} else if (drawMode=="drawFairDivision") {
+			
+			// Make sure the envelope has only at most 1 infinite side:
 			var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
+			if (!$("#wall-left").is(':checked')) envelopeTemp.minx = -Infinity;
+			else if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
+			else if (!$("#wall-top").is(':checked')) envelopeTemp.miny = -Infinity;
+			else if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
+			
 			var maxSlimness = parseFloat($("#maxSlimness").val());
 			var pointsPerAgent = _.values(points.byColor);
 			var fairDivision = factory.createHalfProportionalDivision(
 				pointsPerAgent, envelopeTemp, maxSlimness);
+			
+			var newStatus = " ";
+			for (var color in points.byColor) {
+				var pointsOfAgent = points.byColor[color];
+				fairDivision.forEach(function(landplot) {
+					if (landplot.color==color) {
+						newStatus += color+":"+jsts.algorithm.numPointsInEnvelope(pointsOfAgent,landplot)+"/"+pointsOfAgent.length+" ";
+					}
+				});
+			}
 			drawShapes(null,fairDivision);
+			statusText.text(newStatus);
 		} else { // drawDisjoint or drawAll
 				var candidates = factory.createShapesTouchingPoints(
 						shapeName, points, envelope);

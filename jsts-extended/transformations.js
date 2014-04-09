@@ -32,8 +32,8 @@ var transformPoint1 = function(t, point) {
 		var q = (t.rotateQuarters+4)%4;
 		var sin = q==1? 1: q==3? -1: 0;
 		var cos = q==0? 1: q==2? -1: 0;
-		var newX = cos*point.x - sin*point.y;
-		var newY = sin*point.x + cos*point.y;
+		var newX = (cos==0? 0: cos*point.x) - (sin==0? 0: sin*point.y);
+		var newY = (sin==0? 0: sin*point.x) + (cos==0? 0: cos*point.y);
 		point.x = newX;
 		point.y = newY;
 	}

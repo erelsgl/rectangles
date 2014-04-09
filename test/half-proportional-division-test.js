@@ -100,4 +100,20 @@ describe('3 walls algorithm', function() {
 		alg3walls([agent1], thinrect1,1, jsts.Side.North).should.eql([{ minx: 0, maxx: 100, miny: 0, maxy: 100 }]);
 		alg3walls([agent1], thinrect1,1, jsts.Side.South).should.eql([{ minx: 0, maxx: 100, miny: 300, maxy: 400 }]);
 	})
+	it('single agent with infinite envelope', function() {
+		alg3walls([agent1], new jsts.geom.Envelope(-Infinity,400, 0,400),  1, jsts.Side.West).should.eql([{ minx: -300, maxx: 100, miny: 0, maxy: 400 }]);
+		alg3walls([agent1], new jsts.geom.Envelope(0,Infinity, 0,400),  1, jsts.Side.East).should.eql([{ minx: 0, maxx: 400, miny: 0, maxy: 400 }]);
+		alg3walls([agent1], new jsts.geom.Envelope(0,400, -Infinity,400),  1, jsts.Side.South).should.eql([{ minx: 0, maxx: 400, miny: 0, maxy: 400 }]);
+		alg3walls([agent1], new jsts.geom.Envelope(0,400, 0,Infinity),  1, jsts.Side.North).should.eql([{ minx: 0, maxx: 400, miny: 0, maxy: 400 }]);
+	});
+	
+	it('2 agents with same 4 points in corners', function() {
+		var agent = [{x:0,y:0},{x:0,y:400},{x:400,y:0},{x:400,y:400}];
+		alg3walls([agent,agent], square,  1, jsts.Side.East).should.eql(
+				[{ minx: 0, maxx: 400, miny: 0, maxy: 400 },
+				 { minx: 400, maxx: 800, miny: 0, maxy: 400 }]);
+		alg3walls([agent,agent], square,  1, jsts.Side.West).should.eql(
+				[{ minx: 0, maxx: 400, miny: 0, maxy: 400 },
+				 { minx: -400, maxx: 0, miny: 0, maxy: 400 }]);
+	});
 })

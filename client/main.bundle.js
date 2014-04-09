@@ -108,7 +108,7 @@ function drawShapesFromPoints() {
 			}
 			if (drawMode=="drawRepresentatives") {
 				var newStatus = "";
-				for (var color in candidatesByColor) {
+				for (var color in points.byColor) {
 					var maxDisjointSetOfColor = jsts.algorithm.maximumDisjointSet(candidatesByColor[color], candidateSets.length);
 					newStatus += color+":"+points.byColor[color].length+"p"+maxDisjointSetOfColor.length+"s ";
 					for (var i in maxDisjointSetOfColor) {
@@ -124,12 +124,30 @@ function drawShapesFromPoints() {
 				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
 			}
 		} else if (drawMode=="drawFairDivision") {
+			
+			// Make sure the envelope has only at most 1 infinite side:
 			var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
+			if (!$("#wall-left").is(':checked')) envelopeTemp.minx = -Infinity;
+			else if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
+			else if (!$("#wall-top").is(':checked')) envelopeTemp.miny = -Infinity;
+			else if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
+			
 			var maxSlimness = parseFloat($("#maxSlimness").val());
 			var pointsPerAgent = _.values(points.byColor);
 			var fairDivision = factory.createHalfProportionalDivision(
 				pointsPerAgent, envelopeTemp, maxSlimness);
+			
+			var newStatus = " ";
+			for (var color in points.byColor) {
+				var pointsOfAgent = points.byColor[color];
+				fairDivision.forEach(function(landplot) {
+					if (landplot.color==color) {
+						newStatus += color+":"+jsts.algorithm.numPointsInEnvelope(pointsOfAgent,landplot)+"/"+pointsOfAgent.length+" ";
+					}
+				});
+			}
 			drawShapes(null,fairDivision);
+			statusText.text(newStatus);
 		} else { // drawDisjoint or drawAll
 				var candidates = factory.createShapesTouchingPoints(
 						shapeName, points, envelope);
@@ -633,12 +651,22 @@ var TRACE = function(s) {
 	console.log(s);
 };
 
+var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
+
 var round2 = function(x) {
 	return Math.round(x*100)/100;
 }
 
+jsts.Side = {
+	South: 0,
+	West: 1,
+	North: 2,
+	East: 3
+};
+
+
 /**
- * Find a set of axis-parallel squares representing a fair-and-square division for the agents
+ * Find a set of axis-parallel fat rectangles representing a fair-and-square division for the agents
  * 
  * @param agents an array in which each entry represents the valuation of a single agent.
  * The valuation of an agent is represented by points with fields {x,y}. Each point has the same value.
@@ -650,29 +678,80 @@ var round2 = function(x) {
  * 
  * @return a list of rectangles; each rectangle is {minx,miny, maxx,maxy [,color]}.
  */
+jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(agents, envelope, maxAspectRatio) {
+	var landplots;
+	if (isFinite(envelope.minx) && isFinite(envelope.maxx) && isFinite(envelope.miny) && isFinite(envelope.maxy))
+		landplots = jsts.algorithm.halfProportionalDivision4Walls(agents, envelope, maxAspectRatio);
+	else {
+		var openSide;
+		if (envelope.minx==-Infinity) {
+			openSide = jsts.Side.West;
+//			envelope.minx = -1000;
+		} else if (envelope.miny==-Infinity) {
+			openSide = jsts.Side.South;
+//			envelope.miny = -1000;
+		} else if (envelope.maxx==Infinity) {
+			openSide = jsts.Side.East;
+//			envelope.maxx = 1000;
+		} else if (envelope.maxy==Infinity) {
+			openSide = jsts.Side.North;
+//			envelope.maxy = 1000;
+		} else {
+			throw new Error("Couldn't understand the envelope: "+JSON.stringify(envelope));
+		}
+		landplots = jsts.algorithm.halfProportionalDivision3Walls(agents, envelope, maxAspectRatio, openSide);
+	}
+	return landplots.map(function(landplot) {
+		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
+		rect.color = landplot.color;
+		return rect;
+	});
+};
 
+jsts.algorithm.halfProportionalDivision4Walls = function(agents, envelope, maxAspectRatio) {
+	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
+	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
+	var landplots = runDivisionAlgorithm(
+			norm4Walls, agents.length*2, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
+			agents, envelope, maxAspectRatio);
+	landplots.forEach(roundFields3);
+	return landplots;
+}
+
+
+jsts.algorithm.halfProportionalDivision3Walls = function(agents, envelope, maxAspectRatio, openSide) {
+	var southernSide = (openSide+2)%4;  // the southern side is opposite to the open side.
+	var landplots = runDivisionAlgorithm(
+			norm3Walls, 2*agents.length-1, southernSide,
+			agents, envelope, maxAspectRatio);
+	landplots.forEach(roundFields3);
+	return landplots;
+}
 
 
 /************ NORMALIZATION *******************/
 
-jsts.algorithm.halfProportionalDivision = function(normalizedDivisionFunction, assumedValue, agents, envelope, maxAspectRatio) {
+var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, southernSide, agents, envelope, maxAspectRatio) {
 	if (agents.length==0) 
 		return [];
-	if (!envelope)  envelope = DEFAULT_ENVELOPE;
 	if (!maxAspectRatio) maxAspectRatio=1;
 	
-	// here there are at least two agents:
-	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
-	var scaleFactor = 1/Math.min(width,height);
-	var yLength = Math.max(width,height)*scaleFactor;
+	var rotateTransformation = {rotateQuarters: southernSide - jsts.Side.South};
+	enveloper = jsts.algorithm.transformAxisParallelRectangle(rotateTransformation, {minx:envelope.minx, maxx:envelope.maxx, miny:envelope.miny, maxy:envelope.maxy});
+	
+	var width = enveloper.maxx-enveloper.minx, height = enveloper.maxy-enveloper.miny;
+	if (height<=0)
+		throw new Error("Zero height is not allowed: "+JSON.stringify(enveloper));
+	if (width<=0)
+		width = height/1000;
+	var scaleFactor = 1/width;
+	var yLength = height*scaleFactor;
 
 	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
-	var transformation = {
-		translateX: -envelope.minx,
-		translateY: -envelope.miny,
-		scale: scaleFactor,
-		transpose: (width>height),
-	};
+	var transformation = 
+		[rotateTransformation,
+		 {translate: [-enveloper.minx,-enveloper.miny]},
+		 {scale: scaleFactor}];
 	
 	var transformedAgents = agents.map(function(pointsOfAgent) {
 		// transform the points of the agent to the envelope [0,1]x[0,L]:
@@ -692,13 +771,15 @@ jsts.algorithm.halfProportionalDivision = function(normalizedDivisionFunction, a
 
 	// transform the system back:
 	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
-//	console.dir(envelope);
-//	console.dir(agents);
-//	console.dir(landplots);
-//	console.dir(reverseTransformation);
+//	console.log("Original envelope: "); console.dir(envelope);
+//	console.log("Original agents: "); console.dir(agents);
+//	console.log("transformation: "); console.dir(transformation);
+//	console.log("Transformed agents: "); console.dir(transformedAgents);
+//	console.log("Transformed landplots: "); console.dir(landplots);
+//	console.log("reverseTransformation: "); console.dir(reverseTransformation);
 	landplots.forEach(
 		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
-//	console.dir(landplots);
+//	console.log("Reverse-transformed landplots: "); console.dir(landplots);
 
 	return landplots;
 }
@@ -706,20 +787,18 @@ jsts.algorithm.halfProportionalDivision = function(normalizedDivisionFunction, a
 
 
 
-/************ 4-walls *******************/
 
 /**
- * A subroutine where:
+ * Normalized 4-walls algorithm:
  * - agents.length>=1
- * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1
+ * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1 (- the southern side is shorter than the eastern side)
  * - maxAspectRatio>=1
+ * - Value per agent: at least 2*n
  */
-jsts.algorithm.halfProportionalDivision4WallsNormalized = function(agents, yLength, maxAspectRatio) {
+var norm4Walls = function(agents, yLength, maxAspectRatio) {
 	var numOfAgents = agents.length;
 	var assumedValue = 2*numOfAgents;
 	TRACE("4 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
-	if (numOfAgents==0) 
-		return [];
 
 	if (numOfAgents==1) { // base case - single agent - find a square covering
 		var agent = agents[0];
@@ -731,10 +810,148 @@ jsts.algorithm.halfProportionalDivision4WallsNormalized = function(agents, yLeng
 		return [landplot];
 	}
 	
-	// Here there are at least 2 agents:
+	// HERE: numOfAgents >= 2
 
-	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_minus2 = [];
-	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_minus2[0] = yCuts_2k_minus2[1] = 0;
+	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
+	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
+	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
+		orderAgentsByYcut(agents, v);
+		if (v&1) { // v is odd -  v = 2k-1
+			var k = (v+1)>>1;
+			yCuts_2k_minus1[k] = agents[k-1].yCuts[v];
+		} else {     // v is even - v = 2k
+			var k = v>>1;
+			yCuts_2k[k] = agents[k-1].yCuts[v];
+			if (k<numOfAgents)
+				yCuts_2k_next[k] = agents[k].yCuts[v];
+		}
+	}
+	yCuts_2k_next[numOfAgents] = yLength;
+	
+
+	// Look for a partition to two 2-fat rectangles:
+
+	for (var k=1; k<=numOfAgents-1; ++k) {
+		var y_2k = yCuts_2k[k];           // the k-th 2k line
+		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+		if (!(y_2k<=y_2k_next)) {
+			console.error("BUG: y_2k="+y_2k+" y_2k_next="+y_2k_next+"  L="+yLength);
+			console.dir(agents);
+			return [];
+		}
+		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
+			var y = Math.max(y_2k,0.5);
+			var south = {minx:0, maxx:1, miny:0, maxy:y},
+			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
+			
+			orderAgentsByYcut(agents, 2*k);
+			var southAgents = agents.slice(0, k),
+			    northAgents = agents.slice(k, numOfAgents);
+			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,               jsts.Side.East,   southAgents, south, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), jsts.Side.East,    northAgents, north, maxAspectRatio);
+			return southPlots.concat(northPlots);
+		}
+	}
+
+	console.dir(agents);
+	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
+
+	// HERE, for every k, EITHER yCuts_2k[k] and yCuts_2k_next[k] are both smaller than 0.5,
+	//                        OR yCuts_2k[k] and yCuts_2k_next[k] are both larger than yLength-0.5, 
+	
+	// Look for a partition in the "shelves" method:
+	
+	for (var k=1; k<=numOfAgents-1; ++k) {
+		var y_2k = yCuts_2k[k];           // the k-th 2k line
+		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+		if (y_2k_next <= 0.5) {  // South is 2-thin
+			
+		}
+	}
+	return [];
+}
+
+
+/**
+ * Normalized 3-walls algorithm:
+ * - agents.length>=1
+ * - The envelope is normalized to [0,1]x[0,yLength].
+ * - maxAspectRatio>=1.
+ * - Value per agent: at least 2*n-1.
+ * - Landplots may overflow the northern border.
+ */
+var norm3Walls = function(agents, yLength, maxAspectRatio) {
+	var numOfAgents = agents.length;
+	var assumedValue = 2*numOfAgents-1;
+	TRACE("3 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+
+	if (numOfAgents==1) { // base case - single agent - give all to the single agent
+		var agent = agents[0];
+		var landplot;
+		if (yLength<=1) {
+			landplot = {minx:0,maxx:1, miny:0,maxy:1};
+		} else {
+			var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
+			agent = jsts.algorithm.pointsInEnvelope(agent, envelope);
+			envelope.maxy = Math.max(2,envelope.maxy);
+			landplot = jsts.algorithm.squareWithMaxNumOfPoints(
+						agent, envelope, maxAspectRatio);
+		}
+		if (agent.color)
+			landplot.color = agent.color;
+		return [landplot];
+	}
+
+	// HERE: numOfAgents >= 2
+	
+	var k = numOfAgents-1;
+	orderAgentsByYcut(agents, assumedValue-1);
+	var southAgents = agents.slice(0,k),
+	    northAgent = agents[k];
+	var y = northAgent.yCuts[assumedValue-1];
+	TRACE("\tPartition at y="+y+": k="+k+", "+southAgents.length+" south agents and 1 north agent.");
+	var south = {minx:0, maxx:1, miny:0, maxy:y};
+	var southPlots = runDivisionAlgorithm(norm4Walls, assumedValue-1, (y>1? jsts.Side.South: jsts.Side.East),   southAgents, south, maxAspectRatio);
+	if (southPlots.length==southAgents.length) {
+		northPlot = {minx:0,maxx:1, miny:y,maxy:y+1};
+		if (northAgent.color)
+			northPlot.color = northAgent.color;
+		southPlots.push(northPlot);
+		return southPlots;
+	}
+
+	console.dir(agents);
+	TRACE("\tNo partition to 1:(n-1)");
+	return [];
+}
+
+
+/**
+ * Normalized 4-walls thin algorithm:
+ * - agents.length>=1
+ * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1
+ * - maxAspectRatio>=1
+ */
+var norm4WallsThin = function(agents, yLength, maxAspectRatio) {
+	var numOfAgents = agents.length;
+	var assumedValue = 2*numOfAgents;
+	TRACE("4 Walls Thin Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+
+	if (numOfAgents==1) { // base case - single agent - find a square covering
+		var agent = agents[0];
+		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
+		var landplot = jsts.algorithm.squareWithMaxNumOfPoints(
+					agent, envelope, maxAspectRatio);
+		if (agent.color)
+			landplot.color = agent.color;
+		return [landplot];
+	}
+
+	// HERE: numOfAgents >= 2
+
+	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
+	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
 	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
 		agents.sort(function(a,b){return a.yCuts[v]-b.yCuts[v]}); // order the agents by their v-line. complexity O(n log n)
 		if (v&1) { // v is odd -  v = 2k-1
@@ -743,24 +960,23 @@ jsts.algorithm.halfProportionalDivision4WallsNormalized = function(agents, yLeng
 		} else {     // v is even - v = 2k
 			var k = v>>1;
 			yCuts_2k[k] = agents[k-1].yCuts[v];
-			k = k+1;       // v = 2k-2
 			if (k<numOfAgents)
-				yCuts_2k_minus2[k] = agents[k-1].yCuts[v];
+				yCuts_2k_next[k] = agents[k].yCuts[v];
 		}
 	}
-	yCuts_2k_minus2[numOfAgents] = yLength;
+	yCuts_2k_next[numOfAgents] = yLength;
 
-//	console.dir(agents);
-//	console.dir(yCuts_2k_minus1);
-//	console.dir(yCuts_2k);
+	// Look for a partition to two 2-fat rectangles:
+
 	for (var k=1; k<=numOfAgents-1; ++k) {
-		var y_2k = yCuts_2k[k];   // the k-th 2k line
-		var Y_2k_minus2 = yCuts_2k_minus2[k+1]; // the k+1-th 2k line
-		if (!(y_2k<=Y_2k_minus2)) {
-			console.error("Bug: y_2k="+y_2k+" Y_2k_minus2="+Y_2k_minus2+"  L="+yLength);
+		var y_2km1 = yCuts_2k_minus1[k];  // the k-th 2k line
+		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+		if (!(y_2k<=y_2k_next)) {
+			console.error("BUG: y_2k="+y_2k+" y_2k_next="+y_2k_next+"  L="+yLength);
 			console.dir(agents);
+			return [];
 		}
-		if (0.5 <= Y_2k_minus2 && y_2k <= yLength-0.5) {  // both North and South are 2-fat
+		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
 			var y = Math.max(y_2k,0.5);
 			var south = {minx:0, maxx:1, miny:0, maxy:y},
 			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
@@ -769,48 +985,24 @@ jsts.algorithm.halfProportionalDivision4WallsNormalized = function(agents, yLeng
 			agents.sort(function(a,b){return a.yCuts[k2]-b.yCuts[k2]}); // order the agents by their k2-line.
 			var southAgents = agents.slice(0, k),
 			    northAgents = agents.slice(k, numOfAgents);
-			TRACE("\tPartition to two 2-fat pieces at y="+y+": k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-			if (southAgents.length==0 || northAgents.length==0)  {
-				console.dir(agentPartition);
-				throw new Error("Empty partition of agents for k="+k+", y_2k="+y_2k);
-			}
-			var southPlots = jsts.algorithm.halfProportionalDivision(jsts.algorithm.halfProportionalDivision4WallsNormalized, southAgents.length*2, southAgents, south, maxAspectRatio),
-			    northPlots = jsts.algorithm.halfProportionalDivision(jsts.algorithm.halfProportionalDivision4WallsNormalized, northAgents.length*2, northAgents, north, maxAspectRatio);
+			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,              southAgents, south, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), northAgents, north, maxAspectRatio);
 			return southPlots.concat(northPlots);
 		}
 	}
-	
+
 	console.dir(agents);
 	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
+
 	return [];
 }
 
 
-
-
-// Create versions for non-normalized envelopes by binding the normalized functios to the generic function:
-jsts.algorithm.halfProportionalDivision4Walls = function(agents, envelope, maxAspectRatio) {
-	var landplots = jsts.algorithm.halfProportionalDivision(
-			jsts.algorithm.halfProportionalDivision4WallsNormalized, agents.length*2,
-			agents, envelope, maxAspectRatio);
-	landplots.forEach(function(landplot) {
-		for (var field in landplot)
-			if (typeof landplot[field] === 'number')
-				landplot[field]=round2(landplot[field]);
-	});
-	return landplots;
+var orderAgentsByYcut = function(agents, yCutValue) {
+	agents.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the agents by their v-line. complexity O(n log n)
 }
 
-
-
-jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(agents, envelope, maxAspectRatio) {
-	var landplots = jsts.algorithm.halfProportionalDivision4Walls(agents, envelope, maxAspectRatio);
-	return landplots.map(function(landplot) {
-		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
-		rect.color = landplot.color;
-		return rect;
-	});
-};
 
 },{"./AxisParallelRectangle":2,"./factory-utils":3,"./numeric-utils":10,"./point-utils":12,"./square-with-max-points":15,"./transformations":16,"jsts":19,"underscore":41}],6:[function(require,module,exports){
 var jsts = require("jsts");
@@ -823,6 +1015,7 @@ require("./maximum-disjoint-set-async");
 require("./representative-disjoint-set-sync");
 require("./shapes-touching-points");
 require("./square-with-max-points");
+require("./transformations");
 require("./fair-division-of-points");
 require("./half-proportional-division");
 jsts.stringify = function(object) {
@@ -835,7 +1028,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./fair-division-of-points":4,"./half-proportional-division":5,"./intersection-cache":7,"./maximum-disjoint-set-async":8,"./maximum-disjoint-set-sync":9,"./point-utils":12,"./representative-disjoint-set-sync":13,"./shapes-touching-points":14,"./square-with-max-points":15,"jsts":19}],7:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":3,"./fair-division-of-points":4,"./half-proportional-division":5,"./intersection-cache":7,"./maximum-disjoint-set-async":8,"./maximum-disjoint-set-sync":9,"./point-utils":12,"./representative-disjoint-set-sync":13,"./shapes-touching-points":14,"./square-with-max-points":15,"./transformations":16,"jsts":19}],7:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -1803,30 +1996,68 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
  * @since 2014-04
  */
 
+var transformPoint1 = function(t, point) {
+	if (t.translate) {
+		point.x += t.translate[0];
+		point.y += t.translate[1];
+	}
+	if (t.scale) {
+		point.x *= t.scale;
+		point.y *= t.scale;
+	}
+	if (t.rotateRadians) {  // PROBLEM: rounding errors
+		var sin = Math.sin(t.rotateRadians);
+		var cos = Math.cos(t.rotateRadians);
+		var newX = cos*point.x - sin*point.y;
+		var newY = sin*point.x + cos*point.y;
+		point.x = newX;
+		point.y = newY;
+	}
+	if (t.rotateQuarters) {
+		var q = (t.rotateQuarters+4)%4;
+		var sin = q==1? 1: q==3? -1: 0;
+		var cos = q==0? 1: q==2? -1: 0;
+		var newX = (cos==0? 0: cos*point.x) - (sin==0? 0: sin*point.y);
+		var newY = (sin==0? 0: sin*point.x) + (cos==0? 0: cos*point.y);
+		point.x = newX;
+		point.y = newY;
+	}
+	if (t.reflectXaxis) {
+		point.y = -point.y;
+	}
+	if (t.reflectYaxis) {
+		point.x = -point.x;
+	}
+	if (t.reflectXY) {
+		var z = point.x;
+		point.x = point.y;
+		point.y = z;
+	}
+}
+
+
 /**
  * Transforms a point using the given transformation.
  * @param point {x,y}
- * @param transformation {translateX, translateY, scale, transpose}
+ * @param transformation array with objects {translate, scale, reflectXaxis, reflectYaxis, reflectXY}
  */
-jsts.algorithm.transformedPoint = function(transformation, point) {
-	var newX = (point.x + transformation.translateX)*transformation.scale;
-	var newY = (point.y + transformation.translateY)*transformation.scale;
-	return transformation.transpose? {x:newY, y:newX}: {x:newX, y:newY};
+jsts.algorithm.transformPoint = function(transformation, point) {
+	if (transformation.forEach)
+		transformation.forEach(function(t) {
+			transformPoint1(t,point);
+		});
+	else
+		transformPoint1(transformation,point);
+	return point;
 };
 
 /**
- * Transforms an AxisParallelRectangle using the given transformation.
- * @param rect class AxisParallelRectangle
- * @param transformation {translateX, translateY, scale, transpose}
+ * Transforms a point using the given transformation.
+ * @param point {x,y}
+ * @param transformation array with objects {translate, scale, rotateRadians}
  */
-jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
-	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
-	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
-	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
-	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
-	return transformation.transpose?
-			rect.factory.createAxisParallelRectangle(newminy,newminx, newmaxy,newmaxx):
-			rect.factory.createAxisParallelRectangle(newminx,newminy, newmaxx,newmaxy);
+jsts.algorithm.transformedPoint = function(transformation, point) {
+	return jsts.algorithm.transformPoint(transformation, {x:point.x, y:point.y});
 };
 
 /**
@@ -1835,31 +2066,71 @@ jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect)
  * @param transformation {translateX, translateY, scale, transpose}
  */
 jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
-	var newminx = (rect.minx + transformation.translateX)*transformation.scale;
-	var newminy = (rect.miny + transformation.translateY)*transformation.scale;
-	var newmaxx = (rect.maxx + transformation.translateX)*transformation.scale;
-	var newmaxy = (rect.maxy + transformation.translateY)*transformation.scale;
-	if (transformation.transpose) {
-		rect.miny = newminx;
-		rect.maxy = newmaxx;
-		rect.minx = newminy;
-		rect.maxx = newmaxy;
-	} else {
-		rect.minx = newminx;
-		rect.maxx = newmaxx;
-		rect.miny = newminy;
-		rect.maxy = newmaxy;
-	}
+	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
+	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
+	rect.minx = Math.min(newMin.x,newMax.x);	rect.miny = Math.min(newMin.y,newMax.y);
+	rect.maxx = Math.max(newMin.x,newMax.x);	rect.maxy = Math.max(newMin.y,newMax.y);
+	return rect;
 };
 
-jsts.algorithm.reverseTransformation = function(t) {
-	return {
-		translateX: t.transpose? -t.translateY*t.scale: -t.translateX*t.scale,
-		translateY: t.transpose? -t.translateX*t.scale: -t.translateY*t.scale,
-		scale:      1/t.scale,
-		transpose:  t.transpose
-	}
+/**
+ * Transforms an AxisParallelRectangle using the given transformation.
+ * @param rect class AxisParallelRectangle
+ * @param transformation array with objects {translate, scale, rotateRadians}
+ */
+jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
+	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
+	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
+	return 	rect.factory.createAxisParallelRectangle(newMin.x,newMin.Y, newMax.x,newMax.y);
 };
+
+var reverseSingleTransformation = function(t) {
+	var r = {};
+	if (t.translate) 
+		r.translate = [-t.translate[0], -t.translate[1]];
+	if (t.scale)
+		r.scale = 1/t.scale;
+	if (t.rotateRadians)
+		r.rotateRadians = -t.rotateRadians;
+	if (t.rotateQuarters)
+		r.rotateQuarters = (4-t.rotateQuarters)%4;
+	if (t.reflectXaxis)
+		r.reflectXaxis = t.reflectXaxis;
+	if (t.reflectYaxis)
+		r.reflectYaxis = t.reflectYaxis;
+	if (t.reflectXY)
+		r.reflectXY = t.reflectXY;
+	return r;
+}
+
+jsts.algorithm.reverseTransformation = function(transformation) {
+	var reverseTransformation = transformation.map(reverseSingleTransformation);
+	reverseTransformation.reverse();
+	return reverseTransformation;
+};
+
+
+Math.log10 = function(x) {
+	return Math.log(x) / Math.LN10;
+}
+
+// By Pyrolistical: http://stackoverflow.com/a/1581007/827927
+Math.roundToSignificantFigures = function(significantFigures, num) {
+	if(num == 0) return 0;
+	
+	var d = Math.ceil(Math.log10(num < 0 ? -num: num));
+	var power = significantFigures - d;
+	
+	var magnitude = Math.pow(10, power);
+	var shifted = Math.round(num*magnitude);
+	return shifted/magnitude;
+}
+
+jsts.algorithm.roundFields = function(significantFigures, object) {
+	for (var field in object)
+		if (typeof object[field] === 'number')
+			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
+}
 
 },{}],17:[function(require,module,exports){
 var process=require("__browserify_process");/*global setImmediate: false, setTimeout: false, console: false */
