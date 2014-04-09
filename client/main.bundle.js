@@ -711,10 +711,7 @@ var TRACE = function(s) {
 };
 
 var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
-
-var round2 = function(x) {
-	return Math.round(x*100)/100;
-}
+var round2 = function(x) { 	return Math.round(x*100)/100; }
 
 jsts.Side = {
 	South: 0,
@@ -771,6 +768,7 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(va
 };
 
 jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, envelope, maxAspectRatio) {
+	TRACE("")
 	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
 	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
 	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length, agentsValuePoints)
@@ -783,6 +781,7 @@ jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, enve
 
 
 jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, envelope, maxAspectRatio, openSide) {
+	TRACE("")
 	var southernSide = (openSide+2)%4;  // the southern side is opposite to the open side.
 	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints)
 	var landplots = runDivisionAlgorithm(
@@ -828,15 +827,15 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 
 	// transform the system back:
 	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
-	console.log("Original envelope: "); console.dir(envelope);
-	console.log("Original valueFunctions: "); console.log(util.inspect(valueFunctions,{depth:3}));
-	console.log("transformation: "); console.dir(transformation);
-	console.log("Transformed valueFunctions: "); console.log(util.inspect(transformedvalueFunctions,{depth:3}));
-	console.log("Transformed landplots: "); console.dir(landplots);
-	console.log("reverseTransformation: "); console.dir(reverseTransformation);
+//	console.log("Original envelope: "); console.dir(envelope);
+//	console.log("Original valueFunctions: "); console.log(util.inspect(valueFunctions,{depth:3}));
+//	console.log("transformation: "); console.dir(transformation);
+//	console.log("Transformed valueFunctions: "); console.log(util.inspect(transformedvalueFunctions,{depth:3}));
+//	console.log("Transformed landplots: "); console.dir(landplots);
+//	console.log("reverseTransformation: "); console.dir(reverseTransformation);
 	landplots.forEach(
 		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
-	console.log("Reverse-transformed landplots: "); console.dir(landplots);
+//	console.log("Reverse-transformed landplots: "); console.dir(landplots);
 
 	return landplots;
 }
@@ -855,12 +854,12 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	var assumedValue = 2*numOfAgents;
-	TRACE("4 Walls Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
+	TRACE("4 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
 
 	if (numOfAgents==1) { // base case - single agent:
 		var valueFunction = valueFunctions[0];
 		var landplot = null;
-		console.dir(valueFunction.yCuts);
+		//console.dir(valueFunction.yCuts);
 		for (var k=1; k<valueFunction.yCuts.length; ++k) {
 			var yCutDiff = valueFunction.yCuts[k]-valueFunction.yCuts[k-1];
 			if (yCutDiff<=maxAspectRatio) {
@@ -871,7 +870,10 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 				break;
 			}
 		}
-		if (!landplot) return [];
+		if (!landplot) {
+			TRACE("\tNo landplot with value 1: "+JSON.stringify(valueFunction));
+			return [];
+		}
 		if (valueFunction.color) landplot.color = valueFunction.color;
 		return [landplot];
 	}
@@ -920,7 +922,7 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 		}
 	}
 
-	console.dir(valueFunctions);
+//	console.dir(valueFunctions);
 	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
 
 	// HERE, for every k, EITHER yCuts_2k[k] and yCuts_2k_next[k] are both smaller than 0.5,
@@ -941,16 +943,16 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 
 /**
  * Normalized 3-walls algorithm:
- * - valueFunctions.length>=1
- * - The envelope is normalized to [0,1]x[0,yLength].
- * - maxAspectRatio>=1.
- * - Value per agent: at least 2*n-1.
- * - Landplots may overflow the northern border.
+ * - valueFunctions.length>=2
+ * - The envelope is normalized to [0,1]x[0,yLength]
+ * - maxAspectRatio>=1
+ * - Value per agent: at least 2*n-1
+ * - Landplots may overflow the northern border
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	var assumedValue = 2*numOfAgents-1;
-	TRACE("3 Walls Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
+	TRACE("3 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
 
 	if (numOfAgents==1) { // base case - single agent - give all to the single agent
 		var agent = valueFunctions[0];
@@ -987,42 +989,37 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 		return southPlots;
 	}
 
-	console.dir(valueFunctions);
-	TRACE("\tNo partition to 1:(n-1)");
-	return [];
+	TRACE("\tNo partition to 1:(n-1).");
+	
+	var plots = runDivisionAlgorithm(norm3WallsThin, jsts.Side.East,   valueFunctions, south, maxAspectRatio);
+	
+	return plots;
 }
 
-
 /**
- * Normalized 4-walls thin algorithm:
+ * Normalized 3-walls thin algorithm:
  * - valueFunctions.length>=1
- * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1
+ * - The envelope is normalized to [0,1]x[0,yLength], yLength>=2
  * - maxAspectRatio>=1
+ * - Value per agent: at least 2*n-2
+ * - Landplots may overflow the eastern border
  */
-var norm4WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
+var norm3WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
-	var assumedValue = 2*numOfAgents;
-	TRACE("4 Walls Thin Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
-
-	if (numOfAgents==1) { // base case - single agent - find a square covering
-		var agent = valueFunctions[0];
-		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
-		var landplot = jsts.algorithm.squareWithMaxNumOfPoints(
-					agent.points, envelope, maxAspectRatio);
-		if (agent.color)
-			landplot.color = agent.color;
-		return [landplot];
-	}
-
+	var assumedValue = 2*numOfAgents-2;
+	TRACE("3 Walls Thin Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+	
 	// HERE: numOfAgents >= 2
 
-	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
-	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
+	var yCuts_2k = [], yCuts_2k_next = [], yCuts_2k_minus1 = [], yCuts_2k_minus1_next = [];
+	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_minus1_next[0] = 0;
 	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
-		valueFunctions.sort(function(a,b){return a.yCuts[v]-b.yCuts[v]}); // order the valueFunctions by their v-line. complexity O(n log n)
+		ValueFunction.orderArrayByYcut(valueFunctions, v);
 		if (v&1) { // v is odd -  v = 2k-1
 			var k = (v+1)>>1;
 			yCuts_2k_minus1[k] = valueFunctions[k-1].yCuts[v];
+			if (k<numOfAgents)
+				yCuts_2k_minus1_next[k] = valueFunctions[k].yCuts[v];
 		} else {     // v is even - v = 2k
 			var k = v>>1;
 			yCuts_2k[k] = valueFunctions[k-1].yCuts[v];
@@ -1031,38 +1028,35 @@ var norm4WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
 		}
 	}
 	yCuts_2k_next[numOfAgents] = yLength;
-
-	// Look for a partition to two 2-fat rectangles:
+	
+	
+	// Look for a partition to two 3-walls pieces open to the east
 
 	for (var k=1; k<=numOfAgents-1; ++k) {
-		var y_2km1 = yCuts_2k_minus1[k];  // the k-th 2k line
-		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
-		if (!(y_2k<=y_2k_next)) {
-			console.error("BUG: y_2k="+y_2k+" y_2k_next="+y_2k_next+"  L="+yLength);
-			console.dir(valueFunctions);
-			return [];
-		}
-		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
-			var y = Math.max(y_2k,0.5);
+		var y_2k_1 = yCuts_2k_minus1[k];            // the k-th (2k-1) line
+		var y_2k_1_next = yCuts_2k_minus1_next[k];  // the (k+1)-th (2k-1) line
+		if (1 <= y_2k_1_next && y_2k_1 <= yLength-1) {  // both North and South are 2-fat
+			//var y = y_2k_1;
+			var y = Math.max(y_2k_1,1);
+			
 			var south = {minx:0, maxx:1, miny:0, maxy:y},
 			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
 			
-			var k2 = 2*k;
-			valueFunctions.sort(function(a,b){return a.yCuts[k2]-b.yCuts[k2]}); // order the valueFunctions by their k2-line.
+			ValueFunction.orderArrayByYcut(valueFunctions, 2*k-1);
 			var southAgents = valueFunctions.slice(0, k),
 			    northAgents = valueFunctions.slice(k, numOfAgents);
-			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south valueFunctions and "+northAgents.length+" north valueFunctions.");
-			var southPlots = runDivisionAlgorithm(norm4Walls, southAgents, south, Side.South/*southSide*/, maxAspectRatio),
-			    northPlots = runDivisionAlgorithm(norm4Walls, northAgents, north, Side.South/*southSide*/, maxAspectRatio);
+			TRACE("\tPartition to two 3-walls pieces at y="+y+", k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+			var southPlots = runDivisionAlgorithm(norm3Walls, jsts.Side.West,   southAgents, south, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm3Walls, jsts.Side.West,    northAgents, north, maxAspectRatio);
 			return southPlots.concat(northPlots);
 		}
 	}
 
-	console.dir(valueFunctions);
-	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
-
+	console.log(util.inspect(valueFunctions, {depth:3}));
+	TRACE("\tNo partition to two 3-walls pieces: yCuts_2k_minus1="+yCuts_2k_minus1.map(round2)+", L="+round2(yLength));
 	return [];
 }
+
 
 
 },{"./AxisParallelRectangle":2,"./ValueFunction":3,"./factory-utils":4,"./point-utils":13,"./square-with-max-points":16,"./transformations":17,"jsts":20,"underscore":42,"util":46}],7:[function(require,module,exports){
@@ -1652,9 +1646,11 @@ function partitionDescription(partition) {
  */
 var _ = require('underscore');
 
+var TOLERANCE=1.01
+
 jsts.algorithm.isPointInXY = function isPointInXY(point, minx,miny,maxx,maxy) {
-	return minx<=point.x && point.x<=maxx && 
-	       miny<=point.y && point.y<=maxy ;
+	return minx<=point.x*TOLERANCE && point.x<=maxx*TOLERANCE && 
+	       miny<=point.y*TOLERANCE && point.y<=maxy*TOLERANCE ;
 }
 
 jsts.algorithm.isPointInEnvelope = function (point,envelope) {

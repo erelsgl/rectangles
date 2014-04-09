@@ -6,9 +6,11 @@
  */
 var _ = require('underscore');
 
+var TOLERANCE=1.01
+
 jsts.algorithm.isPointInXY = function isPointInXY(point, minx,miny,maxx,maxy) {
-	return minx<=point.x && point.x<=maxx && 
-	       miny<=point.y && point.y<=maxy ;
+	return minx<=point.x*TOLERANCE && point.x<=maxx*TOLERANCE && 
+	       miny<=point.y*TOLERANCE && point.y<=maxy*TOLERANCE ;
 }
 
 jsts.algorithm.isPointInEnvelope = function (point,envelope) {
