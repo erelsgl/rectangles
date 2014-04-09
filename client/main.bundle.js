@@ -241,7 +241,7 @@ $(".interrupt").click(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":6,"underscore":41}],2:[function(require,module,exports){
+},{"../jsts-extended":7,"underscore":42}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -488,6 +488,64 @@ $(".interrupt").click(function() {
 
 
 },{}],3:[function(require,module,exports){
+var _ = require("underscore");
+
+/**
+ * Class ValueFunction represents a valuation function of an agent.
+ * Defined by a list of points, all of which have the same value.
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+var ValueFunction = function(totalValue, points, color, valuePerPoint) {
+	this.totalValue = totalValue;
+	if (!valuePerPoint) valuePerPoint = totalValue/points.length;
+	this.valuePerPoint = valuePerPoint;
+	this.pointsPerUnitValue = 1/valuePerPoint;
+	this.color = color? color: points.color? points.color: null;
+	this.setPoints(points);
+};
+
+ValueFunction.prototype.setPoints = function(newPoints) {
+	this.points = newPoints;
+	
+	// Don't change the totalValue and the valuePerPoint - they remain as they are 
+	//	even when the points are filtered by an envelope!
+	var yVals = _.pluck(newPoints,"y");
+	yVals.sort(function(a,b){return a-b});
+	
+	var cuts = [0];
+	var curPointsInPiece = 0;
+	for (var i=0; i<yVals.length; ++i) {
+		curPointsInPiece += 1;
+		while (curPointsInPiece>=this.pointsPerUnitValue) {
+			cuts.push(yVals[i]);
+			curPointsInPiece -= this.pointsPerUnitValue;
+		}
+	}
+	this.yCuts = cuts;
+}
+
+ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
+	return new ValueFunction(this.totalValue, newPoints, this.color, this.valuePerPoint);
+}
+
+ValueFunction.create = function(totalValue, points) {
+	return new ValueFunction(totalValue, points);
+}
+
+ValueFunction.createArray = function(totalValue, arraysOfPoints) {
+	return arraysOfPoints.map(ValueFunction.create.bind(0,totalValue));
+}
+
+ValueFunction.orderArrayByYcut = function(valueFunctions, yCutValue) {
+	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
+}
+
+
+
+module.exports = ValueFunction;
+
+},{"underscore":42}],4:[function(require,module,exports){
 /**
  * Adds to jsts.geom some simple utility functions related to rectangles.
  * @author Erel Segal-Halevi
@@ -517,7 +575,7 @@ jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
 	}, this);
 };
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a fair number of points.
  * 
@@ -628,7 +686,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./numeric-utils":10,"./square-with-max-points":15,"jsts":19,"underscore":41}],5:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":4,"./numeric-utils":11,"./square-with-max-points":16,"jsts":20,"underscore":42}],6:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -643,7 +701,8 @@ require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
 var _ = require("underscore");
-var utils = require('./numeric-utils');
+var util = require("util");
+var ValueFunction = require("./ValueFunction");
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
@@ -665,10 +724,13 @@ jsts.Side = {
 };
 
 
+
+
+
 /**
- * Find a set of axis-parallel fat rectangles representing a fair-and-square division for the agents
+ * Find a set of axis-parallel fat rectangles representing a fair-and-square division for the valueFunctions
  * 
- * @param agents an array in which each entry represents the valuation of a single agent.
+ * @param valueFunctions an array in which each entry represents the valuation of a single agent.
  * The valuation of an agent is represented by points with fields {x,y}. Each point has the same value.
  *    Each agent may also have a field "color", that is copied to the rectangle.
  * 
@@ -678,10 +740,10 @@ jsts.Side = {
  * 
  * @return a list of rectangles; each rectangle is {minx,miny, maxx,maxy [,color]}.
  */
-jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(agents, envelope, maxAspectRatio) {
+jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(valueFunctions, envelope, maxAspectRatio) {
 	var landplots;
 	if (isFinite(envelope.minx) && isFinite(envelope.maxx) && isFinite(envelope.miny) && isFinite(envelope.maxy))
-		landplots = jsts.algorithm.halfProportionalDivision4Walls(agents, envelope, maxAspectRatio);
+		landplots = jsts.algorithm.halfProportionalDivision4Walls(valueFunctions, envelope, maxAspectRatio);
 	else {
 		var openSide;
 		if (envelope.minx==-Infinity) {
@@ -699,7 +761,7 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(ag
 		} else {
 			throw new Error("Couldn't understand the envelope: "+JSON.stringify(envelope));
 		}
-		landplots = jsts.algorithm.halfProportionalDivision3Walls(agents, envelope, maxAspectRatio, openSide);
+		landplots = jsts.algorithm.halfProportionalDivision3Walls(valueFunctions, envelope, maxAspectRatio, openSide);
 	}
 	return landplots.map(function(landplot) {
 		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
@@ -708,22 +770,24 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(ag
 	});
 };
 
-jsts.algorithm.halfProportionalDivision4Walls = function(agents, envelope, maxAspectRatio) {
+jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, envelope, maxAspectRatio) {
 	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
 	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
+	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length, agentsValuePoints)
 	var landplots = runDivisionAlgorithm(
-			norm4Walls, agents.length*2, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
-			agents, envelope, maxAspectRatio);
+			norm4Walls, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
+			valueFunctions, envelope, maxAspectRatio);
 	landplots.forEach(roundFields3);
 	return landplots;
 }
 
 
-jsts.algorithm.halfProportionalDivision3Walls = function(agents, envelope, maxAspectRatio, openSide) {
+jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, envelope, maxAspectRatio, openSide) {
 	var southernSide = (openSide+2)%4;  // the southern side is opposite to the open side.
+	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints)
 	var landplots = runDivisionAlgorithm(
-			norm3Walls, 2*agents.length-1, southernSide,
-			agents, envelope, maxAspectRatio);
+			norm3Walls, southernSide,
+			valueFunctions, envelope, maxAspectRatio);
 	landplots.forEach(roundFields3);
 	return landplots;
 }
@@ -731,11 +795,11 @@ jsts.algorithm.halfProportionalDivision3Walls = function(agents, envelope, maxAs
 
 /************ NORMALIZATION *******************/
 
-var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, southernSide, agents, envelope, maxAspectRatio) {
-	if (agents.length==0) 
+var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, valueFunctions, envelope, maxAspectRatio) {
+	if (valueFunctions.length==0) 
 		return [];
 	if (!maxAspectRatio) maxAspectRatio=1;
-	
+
 	var rotateTransformation = {rotateQuarters: southernSide - jsts.Side.South};
 	enveloper = jsts.algorithm.transformAxisParallelRectangle(rotateTransformation, {minx:envelope.minx, maxx:envelope.maxx, miny:envelope.miny, maxy:envelope.maxy});
 	
@@ -753,33 +817,26 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, so
 		 {translate: [-enveloper.minx,-enveloper.miny]},
 		 {scale: scaleFactor}];
 	
-	var transformedAgents = agents.map(function(pointsOfAgent) {
+	var transformedvalueFunctions = valueFunctions.map(function(valueFunction) {
 		// transform the points of the agent to the envelope [0,1]x[0,L]:
-		var newPoints = jsts.algorithm.pointsInEnvelope(pointsOfAgent,envelope).map(jsts.algorithm.transformedPoint.bind(0,transformation));
-		if (pointsOfAgent.color)  newPoints.color = pointsOfAgent.color;
-		
-		// Calculate the y-cuts of the agent:
-		var yVals = _.pluck(newPoints,"y");
-		yVals.sort(function(a,b){return a-b});
-		newPoints.yCuts = utils.cutPoints(yVals, assumedValue);
-		newPoints.yCuts.unshift(0);
-		
-		return newPoints;
+		return valueFunction.cloneWithNewPoints(
+			jsts.algorithm.pointsInEnvelope(valueFunction.points, envelope)
+			.map(jsts.algorithm.transformedPoint.bind(0,transformation)));
 	});
 	
-	var landplots = normalizedDivisionFunction(transformedAgents, yLength, maxAspectRatio);
+	var landplots = normalizedDivisionFunction(transformedvalueFunctions, yLength, maxAspectRatio);
 
 	// transform the system back:
 	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
-//	console.log("Original envelope: "); console.dir(envelope);
-//	console.log("Original agents: "); console.dir(agents);
-//	console.log("transformation: "); console.dir(transformation);
-//	console.log("Transformed agents: "); console.dir(transformedAgents);
-//	console.log("Transformed landplots: "); console.dir(landplots);
-//	console.log("reverseTransformation: "); console.dir(reverseTransformation);
+	console.log("Original envelope: "); console.dir(envelope);
+	console.log("Original valueFunctions: "); console.log(util.inspect(valueFunctions,{depth:3}));
+	console.log("transformation: "); console.dir(transformation);
+	console.log("Transformed valueFunctions: "); console.log(util.inspect(transformedvalueFunctions,{depth:3}));
+	console.log("Transformed landplots: "); console.dir(landplots);
+	console.log("reverseTransformation: "); console.dir(reverseTransformation);
 	landplots.forEach(
 		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
-//	console.log("Reverse-transformed landplots: "); console.dir(landplots);
+	console.log("Reverse-transformed landplots: "); console.dir(landplots);
 
 	return landplots;
 }
@@ -790,23 +847,32 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, so
 
 /**
  * Normalized 4-walls algorithm:
- * - agents.length>=1
+ * - valueFunctions.length>=1
  * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1 (- the southern side is shorter than the eastern side)
  * - maxAspectRatio>=1
  * - Value per agent: at least 2*n
  */
-var norm4Walls = function(agents, yLength, maxAspectRatio) {
-	var numOfAgents = agents.length;
+var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
+	var numOfAgents = valueFunctions.length;
 	var assumedValue = 2*numOfAgents;
-	TRACE("4 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+	TRACE("4 Walls Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
 
-	if (numOfAgents==1) { // base case - single agent - find a square covering
-		var agent = agents[0];
-		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
-		var landplot = jsts.algorithm.squareWithMaxNumOfPoints(
-					agent, envelope, maxAspectRatio);
-		if (agent.color)
-			landplot.color = agent.color;
+	if (numOfAgents==1) { // base case - single agent:
+		var valueFunction = valueFunctions[0];
+		var landplot = null;
+		console.dir(valueFunction.yCuts);
+		for (var k=1; k<valueFunction.yCuts.length; ++k) {
+			var yCutDiff = valueFunction.yCuts[k]-valueFunction.yCuts[k-1];
+			if (yCutDiff<=maxAspectRatio) {
+				var miny = Math.min(valueFunction.yCuts[k-1], yLength-maxAspectRatio);
+				var maxy = miny+maxAspectRatio;
+				landplot = {minx:0, maxx:1, miny:miny, maxy:maxy};
+				TRACE("\tLandplot to a single agent with >="+valueFunction.pointsPerUnitValue+" points at k="+k+": "+JSON.stringify(landplot));
+				break;
+			}
+		}
+		if (!landplot) return [];
+		if (valueFunction.color) landplot.color = valueFunction.color;
 		return [landplot];
 	}
 	
@@ -815,15 +881,15 @@ var norm4Walls = function(agents, yLength, maxAspectRatio) {
 	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
 	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
 	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
-		orderAgentsByYcut(agents, v);
+		ValueFunction.orderArrayByYcut(valueFunctions, v);
 		if (v&1) { // v is odd -  v = 2k-1
 			var k = (v+1)>>1;
-			yCuts_2k_minus1[k] = agents[k-1].yCuts[v];
+			yCuts_2k_minus1[k] = valueFunctions[k-1].yCuts[v];
 		} else {     // v is even - v = 2k
 			var k = v>>1;
-			yCuts_2k[k] = agents[k-1].yCuts[v];
+			yCuts_2k[k] = valueFunctions[k-1].yCuts[v];
 			if (k<numOfAgents)
-				yCuts_2k_next[k] = agents[k].yCuts[v];
+				yCuts_2k_next[k] = valueFunctions[k].yCuts[v];
 		}
 	}
 	yCuts_2k_next[numOfAgents] = yLength;
@@ -836,7 +902,7 @@ var norm4Walls = function(agents, yLength, maxAspectRatio) {
 		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
 		if (!(y_2k<=y_2k_next)) {
 			console.error("BUG: y_2k="+y_2k+" y_2k_next="+y_2k_next+"  L="+yLength);
-			console.dir(agents);
+			console.dir(valueFunctions);
 			return [];
 		}
 		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
@@ -844,17 +910,17 @@ var norm4Walls = function(agents, yLength, maxAspectRatio) {
 			var south = {minx:0, maxx:1, miny:0, maxy:y},
 			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
 			
-			orderAgentsByYcut(agents, 2*k);
-			var southAgents = agents.slice(0, k),
-			    northAgents = agents.slice(k, numOfAgents);
+			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
+			var southAgents = valueFunctions.slice(0, k),
+			    northAgents = valueFunctions.slice(k, numOfAgents);
 			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,               jsts.Side.East,   southAgents, south, maxAspectRatio),
-			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), jsts.Side.East,    northAgents, north, maxAspectRatio);
+			var southPlots = runDivisionAlgorithm(norm4Walls, jsts.Side.East,   southAgents, south, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm4Walls, jsts.Side.East,    northAgents, north, maxAspectRatio);
 			return southPlots.concat(northPlots);
 		}
 	}
 
-	console.dir(agents);
+	console.dir(valueFunctions);
 	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
 
 	// HERE, for every k, EITHER yCuts_2k[k] and yCuts_2k_next[k] are both smaller than 0.5,
@@ -875,28 +941,28 @@ var norm4Walls = function(agents, yLength, maxAspectRatio) {
 
 /**
  * Normalized 3-walls algorithm:
- * - agents.length>=1
+ * - valueFunctions.length>=1
  * - The envelope is normalized to [0,1]x[0,yLength].
  * - maxAspectRatio>=1.
  * - Value per agent: at least 2*n-1.
  * - Landplots may overflow the northern border.
  */
-var norm3Walls = function(agents, yLength, maxAspectRatio) {
-	var numOfAgents = agents.length;
+var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
+	var numOfAgents = valueFunctions.length;
 	var assumedValue = 2*numOfAgents-1;
-	TRACE("3 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+	TRACE("3 Walls Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
 
 	if (numOfAgents==1) { // base case - single agent - give all to the single agent
-		var agent = agents[0];
+		var agent = valueFunctions[0];
 		var landplot;
 		if (yLength<=1) {
 			landplot = {minx:0,maxx:1, miny:0,maxy:1};
 		} else {
 			var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
-			agent = jsts.algorithm.pointsInEnvelope(agent, envelope);
+			points = jsts.algorithm.pointsInEnvelope(agent.points, envelope);
 			envelope.maxy = Math.max(2,envelope.maxy);
 			landplot = jsts.algorithm.squareWithMaxNumOfPoints(
-						agent, envelope, maxAspectRatio);
+				points, envelope, maxAspectRatio);
 		}
 		if (agent.color)
 			landplot.color = agent.color;
@@ -906,13 +972,13 @@ var norm3Walls = function(agents, yLength, maxAspectRatio) {
 	// HERE: numOfAgents >= 2
 	
 	var k = numOfAgents-1;
-	orderAgentsByYcut(agents, assumedValue-1);
-	var southAgents = agents.slice(0,k),
-	    northAgent = agents[k];
+	ValueFunction.orderArrayByYcut(valueFunctions, assumedValue-1);
+	var southAgents = valueFunctions.slice(0,k),
+	    northAgent = valueFunctions[k];
 	var y = northAgent.yCuts[assumedValue-1];
-	TRACE("\tPartition at y="+y+": k="+k+", "+southAgents.length+" south agents and 1 north agent.");
+	TRACE("\tPartition at y="+y+": k="+k+", "+southAgents.length+" south valueFunctions and 1 north agent.");
 	var south = {minx:0, maxx:1, miny:0, maxy:y};
-	var southPlots = runDivisionAlgorithm(norm4Walls, assumedValue-1, (y>1? jsts.Side.South: jsts.Side.East),   southAgents, south, maxAspectRatio);
+	var southPlots = runDivisionAlgorithm(norm4Walls, (y>1? jsts.Side.South: jsts.Side.East),   southAgents, south, maxAspectRatio);
 	if (southPlots.length==southAgents.length) {
 		northPlot = {minx:0,maxx:1, miny:y,maxy:y+1};
 		if (northAgent.color)
@@ -921,7 +987,7 @@ var norm3Walls = function(agents, yLength, maxAspectRatio) {
 		return southPlots;
 	}
 
-	console.dir(agents);
+	console.dir(valueFunctions);
 	TRACE("\tNo partition to 1:(n-1)");
 	return [];
 }
@@ -929,20 +995,20 @@ var norm3Walls = function(agents, yLength, maxAspectRatio) {
 
 /**
  * Normalized 4-walls thin algorithm:
- * - agents.length>=1
+ * - valueFunctions.length>=1
  * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1
  * - maxAspectRatio>=1
  */
-var norm4WallsThin = function(agents, yLength, maxAspectRatio) {
-	var numOfAgents = agents.length;
+var norm4WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
+	var numOfAgents = valueFunctions.length;
 	var assumedValue = 2*numOfAgents;
-	TRACE("4 Walls Thin Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+	TRACE("4 Walls Thin Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
 
 	if (numOfAgents==1) { // base case - single agent - find a square covering
-		var agent = agents[0];
+		var agent = valueFunctions[0];
 		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
 		var landplot = jsts.algorithm.squareWithMaxNumOfPoints(
-					agent, envelope, maxAspectRatio);
+					agent.points, envelope, maxAspectRatio);
 		if (agent.color)
 			landplot.color = agent.color;
 		return [landplot];
@@ -953,15 +1019,15 @@ var norm4WallsThin = function(agents, yLength, maxAspectRatio) {
 	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
 	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
 	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
-		agents.sort(function(a,b){return a.yCuts[v]-b.yCuts[v]}); // order the agents by their v-line. complexity O(n log n)
+		valueFunctions.sort(function(a,b){return a.yCuts[v]-b.yCuts[v]}); // order the valueFunctions by their v-line. complexity O(n log n)
 		if (v&1) { // v is odd -  v = 2k-1
 			var k = (v+1)>>1;
-			yCuts_2k_minus1[k] = agents[k-1].yCuts[v];
+			yCuts_2k_minus1[k] = valueFunctions[k-1].yCuts[v];
 		} else {     // v is even - v = 2k
 			var k = v>>1;
-			yCuts_2k[k] = agents[k-1].yCuts[v];
+			yCuts_2k[k] = valueFunctions[k-1].yCuts[v];
 			if (k<numOfAgents)
-				yCuts_2k_next[k] = agents[k].yCuts[v];
+				yCuts_2k_next[k] = valueFunctions[k].yCuts[v];
 		}
 	}
 	yCuts_2k_next[numOfAgents] = yLength;
@@ -973,7 +1039,7 @@ var norm4WallsThin = function(agents, yLength, maxAspectRatio) {
 		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
 		if (!(y_2k<=y_2k_next)) {
 			console.error("BUG: y_2k="+y_2k+" y_2k_next="+y_2k_next+"  L="+yLength);
-			console.dir(agents);
+			console.dir(valueFunctions);
 			return [];
 		}
 		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
@@ -982,29 +1048,24 @@ var norm4WallsThin = function(agents, yLength, maxAspectRatio) {
 			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
 			
 			var k2 = 2*k;
-			agents.sort(function(a,b){return a.yCuts[k2]-b.yCuts[k2]}); // order the agents by their k2-line.
-			var southAgents = agents.slice(0, k),
-			    northAgents = agents.slice(k, numOfAgents);
-			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,              southAgents, south, maxAspectRatio),
-			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), northAgents, north, maxAspectRatio);
+			valueFunctions.sort(function(a,b){return a.yCuts[k2]-b.yCuts[k2]}); // order the valueFunctions by their k2-line.
+			var southAgents = valueFunctions.slice(0, k),
+			    northAgents = valueFunctions.slice(k, numOfAgents);
+			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south valueFunctions and "+northAgents.length+" north valueFunctions.");
+			var southPlots = runDivisionAlgorithm(norm4Walls, southAgents, south, Side.South/*southSide*/, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm4Walls, northAgents, north, Side.South/*southSide*/, maxAspectRatio);
 			return southPlots.concat(northPlots);
 		}
 	}
 
-	console.dir(agents);
+	console.dir(valueFunctions);
 	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
 
 	return [];
 }
 
 
-var orderAgentsByYcut = function(agents, yCutValue) {
-	agents.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the agents by their v-line. complexity O(n log n)
-}
-
-
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./numeric-utils":10,"./point-utils":12,"./square-with-max-points":15,"./transformations":16,"jsts":19,"underscore":41}],6:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./ValueFunction":3,"./factory-utils":4,"./point-utils":13,"./square-with-max-points":16,"./transformations":17,"jsts":20,"underscore":42,"util":46}],7:[function(require,module,exports){
 var jsts = require("jsts");
 require("./intersection-cache");
 require("./factory-utils");
@@ -1028,7 +1089,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"./fair-division-of-points":4,"./half-proportional-division":5,"./intersection-cache":7,"./maximum-disjoint-set-async":8,"./maximum-disjoint-set-sync":9,"./point-utils":12,"./representative-disjoint-set-sync":13,"./shapes-touching-points":14,"./square-with-max-points":15,"./transformations":16,"jsts":19}],7:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":4,"./fair-division-of-points":5,"./half-proportional-division":6,"./intersection-cache":8,"./maximum-disjoint-set-async":9,"./maximum-disjoint-set-sync":10,"./point-utils":13,"./representative-disjoint-set-sync":14,"./shapes-touching-points":15,"./square-with-max-points":16,"./transformations":17,"jsts":20}],8:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -1120,7 +1181,7 @@ jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
 
 
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 /**
  * Asynchronous version of maximum-disjoint-set, with option to interrupt.
  * 
@@ -1275,7 +1336,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-cache":7,"./partition-utils":11,"async":17,"js-combinatorics":18,"jsts":19,"underscore":41}],9:[function(require,module,exports){
+},{"./intersection-cache":8,"./partition-utils":12,"async":18,"js-combinatorics":19,"jsts":20,"underscore":42}],10:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -1391,7 +1452,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-cache":7,"./partition-utils":11,"js-combinatorics":18,"jsts":19,"underscore":41}],10:[function(require,module,exports){
+},{"./intersection-cache":8,"./partition-utils":12,"js-combinatorics":19,"jsts":20,"underscore":42}],11:[function(require,module,exports){
 /**
  * Some utils for structss of numbers.
  * 
@@ -1437,7 +1498,7 @@ module.exports = {
 	},
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to partitioning collections of shapes.
  * 
@@ -1582,7 +1643,7 @@ function partitionDescription(partition) {
 }
 
 
-},{"./numeric-utils":10,"underscore":41}],12:[function(require,module,exports){
+},{"./numeric-utils":11,"underscore":42}],13:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to collections of points.
  * 
@@ -1620,7 +1681,7 @@ jsts.algorithm.pointsInEnvelope = function(points, envelope) {
 	return jsts.algorithm.pointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
 }
 
-},{"underscore":41}],13:[function(require,module,exports){
+},{"underscore":42}],14:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
  * 
@@ -1690,7 +1751,7 @@ function representativeDisjointSetSub(candidateSets) {
 
 
 
-},{"./intersection-cache":7,"./partition-utils":11,"js-combinatorics":18,"jsts":19,"underscore":41}],14:[function(require,module,exports){
+},{"./intersection-cache":8,"./partition-utils":12,"js-combinatorics":19,"jsts":20,"underscore":42}],15:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -1903,7 +1964,7 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-},{"./AxisParallelRectangle":2,"./factory-utils":3,"jsts":19}],15:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":4,"jsts":20}],16:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -1982,7 +2043,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"./numeric-utils":10,"./point-utils":12,"jsts":19,"underscore":41}],16:[function(require,module,exports){
+},{"./numeric-utils":11,"./point-utils":13,"jsts":20,"underscore":42}],17:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to affine transformations.
  * 
@@ -2132,7 +2193,7 @@ jsts.algorithm.roundFields = function(significantFigures, object) {
 			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
 }
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 var process=require("__browserify_process");/*global setImmediate: false, setTimeout: false, console: false */
 (function () {
 
@@ -3092,7 +3153,7 @@ var process=require("__browserify_process");/*global setImmediate: false, setTim
 
 }());
 
-},{"__browserify_process":42}],18:[function(require,module,exports){
+},{"__browserify_process":44}],19:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -3382,14 +3443,14 @@ var process=require("__browserify_process");/*global setImmediate: false, setTim
     });
 })(this);
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":20,"javascript.util":21}],20:[function(require,module,exports){
+},{"./lib/jsts":21,"javascript.util":22}],21:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -4967,10 +5028,10 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = require('./src');
 
-},{"./src":40}],22:[function(require,module,exports){
+},{"./src":41}],23:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -5135,7 +5196,7 @@ ArrayList.Iterator.prototype.remove = function() {
 
 module.exports = ArrayList;
 
-},{"./Collection":24,"./IndexOutOfBoundsException":28,"./List":30,"./NoSuchElementException":32,"./OperationNotSupported":33}],23:[function(require,module,exports){
+},{"./Collection":25,"./IndexOutOfBoundsException":29,"./List":31,"./NoSuchElementException":33,"./OperationNotSupported":34}],24:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Arrays.html
  *
@@ -5193,7 +5254,7 @@ Arrays.asList = function(array) {
 
 module.exports = Arrays;
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 /**
  * @requires Iterator.js
  */
@@ -5268,7 +5329,7 @@ Collection.prototype.remove = function(o) {};
 
 module.exports = Collection;
 
-},{"./Iterator":29}],25:[function(require,module,exports){
+},{"./Iterator":30}],26:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -5287,7 +5348,7 @@ EmptyStackException.prototype.name = 'EmptyStackException';
 
 module.exports = EmptyStackException;
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * @requires Map.js
  * @requires ArrayList.js
@@ -5351,7 +5412,7 @@ HashMap.prototype.size = function() {
 
 module.exports = HashMap;
 
-},{"./ArrayList":22,"./Map":31}],27:[function(require,module,exports){
+},{"./ArrayList":23,"./Map":32}],28:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -5512,7 +5573,7 @@ HashSet.Iterator.prototype.remove = function() {
 
 module.exports = HashSet;
 
-},{"./Collection":24,"./NoSuchElementException":32,"./OperationNotSupported":33,"./Set":34}],28:[function(require,module,exports){
+},{"./Collection":25,"./NoSuchElementException":33,"./OperationNotSupported":34,"./Set":35}],29:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -5531,7 +5592,7 @@ IndexOutOfBoundsException.prototype.name = 'IndexOutOfBoundsException';
 
 module.exports = IndexOutOfBoundsException;
 
-},{}],29:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Iterator.html
  * @interface
@@ -5560,7 +5621,7 @@ Iterator.prototype.remove = function() {};
 
 module.exports = Iterator;
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -5594,7 +5655,7 @@ List.prototype.isEmpty = function() {};
 
 module.exports = List;
 
-},{"./Collection":24}],31:[function(require,module,exports){
+},{"./Collection":25}],32:[function(require,module,exports){
 /**
  * @see http://download.oracle.com/javase/6/docs/api/java/util/Map.html
  *
@@ -5640,7 +5701,7 @@ Map.prototype.values = function() {};
 
 module.exports = Map;
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -5659,7 +5720,7 @@ NoSuchElementException.prototype.name = 'NoSuchElementException';
 
 module.exports = NoSuchElementException;
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 /**
  * @param {string=}
  *          message Optional message.
@@ -5678,7 +5739,7 @@ OperationNotSupported.prototype.name = 'OperationNotSupported';
 
 module.exports = OperationNotSupported;
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 /**
  * @requires Collection.js
  */
@@ -5706,7 +5767,7 @@ Set.prototype.contains = function(o) {};
 
 module.exports = Set;
 
-},{"./Collection":24}],35:[function(require,module,exports){
+},{"./Collection":25}],36:[function(require,module,exports){
 /**
  * @requires Map.js
  */
@@ -5723,7 +5784,7 @@ SortedMap.prototype = new Map;
 
 module.exports = SortedMap;
 
-},{"./Map":31}],36:[function(require,module,exports){
+},{"./Map":32}],37:[function(require,module,exports){
 /**
  * @requires Set.js
  */
@@ -5740,7 +5801,7 @@ SortedSet.prototype = new Set;
 
 module.exports = SortedSet;
 
-},{"./Set":34}],37:[function(require,module,exports){
+},{"./Set":35}],38:[function(require,module,exports){
 /**
  * @requires List.js
  */
@@ -5858,7 +5919,7 @@ Stack.prototype.toArray = function() {
 
 module.exports = Stack;
 
-},{"./EmptyStackException":25,"./List":30}],38:[function(require,module,exports){
+},{"./EmptyStackException":26,"./List":31}],39:[function(require,module,exports){
 /**
  * @requires SortedMap.js
  * @requires ArrayList.js
@@ -5951,7 +6012,7 @@ TreeMap.prototype.size = function() {
 
 module.exports = TreeMap;
 
-},{"./ArrayList":22,"./Map":31,"./SortedMap":35}],39:[function(require,module,exports){
+},{"./ArrayList":23,"./Map":32,"./SortedMap":36}],40:[function(require,module,exports){
 /**
  * @requires SortedSet.js
  */
@@ -6119,7 +6180,7 @@ TreeSet.Iterator.prototype.remove = function() {
 
 module.exports = TreeSet;
 
-},{"./Collection":24,"./NoSuchElementException":32,"./OperationNotSupported":33,"./SortedSet":36}],40:[function(require,module,exports){
+},{"./Collection":25,"./NoSuchElementException":33,"./OperationNotSupported":34,"./SortedSet":37}],41:[function(require,module,exports){
 module.exports.ArrayList = require('./ArrayList');
 module.exports.Arrays = require('./Arrays');
 module.exports.Collection = require('./Collection');
@@ -6135,7 +6196,7 @@ module.exports.Stack = require('./Stack');
 module.exports.TreeMap = require('./TreeMap');
 module.exports.TreeSet = require('./TreeSet');
 
-},{"./ArrayList":22,"./Arrays":23,"./Collection":24,"./HashMap":26,"./HashSet":27,"./Iterator":29,"./List":30,"./Map":31,"./Set":34,"./SortedMap":35,"./SortedSet":36,"./Stack":37,"./TreeMap":38,"./TreeSet":39}],41:[function(require,module,exports){
+},{"./ArrayList":23,"./Arrays":24,"./Collection":25,"./HashMap":27,"./HashSet":28,"./Iterator":30,"./List":31,"./Map":32,"./Set":35,"./SortedMap":36,"./SortedSet":37,"./Stack":38,"./TreeMap":39,"./TreeSet":40}],42:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -7413,7 +7474,32 @@ module.exports.TreeSet = require('./TreeSet');
 
 }).call(this);
 
-},{}],42:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
+  }
+}
+
+},{}],44:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -7468,4 +7554,599 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}]},{},[1])
+},{}],45:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],46:[function(require,module,exports){
+var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+},{"./support/isBuffer":45,"__browserify_process":44,"inherits":43}]},{},[1])

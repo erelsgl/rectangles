@@ -12,7 +12,7 @@ require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
 var _ = require("underscore");
-var utils = require('./numeric-utils');
+var util = require("util");
 var ValueFunction = require("./ValueFunction");
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
@@ -139,15 +139,15 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 
 	// transform the system back:
 	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
-//	console.log("Original envelope: "); console.dir(envelope);
-//	console.log("Original valueFunctions: "); console.dir(valueFunctions);
-//	console.log("transformation: "); console.dir(transformation);
-//	console.log("Transformed valueFunctions: "); console.dir(transformedvalueFunctions);
-//	console.log("Transformed landplots: "); console.dir(landplots);
-//	console.log("reverseTransformation: "); console.dir(reverseTransformation);
+	console.log("Original envelope: "); console.dir(envelope);
+	console.log("Original valueFunctions: "); console.log(util.inspect(valueFunctions,{depth:3}));
+	console.log("transformation: "); console.dir(transformation);
+	console.log("Transformed valueFunctions: "); console.log(util.inspect(transformedvalueFunctions,{depth:3}));
+	console.log("Transformed landplots: "); console.dir(landplots);
+	console.log("reverseTransformation: "); console.dir(reverseTransformation);
 	landplots.forEach(
 		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
-//	console.log("Reverse-transformed landplots: "); console.dir(landplots);
+	console.log("Reverse-transformed landplots: "); console.dir(landplots);
 
 	return landplots;
 }
@@ -168,12 +168,22 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var assumedValue = 2*numOfAgents;
 	TRACE("4 Walls Algorithm with n="+numOfAgents+" valueFunctions, Val="+assumedValue);
 
-	if (numOfAgents==1) { // base case - single agent - find a square covering
-		var agent = valueFunctions[0];
-		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
-		var landplot = jsts.algorithm.squareWithMaxNumOfPoints(
-					agent.points, envelope, maxAspectRatio);
-		if (agent.color) landplot.color = agent.color;
+	if (numOfAgents==1) { // base case - single agent:
+		var valueFunction = valueFunctions[0];
+		var landplot = null;
+		console.dir(valueFunction.yCuts);
+		for (var k=1; k<valueFunction.yCuts.length; ++k) {
+			var yCutDiff = valueFunction.yCuts[k]-valueFunction.yCuts[k-1];
+			if (yCutDiff<=maxAspectRatio) {
+				var miny = Math.min(valueFunction.yCuts[k-1], yLength-maxAspectRatio);
+				var maxy = miny+maxAspectRatio;
+				landplot = {minx:0, maxx:1, miny:miny, maxy:maxy};
+				TRACE("\tLandplot to a single agent with >="+valueFunction.pointsPerUnitValue+" points at k="+k+": "+JSON.stringify(landplot));
+				break;
+			}
+		}
+		if (!landplot) return [];
+		if (valueFunction.color) landplot.color = valueFunction.color;
 		return [landplot];
 	}
 	
@@ -214,7 +224,7 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
 			var southAgents = valueFunctions.slice(0, k),
 			    northAgents = valueFunctions.slice(k, numOfAgents);
-			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south valueFunctions and "+northAgents.length+" north valueFunctions.");
+			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
 			var southPlots = runDivisionAlgorithm(norm4Walls, jsts.Side.East,   southAgents, south, maxAspectRatio),
 			    northPlots = runDivisionAlgorithm(norm4Walls, jsts.Side.East,    northAgents, north, maxAspectRatio);
 			return southPlots.concat(northPlots);
