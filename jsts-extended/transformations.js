@@ -108,7 +108,7 @@ var reverseSingleTransformation = function(t) {
 	if (t.rotateRadians)
 		r.rotateRadians = -t.rotateRadians;
 	if (t.rotateQuarters)
-		r.rotateQuarters = 4-t.rotateQuarters;
+		r.rotateQuarters = (4-t.rotateQuarters)%4;
 	if (t.reflectXaxis)
 		r.reflectXaxis = t.reflectXaxis;
 	if (t.reflectYaxis)
@@ -123,3 +123,26 @@ jsts.algorithm.reverseTransformation = function(transformation) {
 	reverseTransformation.reverse();
 	return reverseTransformation;
 };
+
+
+Math.log10 = function(x) {
+	return Math.log(x) / Math.LN10;
+}
+
+// By Pyrolistical: http://stackoverflow.com/a/1581007/827927
+Math.roundToSignificantFigures = function(significantFigures, num) {
+	if(num == 0) return 0;
+	
+	var d = Math.ceil(Math.log10(num < 0 ? -num: num));
+	var power = significantFigures - d;
+	
+	var magnitude = Math.pow(10, power);
+	var shifted = Math.round(num*magnitude);
+	return shifted/magnitude;
+}
+
+jsts.algorithm.roundFields = function(significantFigures, object) {
+	for (var field in object)
+		if (typeof object[field] === 'number')
+			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
+}

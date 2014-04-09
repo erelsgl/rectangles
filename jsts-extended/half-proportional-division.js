@@ -20,15 +20,17 @@ var TRACE = function(s) {
 	console.log(s);
 };
 
+var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
+
 var round2 = function(x) {
 	return Math.round(x*100)/100;
 }
 
-var Side = {
-	South: 1,
-	East: 2,
-	North: 3,
-	West: 4
+jsts.Side = {
+	South: 0,
+	West: 1,
+	North: 2,
+	East: 3
 };
 
 
@@ -56,17 +58,23 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(ag
 
 jsts.algorithm.halfProportionalDivision4Walls = function(agents, envelope, maxAspectRatio) {
 	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
+	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
 	var landplots = runDivisionAlgorithm(
-			norm4Walls, agents.length*2, (width<=height? Side.South: Side.East),
+			norm4Walls, agents.length*2, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
 			agents, envelope, maxAspectRatio);
-	landplots.forEach(function(landplot) {
-		for (var field in landplot)
-			if (typeof landplot[field] === 'number')
-				landplot[field]=round2(landplot[field]);
-	});
+	landplots.forEach(roundFields3);
 	return landplots;
 }
 
+
+jsts.algorithm.halfProportionalDivision3Walls = function(agents, envelope, maxAspectRatio, openSide) {
+	var southernSide = (openSide+2)%4;  // the southern side is opposite to the open side.
+	var landplots = runDivisionAlgorithm(
+			norm3Walls, 2*agents.length-1, southernSide,
+			agents, envelope, maxAspectRatio);
+	landplots.forEach(roundFields3);
+	return landplots;
+}
 
 
 /************ NORMALIZATION *******************/
@@ -76,12 +84,16 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, so
 		return [];
 	if (!maxAspectRatio) maxAspectRatio=1;
 	
-	var rotateTransformation = {rotateQuarters: southernSide - Side.South};
+	var rotateTransformation = {rotateQuarters: southernSide - jsts.Side.South};
 	enveloper = jsts.algorithm.transformAxisParallelRectangle(rotateTransformation, {minx:envelope.minx, maxx:envelope.maxx, miny:envelope.miny, maxy:envelope.maxy});
 	
 	var width = enveloper.maxx-enveloper.minx, height = enveloper.maxy-enveloper.miny;
-	var scaleFactor = 1/Math.min(width,height);
-	var yLength = Math.max(width,height)*scaleFactor;
+	if (height<=0)
+		throw new Error("Zero height is not allowed: "+JSON.stringify(enveloper));
+	if (width<=0)
+		width = height/1000;
+	var scaleFactor = 1/width;
+	var yLength = height*scaleFactor;
 
 	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
 	var transformation = 
@@ -107,13 +119,15 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, so
 
 	// transform the system back:
 	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
-//	console.dir(envelope);
-//	console.dir(agents);
-//	console.dir(landplots);
-//	console.dir(reverseTransformation);
+	console.log("Original envelope: "); console.dir(envelope);
+	console.log("Original agents: "); console.dir(agents);
+	console.log("transformation: "); console.dir(transformation);
+	console.log("Transformed agents: "); console.dir(transformedAgents);
+	console.log("Transformed landplots: "); console.dir(landplots);
+	console.log("reverseTransformation: "); console.dir(reverseTransformation);
 	landplots.forEach(
 		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
-//	console.dir(landplots);
+	console.log("Reverse-transformed landplots: "); console.dir(landplots);
 
 	return landplots;
 }
@@ -125,8 +139,9 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, assumedValue, so
 /**
  * Normalized 4-walls algorithm:
  * - agents.length>=1
- * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1
+ * - The envelope is normalized to [0,1]x[0,yLength], where yLength>=1 (- the southern side is shorter than the eastern side)
  * - maxAspectRatio>=1
+ * - Value per agent: at least 2*n
  */
 var norm4Walls = function(agents, yLength, maxAspectRatio) {
 	var numOfAgents = agents.length;
@@ -182,8 +197,102 @@ var norm4Walls = function(agents, yLength, maxAspectRatio) {
 			var southAgents = agents.slice(0, k),
 			    northAgents = agents.slice(k, numOfAgents);
 			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,               Side.East,   southAgents, south, maxAspectRatio),
-			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), Side.East,    northAgents, north, maxAspectRatio);
+			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,               jsts.Side.East,   southAgents, south, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), jsts.Side.East,    northAgents, north, maxAspectRatio);
+			return southPlots.concat(northPlots);
+		}
+	}
+
+	console.dir(agents);
+	TRACE("\tNo partition to two 2-fat pieces: yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
+
+	// HERE, for every k, EITHER yCuts_2k[k] and yCuts_2k_next[k] are both smaller than 0.5,
+	//                        OR yCuts_2k[k] and yCuts_2k_next[k] are both larger than yLength-0.5, 
+	
+	// Look for a partition in the "shelves" method:
+	
+	for (var k=1; k<=numOfAgents-1; ++k) {
+		var y_2k = yCuts_2k[k];           // the k-th 2k line
+		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+		if (y_2k_next <= 0.5) {  // South is 2-thin
+			
+		}
+	}
+	return [];
+}
+
+
+/**
+ * Normalized 3-walls algorithm:
+ * - agents.length>=1
+ * - The envelope is normalized to [0,1]x[0,yLength].
+ * - maxAspectRatio>=1.
+ * - Value per agent: at least 2*n-1.
+ * - Landplots may overflow the northern border.
+ */
+var norm3Walls = function(agents, yLength, maxAspectRatio) {
+	var numOfAgents = agents.length;
+	var assumedValue = 2*numOfAgents-1;
+	TRACE("3 Walls Algorithm with n="+numOfAgents+" agents, Val="+assumedValue);
+
+	if (numOfAgents==1) { // base case - single agent - give all to the single agent
+		var agent = agents[0];
+		var landplot;
+		if (yLength<=1) {
+			landplot = {minx:0,maxx:1, miny:0,maxy:1};
+		} else {
+			var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
+			agent = jsts.algorithm.pointsInEnvelope(agent, envelope);
+			envelope.maxy = Math.max(2,envelope.maxy);
+			landplot = jsts.algorithm.squareWithMaxNumOfPoints(
+						agent, envelope, maxAspectRatio);
+		}
+		if (agent.color)
+			landplot.color = agent.color;
+		return [landplot];
+	}
+
+	// HERE: numOfAgents >= 2
+
+	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
+	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
+	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
+		agents.sort(function(a,b){return a.yCuts[v]-b.yCuts[v]}); // order the agents by their v-line. complexity O(n log n)
+		if (v&1) { // v is odd -  v = 2k-1
+			var k = (v+1)>>1;
+			yCuts_2k_minus1[k] = agents[k-1].yCuts[v];
+		} else {     // v is even - v = 2k
+			var k = v>>1;
+			yCuts_2k[k] = agents[k-1].yCuts[v];
+			if (k<numOfAgents)
+				yCuts_2k_next[k] = agents[k].yCuts[v];
+		}
+	}
+	yCuts_2k_next[numOfAgents] = yLength;
+	
+
+	// Look for a partition to two 2-fat rectangles:
+
+	for (var k=1; k<=numOfAgents-1; ++k) {
+		var y_2k = yCuts_2k[k];           // the k-th 2k line
+		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+		if (!(y_2k<=y_2k_next)) {
+			console.error("BUG: y_2k="+y_2k+" y_2k_next="+y_2k_next+"  L="+yLength);
+			console.dir(agents);
+			return [];
+		}
+		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
+			var y = Math.max(y_2k,0.5);
+			var south = {minx:0, maxx:1, miny:0, maxy:y},
+			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
+			
+			var k2 = 2*k;
+			agents.sort(function(a,b){return a.yCuts[k2]-b.yCuts[k2]}); // order the agents by their k2-line.
+			var southAgents = agents.slice(0, k),
+			    northAgents = agents.slice(k, numOfAgents);
+			TRACE("\tPartition to two 2-fat pieces at y="+y+" in ["+y_2k+","+y_2k_next+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+			var southPlots = runDivisionAlgorithm(norm4Walls, 2*k,               jsts.Side.East,   southAgents, south, maxAspectRatio),
+			    northPlots = runDivisionAlgorithm(norm4Walls, 2*(numOfAgents-k), jsts.Side.East,    northAgents, north, maxAspectRatio);
 			return southPlots.concat(northPlots);
 		}
 	}
