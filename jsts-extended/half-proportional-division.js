@@ -100,7 +100,36 @@ jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, enve
 			valueFunctions, envelope, maxAspectRatio);
 	landplots.forEach(roundFields3);
 	return landplots;
-}
+};
+
+/**
+ * Test the given algorithm (jsts.algorithm.halfProportionalDivision4Walls or jsts.algorithm.halfProportionalDivision3Walls)
+ * with the given args (array) 
+ * and make sure that every agent gets the required num of points.
+ */
+jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
+	var landplots = algorithm.apply(0, args);
+	var setsOfPoints = args[0];
+	
+	if (landplots.length<setsOfPoints.length) {
+		setsOfPoints.forEach(function(points) {
+			console.log(jsts.algorithm.pointsToString(points, points.color)+",");
+		});
+		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
+	}
+	setsOfPoints.forEach(function(points) {
+		landplots.forEach(function(landplot) {
+			if (points.color == landplot.color) {
+				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
+				if (pointsInLandplot<requiredNum) {
+					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
+				}
+			}
+		})
+	})
+ }
+
+
 
 
 /************ NORMALIZATION *******************/
@@ -283,16 +312,16 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 			var southAgents = valueFunctions.slice(0, k+1);
 			var southPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=north, previous side= */jsts.Side.East, southAgents, south, maxAspectRatio);
 			if (southPlots.length==southAgents.length) {
-				var maxySouthPlots = _.max(southPlots, function(plot){return plot.maxy});
-				TRACE(numOfAgents,"  -- Success: Open-south partition for k="+k+" at y="+round2(y)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots up to y="+round2(maxySouthPlots));
-				var north = {minx:0, maxx:1, miny:maxySouthPlots, maxy:yLength};
+				var highestSouthPlot = _.max(southPlots, function(plot){return plot.maxy});
+				TRACE(numOfAgents,"  -- Success: Open-south partition for k="+k+" at y="+round2(y)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots "+JSON.stringify(southPlots)+" up to y="+round2(highestSouthPlot.maxy));
+				var north = {minx:0, maxx:1, miny:highestSouthPlot.maxy, maxy:yLength};
 				var northAgents = valueFunctions.slice(k+1, numOfAgents);
-				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-maxySouthPlots>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
+				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-highestSouthPlot.maxy>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
 				if (northPlots.length==northAgents.length) {
-					TRACE(numOfAgents,"  -- Success: Open-north Partition for k="+k+" at y="+round2(maxySouthPlots)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Success: Open-north Partition for k="+k+" at y="+round2(highestSouthPlot.maxy)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots.");
 					return southPlots.concat(northPlots);
 				} else {
-					TRACE(numOfAgents,"  -- Failure: Open-north Partition for k="+k+" at y="+round2(maxySouthPlots)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Failure: Open-north Partition for k="+k+" at y="+round2(highestSouthPlot.maxy)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
 				}
 			} else {
 				TRACE(numOfAgents,"  -- Failure: Open-south partition at y="+round2(y)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
@@ -303,16 +332,16 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 			var northAgents = valueFunctions.slice(k-1, numOfAgents);
 			var northPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=south, previous side = */jsts.Side.West, northAgents, north, maxAspectRatio);
 			if (northPlots.length==northAgents.length) {
-				var minyNorthPlots = _.min(northPlots, function(plot){return plot.miny});
-				TRACE(numOfAgents,"  -- Success: Open-north partition for k="+k+" at y="+round2(y)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots down to y="+round2(minyNorthPlots));
-				var south = {minx:0, maxx:1, miny:0, maxy:minyNorthPlots};
+				var lowestNorthPlots = _.min(northPlots, function(plot){return plot.miny});
+				TRACE(numOfAgents,"  -- Success: Open-north partition for k="+k+" at y="+round2(y)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots down to y="+round2(lowestNorthPlots.miny));
+				var south = {minx:0, maxx:1, miny:0, maxy:lowestNorthPlots.miny};
 				var southAgents = valueFunctions.slice(0, k-1);
-				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-minyNorthPlots>1? jsts.Side.South: jsts.Side.East),    southAgents, south, maxAspectRatio);
+				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(lowestNorthPlots.miny>1? jsts.Side.South: jsts.Side.East),    southAgents, south, maxAspectRatio);
 				if (southPlots.length==southAgents.length) {
-					TRACE(numOfAgents,"  -- Success: Open-south Partition for k="+k+" at y="+round2(minyNorthPlots)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Success: Open-south Partition for k="+k+" at y="+round2(lowestNorthPlots.miny)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots.");
 					return southPlots.concat(northPlots);
 				} else {
-					TRACE(numOfAgents,"  -- Failure: Open-south Partition for k="+k+" at y="+round2(minyNorthPlots)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Failure: Open-south Partition for k="+k+" at y="+round2(lowestNorthPlots.miny)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
 				}
 			} else {
 				TRACE(numOfAgents,"  -- Failure: Open-north partition at y="+round2(y)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");

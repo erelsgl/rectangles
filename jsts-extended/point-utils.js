@@ -34,5 +34,17 @@ jsts.algorithm.pointsInXY = function(points, minx,miny,maxx,maxy) {
 }
 
 jsts.algorithm.pointsInEnvelope = function(points, envelope) {
+	if (!Array.isArray(points))
+		throw new Error("points: expected an array but got "+JSON.stringify(points));
 	return jsts.algorithm.pointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.pointsToString = function(points, color) {
+	var s = "";
+	for (var p=0; p<points.length; ++p) {
+		if (s.length>0)
+			s+=":";
+		s += points[p].x + "," + points[p].y+","+color;
+	}
+	return s;
 }

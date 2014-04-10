@@ -16,29 +16,7 @@ var fatrect2  = new jsts.geom.Envelope(0,400, 0,200); // a 2-fat rectangle
 var thinrect1 = new jsts.geom.Envelope(0,100, 0,400); // a 2-fat rectangle
 var thinrect2 = new jsts.geom.Envelope(0,400, 0,90); // a 2-fat rectangle
 
-var testAllNumsOfPoints = function(setsOfPoints, landplots, requiredNum) {
-	if (landplots.length<setsOfPoints.length) {
-		console.dir(setsOfPoints);
-		console.dir(landplots);
-		throw new Error("Not enough land-plots");
-	}
-	setsOfPoints.forEach(function(points) {
-		landplots.forEach(function(landplot) {
-			if (points.color == landplot.color) {
-				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
-				if (pointsInLandplot<requiredNum) {
-					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
-				}
-			}
-		})
-	})
-}
-
-var testAlgorithm = function(algorithm, args, requiredNum)  {
-	var landplots = algorithm.apply(0, args);
-	var agents = args[0];
-	testAllNumsOfPoints(agents, landplots, requiredNum);
-}
+var testAlgorithm = jsts.algorithm.testAlgorithm;
 
 describe('4 walls algorithm', function() {
 	it('single agent with 2 points', function() {
@@ -92,13 +70,13 @@ describe('4 walls algorithm', function() {
 		testAlgorithm(alg4walls, [[agent1,agent2], square], 2);
 	})
 
-	it.only('2 agents with same 5 points - L-shapes', function() {
+	it('2 agents with same 5 points - L-shapes', function() {
 		var agent1 = [{x:0,y:0},{x:0,y:100},{x:0,y:400},{x:100,y:0},{x:400,y:0}];  agent1.color='blue';
 		var agent2 = agent1.slice(0);  agent2.color='red';
 		testAlgorithm(alg4walls, [[agent1,agent2], square], 2);
 	})
 
-	it.skip('2 agents with same 5 points - L-shapes', function() {
+	it('2 agents with same 5 points - L-shapes', function() {
 		var agent1 = [{x:0,y:0},{x:0,y:100},{x:0,y:400},{x:100,y:400},{x:400,y:400}];  agent1.color='blue';
 		var agent2 = agent1.slice(0);  agent2.color='red';
 		testAlgorithm(alg4walls, [[agent1,agent2], square], 2);
