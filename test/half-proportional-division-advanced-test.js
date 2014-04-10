@@ -26,6 +26,7 @@ var V = function(color/*, x1, y1, x2, y2, ... */) {
 	for (var i=0; i<numOfPoints; ++i) 
 		points[i] = {x: arguments[2*i+1], y: arguments[2*i+2]};
 	points.color = color;
+	console.log(jsts.algorithm.pointsToString(points, color)+":");
 	return points;
 }
 
@@ -35,8 +36,8 @@ var T = function(agents) {         // shorthand for testing the 4-walls algorith
 	testAlgorithm(alg4walls, [agents, square, 1], 2);
 }
 
-test1agent = function() {  // to test the testing tools
-	console.log("\n/* 1 agent: */\n");
+test1agent = function() {  
+	// just to test the testing tools
 	T([
 		V('red', 
 			000,000, 
@@ -44,23 +45,60 @@ test1agent = function() {  // to test the testing tools
 	]);
 }
 
+test3agents1 = function() {
+	// 2nd 2-line low, but 2 squares go high. Will agent 3 have room in the remainder?
+	// 2nd 4-line high, but 2 squares go low. Will agent 1 have room in the remainder?
+	T([
+	V('red', 
+			005,000, 200,001, 395,002,
+			005,399, 130,398, 260,397, 395,396
+	),
+	V('blue', 
+			005,000, 200,004, 395,005,
+			005,396, 130,395, 260,394, 395,493
+	),
+	V('green', 
+			005,000, 200,006, 395,007,
+			005,392, 130,391, 260,390, 395,389
+	),
+	]);
+	
 
-// 2nd 2-line low, but 2 squares go high. Will agent 3 have room in the remainder?
-// 2nd 4-line high, but 2 squares go low. Will agent 1 have room in the remainder?
+	T([
+		V('red', 
+				005,000, 200,001, 395,002,
+				005,399, 130,398, 260,397, 395,396
+		),
+		V('blue', 
+				005,000, 200,004, 395,005,
+				005,396, 130,395, 260,394, 395,493
+		),
+		V('green', 
+				005,000, 200,006, 395,007,
+				260,180, 395,181,
+				005,392, 130,391
+		),
+		]);
+}
+
+//test1agent();
+//test3agents1();
+
+
 T([
-V('red', 
-		005,000, 200,001, 395,002,
-		005,399, 130,398, 260,397, 395,396
-),
-V('blue', 
-		005,000, 200,004, 395,005,
-		005,396, 130,395, 260,394, 395,493
-),
-V('green', 
-		005,000, 200,006, 395,007,
-		005,392, 130,391, 260,390, 395,389
-),
-]);
-
+	V('red', 
+			005,000, 200,001, 395,002,
+			005,399, 130,398, 260,397, 395,396
+	),
+	V('blue', 
+			005,000, 200,004, 395,005,
+			005,396, 130,395, 260,394, 395,493
+	),
+	V('green', 
+			005,000, 200,006, 395,007,
+			260,180, 130,181,
+			005,392, 395,391
+	),
+	]);
 
 

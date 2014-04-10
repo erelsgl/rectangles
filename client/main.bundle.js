@@ -497,6 +497,8 @@ var _ = require("underscore");
  * @since 2014-04
  */
 var ValueFunction = function(totalValue, points, color, valuePerPoint) {
+	if (!Array.isArray(points))
+		throw new Error("points: expected an array but got "+JSON.stringify(points));
 	this.totalValue = totalValue;
 	if (!valuePerPoint) valuePerPoint = totalValue/points.length;
 	this.valuePerPoint = valuePerPoint;
@@ -529,14 +531,23 @@ ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
 	return new ValueFunction(this.totalValue, newPoints, this.color, this.valuePerPoint);
 }
 
-ValueFunction.create = function(totalValue, points) {
-	return new ValueFunction(totalValue, points);
+ValueFunction.prototype.valueOf = function(envelope) {
+	return this.valuePerPoint * jsts.algorithm.numPointsInEnvelope(this.points, envelope);
 }
 
+/** @return a ValueFunction object based on the given total value and list of points. */
+ValueFunction.create = function(totalValue, points) {
+	return (points.prototype===ValueFunction.prototype? 
+			points:
+			new ValueFunction(totalValue, points));
+}
+
+/** @return an array of ValueFunction objects based on the given total value (same for all objects) and the lists of points. */
 ValueFunction.createArray = function(totalValue, arraysOfPoints) {
 	return arraysOfPoints.map(ValueFunction.create.bind(0,totalValue));
 }
 
+/** Order the given ValueFunction object by an ascending order of a specific yCut - the yCut with value "yCutValue". */
 ValueFunction.orderArrayByYcut = function(valueFunctions, yCutValue) {
 	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
 }
@@ -707,7 +718,7 @@ var ValueFunction = require("./ValueFunction");
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
 var TRACE = function(n, s) {
-	console.log(Array(10-n).join("  ")+s);
+	console.log(Array(Math.max(0,5-n)).join("   ")+s);
 };
 
 var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
@@ -789,7 +800,36 @@ jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, enve
 			valueFunctions, envelope, maxAspectRatio);
 	landplots.forEach(roundFields3);
 	return landplots;
-}
+};
+
+/**
+ * Test the given algorithm (jsts.algorithm.halfProportionalDivision4Walls or jsts.algorithm.halfProportionalDivision3Walls)
+ * with the given args (array) 
+ * and make sure that every agent gets the required num of points.
+ */
+jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
+	var landplots = algorithm.apply(0, args);
+	var setsOfPoints = args[0];
+	
+	if (landplots.length<setsOfPoints.length) {
+		setsOfPoints.forEach(function(points) {
+			console.log(jsts.algorithm.pointsToString(points, points.color)+",");
+		});
+		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
+	}
+	setsOfPoints.forEach(function(points) {
+		landplots.forEach(function(landplot) {
+			if (points.color == landplot.color) {
+				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
+				if (pointsInLandplot<requiredNum) {
+					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
+				}
+			}
+		})
+	})
+ }
+
+
 
 
 /************ NORMALIZATION *******************/
@@ -858,25 +898,44 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 
 	if (numOfAgents==1) { // base case - single agent:
 		var valueFunction = valueFunctions[0];
-		var landplot = null;
-		//console.dir(valueFunction.yCuts);
-		for (var k=1; k<valueFunction.yCuts.length; ++k) {
-			var yCutDiff = valueFunction.yCuts[k]-valueFunction.yCuts[k-1];
-			if (yCutDiff<=maxAspectRatio) {
-				var miny = Math.min(valueFunction.yCuts[k-1], yLength-maxAspectRatio);
-				var maxy = miny+maxAspectRatio;
-				landplot = {minx:0, maxx:1, miny:miny, maxy:maxy};
-				TRACE(numOfAgents,"  -- Landplot to a single agent with >="+valueFunction.pointsPerUnitValue+" points at k="+k+": "+JSON.stringify(landplot));
-				break;
-			}
-		}
-		if (!landplot) {
-			TRACE(numOfAgents,"  -- No landplot with value 1: "/*+JSON.stringify(valueFunction)*/);
+
+		var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
+		points = jsts.algorithm.pointsInEnvelope(valueFunction.points, envelope);
+		landplot = jsts.algorithm.squareWithMaxNumOfPoints(
+			points, envelope, maxAspectRatio);
+		var value = valueFunction.valueOf(landplot);
+		if (value>=1) {
+			TRACE(numOfAgents,"-- Success: best landplot has value "+value+": "
+					+JSON.stringify(landplot)
+					);
+			if (valueFunction.color) landplot.color = valueFunction.color;
+			return [landplot];
+		} else {
+			TRACE(numOfAgents,"-- Failure: best landplot has value "+value+": "
+					+JSON.stringify(valueFunction)
+					);
 			return [];
 		}
-		if (valueFunction.color) landplot.color = valueFunction.color;
-		return [landplot];
-	}
+		
+		
+//		var landplot = null;
+//		for (var k=1; k<valueFunction.yCuts.length; ++k) {
+//			var yCutDiff = valueFunction.yCuts[k]-valueFunction.yCuts[k-1];
+//			if (yCutDiff<=maxAspectRatio) {
+//				var miny = Math.min(valueFunction.yCuts[k-1], yLength-maxAspectRatio);
+//				var maxy = miny+maxAspectRatio;
+//				landplot = {minx:0, maxx:1, miny:miny, maxy:maxy};
+//				TRACE(numOfAgents,"  -- Landplot to a single agent with >="+valueFunction.pointsPerUnitValue+" points at k="+k+": "+JSON.stringify(landplot));
+//				break;
+//			}
+//		}
+//		if (!landplot) {
+//			TRACE(numOfAgents,"  -- No landplot with value 1: "
+//					+JSON.stringify(valueFunction)
+//					);
+//			return [];
+//		}
+	}  // end if (numOfAgents==1)
 	
 	// HERE: numOfAgents >= 2
 
@@ -972,16 +1031,16 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 			var southAgents = valueFunctions.slice(0, k+1);
 			var southPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=north, previous side= */jsts.Side.East, southAgents, south, maxAspectRatio);
 			if (southPlots.length==southAgents.length) {
-				var maxySouthPlots = _.max(southPlots, function(plot){return plot.maxy});
-				TRACE(numOfAgents,"  -- Success: Open-south partition for k="+k+" at y="+round2(y)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots up to y="+round2(maxySouthPlots));
-				var north = {minx:0, maxx:1, miny:maxySouthPlots, maxy:yLength};
+				var highestSouthPlot = _.max(southPlots, function(plot){return plot.maxy});
+				TRACE(numOfAgents,"  -- Success: Open-south partition for k="+k+" at y="+round2(y)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots "+JSON.stringify(southPlots)+" up to y="+round2(highestSouthPlot.maxy));
+				var north = {minx:0, maxx:1, miny:highestSouthPlot.maxy, maxy:yLength};
 				var northAgents = valueFunctions.slice(k+1, numOfAgents);
-				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-maxySouthPlots>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
+				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-highestSouthPlot.maxy>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
 				if (northPlots.length==northAgents.length) {
-					TRACE(numOfAgents,"  -- Success: Open-north Partition for k="+k+" at y="+round2(maxySouthPlots)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Success: Open-north Partition for k="+k+" at y="+round2(highestSouthPlot.maxy)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots.");
 					return southPlots.concat(northPlots);
 				} else {
-					TRACE(numOfAgents,"  -- Failure: Open-north Partition for k="+k+" at y="+round2(maxySouthPlots)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Failure: Open-north Partition for k="+k+" at y="+round2(highestSouthPlot.maxy)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
 				}
 			} else {
 				TRACE(numOfAgents,"  -- Failure: Open-south partition at y="+round2(y)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
@@ -992,16 +1051,16 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 			var northAgents = valueFunctions.slice(k-1, numOfAgents);
 			var northPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=south, previous side = */jsts.Side.West, northAgents, north, maxAspectRatio);
 			if (northPlots.length==northAgents.length) {
-				var minyNorthPlots = _.min(northPlots, function(plot){return plot.miny});
-				TRACE(numOfAgents,"  -- Success: Open-north partition for k="+k+" at y="+round2(y)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots down to y="+round2(minyNorthPlots));
-				var south = {minx:0, maxx:1, miny:0, maxy:minyNorthPlots};
+				var lowestNorthPlots = _.min(northPlots, function(plot){return plot.miny});
+				TRACE(numOfAgents,"  -- Success: Open-north partition for k="+k+" at y="+round2(y)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots down to y="+round2(lowestNorthPlots.miny));
+				var south = {minx:0, maxx:1, miny:0, maxy:lowestNorthPlots.miny};
 				var southAgents = valueFunctions.slice(0, k-1);
-				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-minyNorthPlots>1? jsts.Side.South: jsts.Side.East),    southAgents, south, maxAspectRatio);
+				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(lowestNorthPlots.miny>1? jsts.Side.South: jsts.Side.East),    southAgents, south, maxAspectRatio);
 				if (southPlots.length==southAgents.length) {
-					TRACE(numOfAgents,"  -- Success: Open-south Partition for k="+k+" at y="+round2(minyNorthPlots)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Success: Open-south Partition for k="+k+" at y="+round2(lowestNorthPlots.miny)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots.");
 					return southPlots.concat(northPlots);
 				} else {
-					TRACE(numOfAgents,"  -- Failure: Open-south Partition for k="+k+" at y="+round2(minyNorthPlots)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
+					TRACE(numOfAgents,"  -- Failure: Open-south Partition for k="+k+" at y="+round2(lowestNorthPlots.miny)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
 				}
 			} else {
 				TRACE(numOfAgents,"  -- Failure: Open-north partition at y="+round2(y)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
@@ -1745,7 +1804,19 @@ jsts.algorithm.pointsInXY = function(points, minx,miny,maxx,maxy) {
 }
 
 jsts.algorithm.pointsInEnvelope = function(points, envelope) {
+	if (!Array.isArray(points))
+		throw new Error("points: expected an array but got "+JSON.stringify(points));
 	return jsts.algorithm.pointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.pointsToString = function(points, color) {
+	var s = "";
+	for (var p=0; p<points.length; ++p) {
+		if (s.length>0)
+			s+=":";
+		s += points[p].x + "," + points[p].y+","+color;
+	}
+	return s;
 }
 
 },{"underscore":42}],14:[function(require,module,exports){

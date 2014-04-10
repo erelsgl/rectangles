@@ -41,6 +41,10 @@ ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
 	return new ValueFunction(this.totalValue, newPoints, this.color, this.valuePerPoint);
 }
 
+ValueFunction.prototype.valueOf = function(envelope) {
+	return this.valuePerPoint * jsts.algorithm.numPointsInEnvelope(this.points, envelope);
+}
+
 /** @return a ValueFunction object based on the given total value and list of points. */
 ValueFunction.create = function(totalValue, points) {
 	return (points.prototype===ValueFunction.prototype? 
