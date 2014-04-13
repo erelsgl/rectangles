@@ -14,6 +14,9 @@ canvas.height = 400;
 
 var svgpaper = SVG('svg');
 svgpaper.size(canvas.width,canvas.height);
+svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
+svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
+
 
 // var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
 

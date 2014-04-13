@@ -15,6 +15,9 @@ canvas.height = 400;
 
 var svgpaper = SVG('svg');
 svgpaper.size(canvas.width,canvas.height);
+svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
+svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
+
 
 // var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
 
@@ -547,11 +550,26 @@ ValueFunction.createArray = function(totalValue, arraysOfPoints) {
 	return arraysOfPoints.map(ValueFunction.create.bind(0,totalValue));
 }
 
-/** Order the given ValueFunction object by an ascending order of a specific yCut - the yCut with value "yCutValue". */
+/** Order the given array of ValueFunction objects by an ascending order of a specific yCut - the yCut with value "yCutValue". */
 ValueFunction.orderArrayByYcut = function(valueFunctions, yCutValue) {
 	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
 }
 
+/** Order the given array of ValueFunction objects by an ascending order of the value they assign to a specific landplot */
+/** WARNING: Not thread-safe! */
+ValueFunction.orderArrayByLandplotValue = function(valueFunctions, landplot) {
+	valueFunctions.forEach(function(a){a.valueOfLandplot = a.valueOf(landplot);})
+	valueFunctions.sort(function(a,b){return a.valueOfLandplot-b.valueOfLandplot});
+	valueFunctions.forEach(function(a){delete a.valueOfLandplot});
+}
+
+/** Order the given array of ValueFunction objects by an ascending order of the ratio of values they assign to two specific landplots */
+/** WARNING: Not thread-safe! */
+ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot1, landplot2) {
+	valueFunctions.forEach(function(a){a.ratioOfValues = a.valueOf(landplot1)/a.valueOf(landplot2);})
+	valueFunctions.sort(function(a,b){return a.ratioOfValues-b.ratioOfValues});
+	valueFunctions.forEach(function(a){delete a.ratioOfValues});
+}
 
 
 module.exports = ValueFunction;
@@ -717,9 +735,13 @@ var ValueFunction = require("./ValueFunction");
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
-var TRACE = function(n, s) {
-	console.log(Array(Math.max(0,5-n)).join("   ")+s);
+function TRACE (numOfAgents, s) {
+	console.log(Array(Math.max(0,5-numOfAgents)).join("   ")+s);
 };
+
+function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAgents, southPlots) {
+	TRACE(numOfAgents,s+"(k="+k+", y="+round2(y)+"): "+southAgents.length+" south agents ("+_.pluck(southAgents,"color")+") got "+southPlots.length+" plots and "+northAgents.length+" north agents ("+_.pluck(northAgents,"color")+") got "+northPlots.length+" plots.");
+}
 
 var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
 var round2 = function(x) { 	return Math.round(x*100)/100; }
@@ -813,7 +835,7 @@ jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
 	
 	if (landplots.length<setsOfPoints.length) {
 		setsOfPoints.forEach(function(points) {
-			console.log(jsts.algorithm.pointsToString(points, points.color)+",");
+			console.log(jsts.algorithm.pointsToString(points, points.color)+":");
 		});
 		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
 	}
@@ -894,6 +916,7 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	var assumedValue = 2*numOfAgents;
+	var landplots = [];
 	TRACE(numOfAgents,numOfAgents+" agents ("+_.pluck(valueFunctions,"color")+"): 4 Walls Algorithm");
 
 	if (numOfAgents==1) { // base case - single agent:
@@ -903,20 +926,7 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 		points = jsts.algorithm.pointsInEnvelope(valueFunction.points, envelope);
 		landplot = jsts.algorithm.squareWithMaxNumOfPoints(
 			points, envelope, maxAspectRatio);
-		var value = valueFunction.valueOf(landplot);
-		if (value>=1) {
-			TRACE(numOfAgents,"-- Success: best landplot has value "+value+": "
-					+JSON.stringify(landplot)
-					);
-			if (valueFunction.color) landplot.color = valueFunction.color;
-			return [landplot];
-		} else {
-			TRACE(numOfAgents,"-- Failure: best landplot has value "+value+": "
-					+JSON.stringify(valueFunction)
-					);
-			return [];
-		}
-		
+		return giveLandplotToSingleAgentIfValueAtLeast1(valueFunction, landplot);
 		
 //		var landplot = null;
 //		for (var k=1; k<valueFunction.yCuts.length; ++k) {
@@ -925,12 +935,12 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 //				var miny = Math.min(valueFunction.yCuts[k-1], yLength-maxAspectRatio);
 //				var maxy = miny+maxAspectRatio;
 //				landplot = {minx:0, maxx:1, miny:miny, maxy:maxy};
-//				TRACE(numOfAgents,"  -- Landplot to a single agent with >="+valueFunction.pointsPerUnitValue+" points at k="+k+": "+JSON.stringify(landplot));
+//				TRACE(numOfAgents,"-- Landplot to a single agent with >="+valueFunction.pointsPerUnitValue+" points at k="+k+": "+JSON.stringify(landplot));
 //				break;
 //			}
 //		}
 //		if (!landplot) {
-//			TRACE(numOfAgents,"  -- No landplot with value 1: "
+//			TRACE(numOfAgents,"-- No landplot with value 1: "
 //					+JSON.stringify(valueFunction)
 //					);
 //			return [];
@@ -956,119 +966,142 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	yCuts_2k_next[numOfAgents] = yLength;
 
 
+	//TRACE(numOfAgents, "## Trying closed-fat partitions");
 	// A. Look for a vertical partition to two rectangles that are not too thin vertically.
 	// This part is only for efficiency. It can be removed without affecting correctness. 
-
-	for (var k=1; k<=numOfAgents-1; ++k) {
-		var y_2k = yCuts_2k[k];           // the k-th 2k line
-		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
-		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
-			var y = Math.max(y_2k,0.5);
-			var south = {minx:0, maxx:1, miny:0, maxy:y},
-			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
-			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
-			var southAgents = valueFunctions.slice(0, k),
-			    northAgents = valueFunctions.slice(k, numOfAgents);
-			TRACE(numOfAgents,"  -- Success: Partition to two 2-fat pieces at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-			var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio),
-			    northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
-			return southPlots.concat(northPlots);
-		}
-	}
+//	for (var k=1; k<=numOfAgents-1; ++k) {
+//		var y_2k = yCuts_2k[k];           // the k-th 2k line
+//		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+//		if (0.5 <= y_2k_next && y_2k <= yLength-0.5) {  // both North and South are 2-fat
+//			var y = Math.max(y_2k,0.5);
+//			var south = {minx:0, maxx:1, miny:0, maxy:y},
+//			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
+//			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
+//			var southAgents = valueFunctions.slice(0, k),
+//			    northAgents = valueFunctions.slice(k, numOfAgents);
+//			TRACE(numOfAgents,"++ Partition to two 2-fat pieces at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"]: k="+k+", "+southAgents.length+" south agents ("+_.pluck(southAgents,"color")+") and "+northAgents.length+" north agents ("+_.pluck(northAgents,"color")+").");
+//			var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio),
+//			    northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
+//			if (southPlots.length<southAgents.length) {
+//				console.log("BUG: not enough south plots: "+JSON.stringify(southAgents));
+//			}
+//			if (northPlots.length<northAgents.length) {
+//				console.log("BUG: not enough north plots: "+JSON.stringify(northAgents));
+//			}
+//			return southPlots.concat(northPlots);
+//		}
+//	}
 
 	// HERE, for every k, EITHER yCuts_2k[k] and yCuts_2k_next[k] are both smaller than 0.5,
 	//                        OR yCuts_2k[k] and yCuts_2k_next[k] are both larger than yLength-0.5, 
 
-	// B. Look for any vertical partition to two rectangles that may work:
-
-	for (var k=1; k<=numOfAgents-1; ++k) {
-		var y_2k = yCuts_2k[k];           // the k-th 2k line
-		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
-		ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
-		if (y_2k <= yLength-0.5) {  // North will be 2-fat; South may be 2-thin.
-			var y = Math.min(y_2k_next, yLength-0.5);
-			var south = {minx:0, maxx:1, miny:0, maxy:y};
-			var southAgents = valueFunctions.slice(0, k);
-			var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio);
-			if (southPlots.length==southAgents.length) {
-				var north = {minx:0, maxx:1, miny:y, maxy:yLength};
-				var northAgents = valueFunctions.slice(k, numOfAgents);
-				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
-				TRACE(numOfAgents,"  -- Success: Partition to two 2-fat pieces at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-				return southPlots.concat(northPlots);
-			} else {
-				TRACE(numOfAgents,"  -- Failure: Closed-south partition at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"] failed: k="+k+", "+southAgents.length+" south agents but only "+southPlots.length+" south plots found.");
-			}
-		} else { // y_2k_next >= y_2k > L-0.5; South will be 2-fat; North may be 2-thin.
-			var y = Math.max(y_2k,0.5);
-			var north = {minx:0, maxx:1, miny:y, maxy:yLength};
-			var northAgents = valueFunctions.slice(k, numOfAgents);
-			var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
-			if (northPlots.length==northAgents.length) {
+	if (false) {
+		TRACE(numOfAgents, "## Trying closed partitions");
+		for (var k=1; k<=numOfAgents-1; ++k) {
+			var y_2k = yCuts_2k[k];           // the k-th 2k line
+			var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
+			if (y_2k <= yLength-0.5) {  // North will be 2-fat; South may be 2-thin.
+				var y = Math.min(y_2k_next, yLength-0.5);
 				var south = {minx:0, maxx:1, miny:0, maxy:y};
 				var southAgents = valueFunctions.slice(0, k);
 				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio);
-				TRACE(numOfAgents,"  -- Success: Partition to two 2-fat pieces at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
-				return southPlots.concat(northPlots);
-			} else {
-				TRACE(numOfAgents,"  -- Failure: Closed-north partition at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"] k="+k+", "+northAgents.length+" north agents but only "+northPlots.length+" north plots found.");
+				if (southPlots.length==southAgents.length) {
+					var north = {minx:0, maxx:1, miny:y, maxy:yLength};
+					var northAgents = valueFunctions.slice(k, numOfAgents);
+					var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
+					TRACE(numOfAgents,"++ closed-south partition at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+					return southPlots.concat(northPlots);
+				} else {
+					TRACE(numOfAgents,"-- closed-south partition at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"] failed: k="+k+", "+southAgents.length+" south agents but only "+southPlots.length+" south plots found.");
+					landplots = southPlots;
+				}
+			} else { // y_2k_next >= y_2k > L-0.5; South will be 2-fat; North may be 2-thin.
+				var y = Math.max(y_2k,0.5);
+				var north = {minx:0, maxx:1, miny:y, maxy:yLength};
+				var northAgents = valueFunctions.slice(k, numOfAgents);
+				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
+				if (northPlots.length==northAgents.length) {
+					var south = {minx:0, maxx:1, miny:0, maxy:y};
+					var southAgents = valueFunctions.slice(0, k);
+					var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio);
+					TRACE(numOfAgents,"++  closed-north partition at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"]: k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+					return southPlots.concat(northPlots);
+				} else {
+					TRACE(numOfAgents,"-- closed-north partition at y="+round2(y)+" in ["+round2(y_2k)+","+round2(y_2k_next)+"] k="+k+", "+northAgents.length+" north agents but only "+northPlots.length+" north plots found.");
+					landplots = northPlots;
+				}
 			}
+		}
+	
+		TRACE(numOfAgents,"-- No closed partition found. yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
+	}
+
+	TRACE(numOfAgents, "## Trying a bipartition");
+	var y = yLength/2;
+	var south = {minx:0, maxx:1, miny:0, maxy:y};
+	var north = {minx:0, maxx:1, miny:y, maxy:yLength};
+	ValueFunction.orderArrayByLandplotValueRatio(valueFunctions, north, south);  // order by increasing val(north)/val(south)
+	for (var k=1; k<=numOfAgents-1; ++k) {
+		var southAgents = valueFunctions.slice(0, k);
+		var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio);
+		var northAgents = valueFunctions.slice(k, numOfAgents);
+		var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
+		landplots = northPlots.concat(southPlots);
+		if (landplots.length==numOfAgents) {
+			TRACE_PARTITION(numOfAgents, "++ bipartition", y, k, northAgents, northPlots, southAgents, southPlots)			
+			return landplots;
+		} else {
+			TRACE_PARTITION(numOfAgents, "-- bipartition", y, k, northAgents, northPlots, southAgents, southPlots)			
 		}
 	}
 
-	TRACE(numOfAgents,"  -- Failure: No vertical partition found. yCuts_2k="+yCuts_2k.map(round2)+", L="+round2(yLength));
+	TRACE(numOfAgents,"-- No bipartition found. ");
+	
 
-
-	// C. Look for a rotated partition:
-
-	for (var k=1; k<=numOfAgents-1; ++k) {
-		var y_2k = yCuts_2k[k];           // the k-th 2k line
-		var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
-		ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
-		if (y_2k <= yLength-0.5) {  // South is 2-thin (y_2k<y_2k_next<0.5)
-			var y = y_2k_next;
-			var south = {minx:0, maxx:1, miny:0, maxy:y};
-			var southAgents = valueFunctions.slice(0, k+1);
-			var southPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=north, previous side= */jsts.Side.East, southAgents, south, maxAspectRatio);
-			if (southPlots.length==southAgents.length) {
+	if (true) {
+		TRACE(numOfAgents, "## Trying open partitions");
+		for (var k=1; k<=numOfAgents-1; ++k) {
+			var y_2k = yCuts_2k[k];           // the k-th 2k line
+			var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
+			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
+			if (y_2k <= yLength-0.5) {  // South is 2-thin (y_2k<y_2k_next<0.5)
+				var y = y_2k_next;
+				var south = {minx:0, maxx:1, miny:0, maxy:y};
+				var southAgents = valueFunctions.slice(0, k+1);
+				var southPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=north, previous side= */jsts.Side.East, southAgents, south, maxAspectRatio);
 				var highestSouthPlot = _.max(southPlots, function(plot){return plot.maxy});
-				TRACE(numOfAgents,"  -- Success: Open-south partition for k="+k+" at y="+round2(y)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots "+JSON.stringify(southPlots)+" up to y="+round2(highestSouthPlot.maxy));
 				var north = {minx:0, maxx:1, miny:highestSouthPlot.maxy, maxy:yLength};
 				var northAgents = valueFunctions.slice(k+1, numOfAgents);
 				var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-highestSouthPlot.maxy>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
-				if (northPlots.length==northAgents.length) {
-					TRACE(numOfAgents,"  -- Success: Open-north Partition for k="+k+" at y="+round2(highestSouthPlot.maxy)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots.");
+				landplots = northPlots.concat(southPlots);
+				if (landplots.length==numOfAgents) {
+					TRACE_PARTITION(numOfAgents, "++ open-south highestSouthPlot="+round2(highestSouthPlot.maxy), y, k, northAgents, northPlots, southAgents, southPlots);
 					return southPlots.concat(northPlots);
 				} else {
-					TRACE(numOfAgents,"  -- Failure: Open-north Partition for k="+k+" at y="+round2(highestSouthPlot.maxy)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
+					TRACE_PARTITION(numOfAgents, "-- open-south highestSouthPlot="+round2(highestSouthPlot.maxy), y, k, northAgents, northPlots, southAgents, southPlots);
 				}
-			} else {
-				TRACE(numOfAgents,"  -- Failure: Open-south partition at y="+round2(y)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
-			}
-		} else { // North is 2-thin (y_2k_next >= y_2k > L-0.5)
-			var y = y_2k;
-			var north = {minx:0, maxx:1, miny:y, maxy:yLength};
-			var northAgents = valueFunctions.slice(k-1, numOfAgents);
-			var northPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=south, previous side = */jsts.Side.West, northAgents, north, maxAspectRatio);
-			if (northPlots.length==northAgents.length) {
-				var lowestNorthPlots = _.min(northPlots, function(plot){return plot.miny});
-				TRACE(numOfAgents,"  -- Success: Open-north partition for k="+k+" at y="+round2(y)+" for "+northAgents.length+" agents yielded "+northPlots.length+" plots down to y="+round2(lowestNorthPlots.miny));
-				var south = {minx:0, maxx:1, miny:0, maxy:lowestNorthPlots.miny};
+			} else { // North is 2-thin (y_2k_next >= y_2k > L-0.5)
+				var y = y_2k;
+				var north = {minx:0, maxx:1, miny:y, maxy:yLength};
+				var northAgents = valueFunctions.slice(k-1, numOfAgents);
+				var northPlots = runDivisionAlgorithm(norm3WallsThin, /*open side=south, previous side = */jsts.Side.West, northAgents, north, maxAspectRatio);
+				var lowestNorthPlot = _.min(northPlots, function(plot){return plot.miny});
+				var south = {minx:0, maxx:1, miny:0, maxy:lowestNorthPlot.miny};
 				var southAgents = valueFunctions.slice(0, k-1);
-				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(lowestNorthPlots.miny>1? jsts.Side.South: jsts.Side.East),    southAgents, south, maxAspectRatio);
-				if (southPlots.length==southAgents.length) {
-					TRACE(numOfAgents,"  -- Success: Open-south Partition for k="+k+" at y="+round2(lowestNorthPlots.miny)+" for "+southAgents.length+" agents yielded "+southPlots.length+" plots.");
+				var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(lowestNorthPlot.miny>1? jsts.Side.South: jsts.Side.East),    southAgents, south, maxAspectRatio);
+				landplots = northPlots.concat(southPlots);
+				if (landplots.length==numOfAgents) {
+					TRACE_PARTITION(numOfAgents, "++ open-north lowestNorthPlot="+round2(lowestNorthPlot.miny), y, k, northAgents, northPlots, southAgents, southPlots);
 					return southPlots.concat(northPlots);
 				} else {
-					TRACE(numOfAgents,"  -- Failure: Open-south Partition for k="+k+" at y="+round2(lowestNorthPlots.miny)+" for "+southAgents.length+" agents yielded only "+southPlots.length+" plots.");
+					TRACE_PARTITION(numOfAgents, "-- open-north lowestNorthPlot="+round2(lowestNorthPlot.miny), y, k, northAgents, northPlots, southAgents, southPlots);
 				}
-			} else {
-				TRACE(numOfAgents,"  -- Failure: Open-north partition at y="+round2(y)+" for "+northAgents.length+" agents yielded only "+northPlots.length+" plots.");
 			}
 		}
 	}
 	
-	return [];
+	return landplots;
 }
 
 
@@ -1086,20 +1119,18 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 3 Walls Algorithm");
 
 	if (numOfAgents==1) { // base case - single agent - give all to the single agent
-		var agent = valueFunctions[0];
+		var valueFunction = valueFunctions[0];
 		var landplot;
 		if (yLength<=1) {
 			landplot = {minx:0,maxx:1, miny:0,maxy:1};
 		} else {
 			var envelope = {minx:0,maxx:1, miny:0,maxy:yLength};
-			points = jsts.algorithm.pointsInEnvelope(agent.points, envelope);
+			points = jsts.algorithm.pointsInEnvelope(valueFunction.points, envelope);
 			envelope.maxy = Math.max(2,envelope.maxy);
 			landplot = jsts.algorithm.squareWithMaxNumOfPoints(
 				points, envelope, maxAspectRatio);
 		}
-		if (agent.color)
-			landplot.color = agent.color;
-		return [landplot];
+		return giveLandplotToSingleAgentIfValueAtLeast1(valueFunction, landplot);
 	}
 
 	// HERE: numOfAgents >= 2
@@ -1109,7 +1140,7 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var southAgents = valueFunctions.slice(0,k),
 	    northAgent = valueFunctions[k];
 	var y = northAgent.yCuts[assumedValue-1];
-	TRACE(numOfAgents,"  -- Partition at y="+y+": k="+k+", "+southAgents.length+" south valueFunctions and 1 north agent.");
+	TRACE(numOfAgents,"-- Partition at y="+y+": k="+k+", "+southAgents.length+" south valueFunctions and 1 north agent.");
 	var south = {minx:0, maxx:1, miny:0, maxy:y};
 	var southPlots = runDivisionAlgorithm(norm4Walls, (y>1? jsts.Side.South: jsts.Side.East),   southAgents, south, maxAspectRatio);
 	if (southPlots.length==southAgents.length) {
@@ -1120,7 +1151,7 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 		return southPlots;
 	}
 
-	TRACE(numOfAgents,"  -- No partition to 1:(n-1).");
+	TRACE(numOfAgents,"-- No partition to 1:(n-1).");
 	
 	var plots = runDivisionAlgorithm(norm3WallsThin, /*open side=north, previous side=*/ jsts.Side.East,   valueFunctions, south, maxAspectRatio);
 	
@@ -1176,15 +1207,32 @@ var norm3WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
 			ValueFunction.orderArrayByYcut(valueFunctions, 2*k-1);
 			var southAgents = valueFunctions.slice(0, k),
 			    northAgents = valueFunctions.slice(k, numOfAgents);
-			TRACE(numOfAgents,"  -- Partition to two 3-walls pieces at y="+y+", k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
+			TRACE(numOfAgents,"++ Partition to two 3-walls pieces: ["+0+","+round2(y)+"] and ["+round2(y)+","+round2(yLength)+"], k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");
 			var southPlots = runDivisionAlgorithm(norm3Walls, jsts.Side.West,   southAgents, south, maxAspectRatio),
 			    northPlots = runDivisionAlgorithm(norm3Walls, jsts.Side.West,    northAgents, north, maxAspectRatio);
 			return southPlots.concat(northPlots);
 		}
 	}
 
-	TRACE(numOfAgents,"  -- No partition to two 3-walls pieces: yCuts_2k_minus1="+yCuts_2k_minus1.map(round2)+", L="+round2(yLength)+", agents="+JSON.stringify(valueFunctions));
+	TRACE(numOfAgents,"-- No partition to two 3-walls pieces: yCuts_2k_minus1="+yCuts_2k_minus1.map(round2)+", L="+round2(yLength)+", agents="+JSON.stringify(valueFunctions));
 	return [];
+}
+
+
+var giveLandplotToSingleAgentIfValueAtLeast1 = function(valueFunction, landplot) {
+	var value = valueFunction.valueOf(landplot);
+	if (value>=1) {
+		TRACE(1,"++ best landplot has value "+value
+//				+": "+JSON.stringify(landplot)
+				);
+		if (valueFunction.color) landplot.color = valueFunction.color;
+		return [landplot];
+	} else {
+		TRACE(1,"-- best landplot has value "+value
+//				+": "+JSON.stringify(valueFunction)
+				);
+		return [];
+	}
 }
 
 

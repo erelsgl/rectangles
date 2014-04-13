@@ -57,11 +57,26 @@ ValueFunction.createArray = function(totalValue, arraysOfPoints) {
 	return arraysOfPoints.map(ValueFunction.create.bind(0,totalValue));
 }
 
-/** Order the given ValueFunction object by an ascending order of a specific yCut - the yCut with value "yCutValue". */
+/** Order the given array of ValueFunction objects by an ascending order of a specific yCut - the yCut with value "yCutValue". */
 ValueFunction.orderArrayByYcut = function(valueFunctions, yCutValue) {
 	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
 }
 
+/** Order the given array of ValueFunction objects by an ascending order of the value they assign to a specific landplot */
+/** WARNING: Not thread-safe! */
+ValueFunction.orderArrayByLandplotValue = function(valueFunctions, landplot) {
+	valueFunctions.forEach(function(a){a.valueOfLandplot = a.valueOf(landplot);})
+	valueFunctions.sort(function(a,b){return a.valueOfLandplot-b.valueOfLandplot});
+	valueFunctions.forEach(function(a){delete a.valueOfLandplot});
+}
+
+/** Order the given array of ValueFunction objects by an ascending order of the ratio of values they assign to two specific landplots */
+/** WARNING: Not thread-safe! */
+ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot1, landplot2) {
+	valueFunctions.forEach(function(a){a.ratioOfValues = a.valueOf(landplot1)/a.valueOf(landplot2);})
+	valueFunctions.sort(function(a,b){return a.ratioOfValues-b.ratioOfValues});
+	valueFunctions.forEach(function(a){delete a.ratioOfValues});
+}
 
 
 module.exports = ValueFunction;
