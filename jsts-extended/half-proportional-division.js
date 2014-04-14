@@ -18,7 +18,7 @@ var ValueFunction = require("./ValueFunction");
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
 function TRACE (numOfAgents, s) {
-	console.log(Array(Math.max(0,5-numOfAgents)).join("   ")+s);
+	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
 };
 
 function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAgents, southPlots) {
@@ -323,11 +323,18 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var y = yLength/2;
 	var south = {minx:0, maxx:1, miny:0, maxy:y};
 	var north = {minx:0, maxx:1, miny:y, maxy:yLength};
-	ValueFunction.orderArrayByLandplotValueRatio(valueFunctions, north, south);  // order by increasing val(north)/val(south)
+	//ValueFunction.orderArrayByLandplotValueRatio(valueFunctions, north, south);  // order by increasing val(north)/val(south)
+	valueFunctions.forEach(function(a){a.valueOfSouth = a.valueOf(south); a.valueOfNorth = a.valueOf(north);})
+	valueFunctions.sort(function(a,b){return b.valueOfSouth-a.valueOfSouth});  // descending order
 	for (var k=1; k<=numOfAgents-1; ++k) {
 		var southAgents = valueFunctions.slice(0, k);
-		var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio);
 		var northAgents = valueFunctions.slice(k, numOfAgents);
+		var smallestSouthValue = valueFunctions[k-1].valueOfSouth;
+		var smallestNorthValue = valueFunctions[k].valueOfNorth;
+		if (smallestSouthValue<2*southAgents.length-2 || smallestNorthValue<2*northAgents.length-2)
+			continue; // value too small
+		TRACE(numOfAgents, "#### Trying a bipartition for k="+k+" south agents ("+_.pluck(southAgents,"color")+") with south values ("+_.pluck(southAgents,"valueOfSouth").map(round2)+") and "+northAgents.length+" north agents ("+_.pluck(northAgents,"color")+") with north values ("+_.pluck(northAgents,"valueOfNorth").map(round2)+")");
+		var southPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(y>1? jsts.Side.South: jsts.Side.East),            southAgents, south, maxAspectRatio);
 		var northPlots = runDivisionAlgorithm(norm4Walls, /*shorter side = */(yLength-y>1? jsts.Side.South: jsts.Side.East),    northAgents, north, maxAspectRatio);
 		landplots = northPlots.concat(southPlots);
 		if (landplots.length==numOfAgents) {
