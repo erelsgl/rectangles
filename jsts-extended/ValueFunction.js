@@ -41,8 +41,31 @@ ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
 	return new ValueFunction(this.totalValue, newPoints, this.color, this.valuePerPoint);
 }
 
+/**
+ * @return the value of the given rectangle, according to this value function.
+ */
 ValueFunction.prototype.valueOf = function(envelope) {
 	return this.valuePerPoint * jsts.algorithm.numPointsInEnvelope(this.points, envelope);
+}
+
+/**
+ * @return the smallest side-length of a square with the given south-west corner {x,y}, containing at least the requested value. 
+ * @return Infinity if no such square exists.
+ */
+ValueFunction.prototype.sizeOfSquareWithValue = function(southWestCorner, requestedValue) {
+	var requestedNumOfPoints = Math.ceil(requestedValue / this.valuePerPoint);
+	//console.log("requestedNumOfPoints="+requestedNumOfPoints)
+	if (this.points.length<requestedNumOfPoints) return Infinity;
+	var pointsToNorthEast = this.points.filter(function(point) {
+		return point.x>=southWestCorner.x && point.y>=southWestCorner.y;
+	});
+	if (pointsToNorthEast.length<requestedNumOfPoints) return Infinity;
+	var pointsSortedByMaxDistance = _.sortBy(pointsToNorthEast, function(point) {
+		return Math.max(point.x-southWestCorner.x, point.y-southWestCorner.y);
+	});
+	var farthestPoint = pointsSortedByMaxDistance[requestedNumOfPoints-1];
+	var sideLength = Math.max(farthestPoint.x-southWestCorner.x, farthestPoint.y-southWestCorner.y);
+	return sideLength;
 }
 
 /** @return a ValueFunction object based on the given total value and list of points. */

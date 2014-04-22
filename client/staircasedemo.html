@@ -1,0 +1,143 @@
+<html>
+<head>
+<meta charset='utf8' />
+<script src="jquery-1.11.0.min.js"></script>
+<script src="svg.min.js"></script>
+<script src="svg.draggable.min.js"></script>
+<script src="svg.math.js"></script>
+<script src="svg.export.js"></script>
+<script src="arg.js.v1.1.min.js"></script>
+
+<script src="DraggablePoints.js"></script>
+<script src="ShapeCollection.js"></script>
+<script src="Walls.js"></script>
+
+<script type='text/javascript' src='main.bundle.js'></script>
+
+<style>
+/* http://stackoverflow.com/questions/272799/vertical-rotated-text-in-html-table */
+.box_rotate {
+     -moz-transform: rotate(90deg);  /* FF3.5+ */
+       -o-transform: rotate(90deg);  /* Opera 10.5 */
+  -webkit-transform: rotate(90deg);  /* Saf3.1+, Chrome */
+          transform: rotate(90deg);  
+             filter:  progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25);  /* IE6,IE7 */
+         -ms-filter: "progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25)"; /* IE8 */
+         writing-mode: tb-rl;
+}
+
+#walls, #points {
+	width: 200px
+}
+
+td {vertical-align:top}
+</style>
+
+</head>
+<body>
+
+<table><tr><td>
+<table>
+<tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-top' type='checkbox'/></td></tr>
+<tr>
+	<td style='vertical-align:middle'><input class='wall' id='wall-left' type='checkbox' checked='checked'/></td>
+	<td>
+	<svg id='svg' style="background:#ffe; border:dotted #ccc 3px">
+	</svg></td>
+	<td style='vertical-align:middle'><input class='wall' id='wall-right' type='checkbox'/></td>
+</tr>
+<tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-bottom' type='checkbox'  checked='checked'/></td></tr>
+</table>
+
+</td><td style='font-size:12px'>
+<h1>Staircase Algorithm Demo</h1>
+<table>
+<tr><th>Num of agents:</th><td>
+	<select id='numOfAgents' name='numOfAgents'>
+		<option>1</option>
+		<option>2</option>
+		<option>3</option>
+		<option>4</option>
+		<option>5</option>
+		<option>6</option>
+		<option>7</option>
+	</select>
+</td></tr>
+<tr><th>Total points per agent:</th><td>
+	<input id='pointsPerAgent' name='pointsPerAgent' value='1' />
+</td></tr>
+<tr><th>Algorithm:</th><td><select id='algorithm' name='algorithm'>
+	<option value='staircaseAlgorithm'>Staircase</option>
+</select>
+</td></tr>
+<tr><th>Min points per landplot:</th><td>
+	<input id='guaranteedPointsPerAgent' name='guaranteedPointsPerAgent' value='' readonly='readonly' />
+</td></tr>
+<tr><th></th><td><button id='createStaircaseDemo'>Create random sample</button></td></tr>
+</table>
+<p>(You can then drag and move individual points)</p>
+<hr style='margin-bottom:300px'/>
+<p><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></p>
+<p><button class='interrupt'>Interrupt the current calculation.</button></p>
+
+</td>
+</tr>
+</table>
+
+
+
+<script type='text/javascript'>$(document).ready(function() {
+var drawFairDivision = function() {
+	$(".interrupt").removeAttr("disabled");
+	window.landplots.clear();
+	var maxSlimness = 1;
+	window.drawFairDivision(maxSlimness);
+}
+
+window.landplots =  ShapeCollection(window.svgpaper, /*default style =*/ {
+	stroke: '#000',
+	'stroke-dasharray': '5,5',
+	opacity: 0.5,
+});
+window.points = DraggablePoints(window.svgpaper, /* change event = */drawFairDivision);
+
+$("#numOfAgents").change(function() {
+	var numOfAgents = parseInt($("#numOfAgents").val());
+	$("#pointsPerAgent").val(numOfAgents*2);
+	$("#pointsPerAgent").trigger("change");
+})
+
+$("#pointsPerAgent").change(function() {
+	var numOfAgents = parseInt($("#numOfAgents").val());
+	var pointsPerAgent = parseInt($("#pointsPerAgent").val());
+	$("#guaranteedPointsPerAgent").val(Math.ceil(pointsPerAgent/(2*numOfAgents-1)));
+})
+
+var colors = ['blue', 'cyan', 'green', 'yellow', 'red', 'pink', 'black'];
+$("#createStaircaseDemo").click(function() {
+	window.points.clear(); 
+	
+	var numOfAgents = parseInt($("#numOfAgents").val());
+	var pointsPerAgent = parseInt($("#pointsPerAgent").val());
+	for (var i=0; i<numOfAgents; ++i) {
+		var color = colors[i%colors.length];
+		for (var j=0; j<pointsPerAgent; ++j) {
+			var newPoint = new SVG.math.Point(Math.random() * canvas.width,Math.random() * canvas.height);
+			window.points.add(newPoint, color); 
+		}
+	}
+	drawFairDivision();
+});
+
+$(".wall").change(function() {
+	drawFairDivision();
+})
+
+$("#numOfAgents").val("3");
+$("#numOfAgents").trigger("change");
+$("#createStaircaseDemo").trigger("click");
+
+});</script>
+
+</body>
+</html>

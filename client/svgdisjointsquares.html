@@ -40,11 +40,11 @@ td {vertical-align:top}
 <table>
 <tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-top' type='checkbox'/></td></tr>
 <tr>
-	<td><input class='wall' id='wall-left' type='checkbox'/></td>
+	<td style='vertical-align:middle'><input class='wall' id='wall-left' type='checkbox'/></td>
 	<td>
 	<svg id='svg' style="background:#ffe; border:dotted #ccc 3px">
 	</svg></td>
-	<td><input class='wall' id='wall-right' type='checkbox'/></td>
+	<td style='vertical-align:middle'><input class='wall' id='wall-right' type='checkbox'/></td>
 </tr>
 <tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-bottom' type='checkbox'/></td></tr>
 </table>
@@ -113,6 +113,100 @@ Add a point by clicking a color. It is recommended to add no more than <span id=
 </td>
 </tr>
 </table>
+
+<script type='text/javascript'>$(document).ready(function() {
+
+function drawShapesAndUpdateLink() {
+	window.drawShapesFromPoints();
+	updatePermaLink();
+}
+
+function updatePermaLink() {
+	var wallsString = document.getElementById('walls').value = wallsToString();
+	var pointsString = window.points.toString();
+	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
+	var permalink = 
+		location.host+"/"+
+		location.pathname+"?walls="+encodeURI(wallsString)+"&points="+encodeURI(pointsString) +
+			"&draw="+$("#draw").val()+"&shape="+$("#shape").val();
+	permalink = permalink.replace(/[?]+/g,"?");
+	permalink = permalink.replace(/[/]+/g,"/");
+	permalink = location.protocol+"//"+permalink;
+	document.getElementById('permalink').href = permalink;
+}
+
+$(".addpoint").click(function() {
+	var color=$(this).text().toLowerCase();
+	var newPoint = new SVG.math.Point(20,20);
+	window.points.add(newPoint, color); 
+	window.updateStatus();
+});
+
+/**
+ * From a gist by OTM: https://gist.github.com/otm/379a3cdb572ac81d8c19#file-svg-to-img
+ */
+$(".export").click(function() {
+	var data = new XMLSerializer().serializeToString(document.getElementById('svg'));
+	var ctx = canvas.getContext("2d");
+
+	var DOMURL = self.URL || self.webkitURL || self;
+	var img = new Image();
+	var svg = new Blob([data], {type: "image/svg+xml;charset=utf-8"});
+	var url = DOMURL.createObjectURL(svg);
+	img.onload = function() {
+		ctx.drawImage(img, 0, 0);
+		DOMURL.revokeObjectURL(url);
+	};
+	img.src = url;
+});
+
+$(".randomize").click(function() {
+	for (var i=0; i<window.points.length; ++i) {
+		var p = window.points[i];
+		p.move(Math.random() * canvas.width,Math.random() * canvas.height); 
+	}
+	drawShapesAndUpdateLink();	
+});
+
+
+$(".shuffley").click(function() {
+	window.shuffleYValues(window.points);
+	drawShapesAndUpdateLink();	
+});
+
+$(".clear").click(function() {
+	window.points.clear(); 
+	window.landplots.clear();
+	drawShapesAndUpdateLink();
+});
+
+$(".control").change(drawShapesAndUpdateLink);
+
+$(".interrupt").click(function() {
+	window.solver.interrupt();
+});
+
+$(".wall").change(function() {
+	drawShapesAndUpdateLink();
+})
+
+
+
+window.landplots =  ShapeCollection(window.svgpaper, /*default style =*/ {
+	stroke: '#000',
+	'stroke-dasharray': '5,5',
+	opacity: 0.5,
+});
+window.points = DraggablePoints(window.svgpaper, /* change event = */drawShapesAndUpdateLink);
+window.points.fromString(Arg("points"));
+wallsFromString(Arg("walls"));
+if (Arg("draw")) $("#draw").val(Arg("draw"));
+if (Arg("shape")) $("#shape").val(Arg("shape"));
+
+drawShapesAndUpdateLink();
+
+});</script>
+
 
 </body>
 </html>

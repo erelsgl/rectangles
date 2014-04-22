@@ -5,10 +5,6 @@
 function setWallStyle(direction, isChecked) {
 	$("#svg").css("border-"+direction, isChecked? "solid #000": "dotted #ccc");
 }
-setWallStyle("top", $("#wall-top").is(":checked"));
-setWallStyle("bottom", $("#wall-bottom").is(":checked"));
-setWallStyle("left", $("#wall-left").is(":checked"));
-setWallStyle("right", $("#wall-right").is(":checked"));
 
 function setWallFlag(direction, isChecked) {
 	$("#wall-"+direction).prop("checked", isChecked);
@@ -33,4 +29,17 @@ function wallsFromString(string) {
 	setWallFlag("left", flags[2]=='1');
 	setWallFlag("right", flags[3]=='1');
 }
+
+$(document).ready(function() {
+	setWallStyle("top", $("#wall-top").is(":checked"));
+	setWallStyle("bottom", $("#wall-bottom").is(":checked"));
+	setWallStyle("left", $("#wall-left").is(":checked"));
+	setWallStyle("right", $("#wall-right").is(":checked"));
+	
+	$(".wall").change(function() {
+		var isChecked = $(this).is(':checked');
+		var direction = $(this).attr("id").replace(/^wall-/,"");
+		setWallStyle(direction, isChecked);
+	})
+})
 

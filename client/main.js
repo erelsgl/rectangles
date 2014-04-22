@@ -12,10 +12,10 @@ var canvas = document.getElementById("canvas");
 canvas.width  = 400;
 canvas.height = 400;
 
-var svgpaper = SVG('svg');
-svgpaper.size(canvas.width,canvas.height);
-svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
-svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
+window.svgpaper = SVG('svg');
+window.svgpaper.size(canvas.width,canvas.height);
+window.svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
+window.svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
 
 
 // var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
@@ -24,7 +24,7 @@ svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
 
 /* STATUS */
 
-var statusText = svgpaper.text("");
+var statusText = window.svgpaper.text("ready");
 statusText.move(200,0);
 statusText.draggable();
 statusText.font({
@@ -33,53 +33,57 @@ statusText.font({
 	anchor: 'middle'
 })
 
-function updateStatus() {
-	statusText.text(""+points.length+" points ; "+landplots.length+" squares"+
+window.updateStatus = function() {
+	statusText.text(""+window.points.length+" points ; "+window.landplots.length+" squares"+
 		"");
-	//if (points.length>=MAX_POINT_COUNT)
-	//	$(".addpoint").attr("disabled","disabled");
-	//else 
-	//	$(".addpoint").removeAttr("disabled");
 }
-
-function updatePermaLink() {
-	var wallsString = document.getElementById('walls').value = wallsToString();
-	var pointsString = points.toString();
-	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
-	var permalink = 
-		location.host+"/"+
-		location.pathname+"?walls="+encodeURI(wallsString)+"&points="+encodeURI(pointsString) +
-			"&draw="+$("#draw").val()+"&shape="+$("#shape").val();
-	permalink = permalink.replace(/[?]+/g,"?");
-	permalink = permalink.replace(/[/]+/g,"/");
-	permalink = location.protocol+"//"+permalink;
-	document.getElementById('permalink').href = permalink;
-}
-
-
-
-
 
 
 /* SQUARES */
 
-var points, landplots, solver;
-
 function drawShapes(err, shapes) {
 	for (var i in shapes) {
 		var shape = shapes[i];
-		landplots.add(shape, {fill:shape.color, stroke:shape.color});
+		window.landplots.add(shape, {fill:shape.color, stroke:shape.color});
 	}
-	updateStatus();
-	updatePermaLink();
+	window.updateStatus();
 	$(".interrupt").attr("disabled","disabled");
 }
 
-function drawShapesFromPoints() {
-	if (solver) solver.interrupt();
+window.drawFairDivision = function(maxSlimness) {
+	
+	// Make sure the envelope has only at most 2 infinite side:
+	var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
+	if (!$("#wall-left").is(':checked')) envelopeTemp.minx = -Infinity;
+	else if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
+	if (!$("#wall-top").is(':checked')) envelopeTemp.miny = -Infinity;
+	else if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
+
+	if (!window.points.byColor)
+		throw new Error("window.points is "+JSON.stringify(window.points));
+	var pointsPerAgent = _.values(window.points.byColor);
+	var fairDivision = factory.createHalfProportionalDivision(
+		pointsPerAgent, envelopeTemp, maxSlimness);
+
+	var newStatus = " ";
+	for (var color in window.points.byColor) {
+		var pointsOfAgent = window.points.byColor[color];
+		fairDivision.forEach(function(landplot) {
+			if (landplot.color==color) {
+				newStatus += color+":"+jsts.algorithm.numPointsInEnvelope(pointsOfAgent,landplot)+"/"+pointsOfAgent.length+" ";
+			}
+		});
+	}
+	drawShapes(null,fairDivision);
+	statusText.text(newStatus);
+}
+
+window.drawShapesFromPoints = function() {
+	if (window.solver) window.solver.interrupt();
 
 	$(".interrupt").removeAttr("disabled");
-	landplots.clear();
+	statusText.text("working...");
+	window.landplots.clear();
 	var drawMode = $("#draw").val();
 	var shapeName = $("#shape").val();
 
@@ -90,16 +94,16 @@ function drawShapesFromPoints() {
 	var minyWall = $("#wall-top").is(':checked')? 0: -Infinity;
 	var maxyWall = $("#wall-bottom").is(':checked')? canvas.height: Infinity;
 	var envelope = new jsts.geom.Envelope(minxWall, maxxWall, minyWall, maxyWall);
-	
+
 	setTimeout(function() {
 		if (drawMode=="drawRepresentatives" || drawMode=="drawAllRepresentatives") {
 			var candidateSets = [];
 			var candidatesByColor = {};
 			var numPerColor = parseInt($("#numPerColor").val()) || 1;
 			var groupId = 1;
-			for (var color in points.byColor)  {
+			for (var color in window.points.byColor)  {
 				var candidatesOfColor = factory.createShapesTouchingPoints(
-						shapeName, points.byColor[color], envelope);
+						shapeName, window.points.byColor[color], envelope);
 				for (var i in candidatesOfColor) {
 					candidatesOfColor[i].groupId = groupId++;
 					candidatesOfColor[i].color = color;
@@ -110,12 +114,12 @@ function drawShapesFromPoints() {
 			}
 			if (drawMode=="drawRepresentatives") {
 				var newStatus = "";
-				for (var color in points.byColor) {
+				for (var color in window.points.byColor) {
 					var maxDisjointSetOfColor = jsts.algorithm.maximumDisjointSet(candidatesByColor[color], candidateSets.length);
-					newStatus += color+":"+points.byColor[color].length+"p"+maxDisjointSetOfColor.length+"s ";
+					newStatus += color+":"+window.points.byColor[color].length+"p"+maxDisjointSetOfColor.length+"s ";
 					for (var i in maxDisjointSetOfColor) {
 						var shape = maxDisjointSetOfColor[i];
-						landplots.add(shape, {stroke: shape.color, fill: 'transparent'});
+						window.landplots.add(shape, {stroke: shape.color, fill: 'transparent'});
 					}	
 				}
 				var shapes = jsts.algorithm.representativeDisjointSet(candidateSets);
@@ -126,119 +130,28 @@ function drawShapesFromPoints() {
 				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
 			}
 		} else if (drawMode=="drawFairDivision") {
-			
-			// Make sure the envelope has only at most 1 infinite side:
-			var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
-			if (!$("#wall-left").is(':checked')) envelopeTemp.minx = -Infinity;
-			else if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
-			else if (!$("#wall-top").is(':checked')) envelopeTemp.miny = -Infinity;
-			else if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
-			
 			var maxSlimness = parseFloat($("#maxSlimness").val());
-			var pointsPerAgent = _.values(points.byColor);
-			var fairDivision = factory.createHalfProportionalDivision(
-				pointsPerAgent, envelopeTemp, maxSlimness);
-			
-			var newStatus = " ";
-			for (var color in points.byColor) {
-				var pointsOfAgent = points.byColor[color];
-				fairDivision.forEach(function(landplot) {
-					if (landplot.color==color) {
-						newStatus += color+":"+jsts.algorithm.numPointsInEnvelope(pointsOfAgent,landplot)+"/"+pointsOfAgent.length+" ";
-					}
-				});
-			}
-			drawShapes(null,fairDivision);
-			statusText.text(newStatus);
+			window.drawFairDivision(maxSlimness);
 		} else { // drawDisjoint or drawAll
 				var candidates = factory.createShapesTouchingPoints(
-						shapeName, points, envelope);
+						shapeName, window.points, envelope);
 				if (drawMode=="drawAll") {
 					drawShapes(null,candidates);
 				} else {  // drawMode=='drawDisjoint'
-					solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, points.length-1);
-					solver.solve(drawShapes);
+					window.solver = new jsts.algorithm.MaximumDisjointSetSolver(candidates, window.points.length-1);
+					window.solver.solve(drawShapes);
 				}
 		}
 	},10)
 }
 
-landplots =  ShapeCollection(svgpaper, /*default style =*/ {
-	stroke: '#000',
-	'stroke-dasharray': '5,5',
-	opacity: 0.5,
-});
-points = DraggablePoints(svgpaper, /* change event = */drawShapesFromPoints);
-
-points.fromString(Arg("points"));
-wallsFromString(Arg("walls"));
-if (Arg("draw")) $("#draw").val(Arg("draw"));
-if (Arg("shape")) $("#shape").val(Arg("shape"));
-drawShapesFromPoints();
-
-
-/* EVENTS */
-
-$(".addpoint").click(function() {
-	var color=$(this).text().toLowerCase();
-	var newPoint = new SVG.math.Point(20,20);
-	points.add(newPoint, color); 
-	updateStatus();
-});
-
-/**
- * From a gist by OTM: https://gist.github.com/otm/379a3cdb572ac81d8c19#file-svg-to-img
- */
-$(".export").click(function() {
-	var data = new XMLSerializer().serializeToString(document.getElementById('svg'));
-	var ctx = canvas.getContext("2d");
-
-	var DOMURL = self.URL || self.webkitURL || self;
-	var img = new Image();
-	var svg = new Blob([data], {type: "image/svg+xml;charset=utf-8"});
-	var url = DOMURL.createObjectURL(svg);
-	img.onload = function() {
-		ctx.drawImage(img, 0, 0);
-		DOMURL.revokeObjectURL(url);
-	};
-	img.src = url;
-});
-
-$(".shuffley").click(function() {
+window.shuffleYValues = function(points) {
 	yvalues = _.chain(points).pluck("y").shuffle().value();
 	for (var i=0; i<yvalues.length; ++i) {
 		var p = points[i];
 		p.move(p.x, yvalues[i]);
 	}
-	drawShapesFromPoints();	
-});
-
-$(".randomize").click(function() {
-	for (var i=0; i<points.length; ++i) {
-		var p = points[i];
-		p.move(Math.random() * 400,Math.random() * 400); 
-	}
-	drawShapesFromPoints();	
-});
-
-$(".clear").click(function() {
-	points.clear(); 
-	landplots.clear();
-	drawShapesFromPoints();
-});
-
-$(".control").change(drawShapesFromPoints);
-
-$(".wall").change(function() {
-	var isChecked = $(this).is(':checked');
-	var direction = $(this).attr("id").replace(/^wall-/,"");
-	setWallStyle(direction, isChecked);
-	drawShapesFromPoints();
-})
-
-$(".interrupt").click(function() {
-	solver.interrupt();
-});
+}
 
 }); // end of $(document).ready
 
