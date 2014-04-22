@@ -66,10 +66,10 @@ td {vertical-align:top}
 <tr><th>Total points per agent:</th><td>
 	<input id='pointsPerAgent' name='pointsPerAgent' value='1' />
 </td></tr>
-<tr><th>Algorithm:</th><td><select id='algorithm' name='algorithm'>
+<!-- tr><th>Algorithm:</th><td><select id='algorithm' name='algorithm'>
 	<option value='staircaseAlgorithm'>Staircase</option>
 </select>
-</td></tr>
+</td></tr -->
 <tr><th>Min points per landplot:</th><td>
 	<input id='guaranteedPointsPerAgent' name='guaranteedPointsPerAgent' value='' readonly='readonly' />
 </td></tr>
@@ -97,7 +97,7 @@ var drawFairDivision = function() {
 window.landplots =  ShapeCollection(window.svgpaper, /*default style =*/ {
 	stroke: '#000',
 	'stroke-dasharray': '5,5',
-	opacity: 0.5,
+	opacity: 0.3,
 });
 window.points = DraggablePoints(window.svgpaper, /* change event = */drawFairDivision);
 

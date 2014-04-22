@@ -31,7 +31,8 @@ statusText.draggable();
 statusText.font({
 	family:   'Helvetica',
 	color:  'blue',
-	anchor: 'middle'
+	anchor: 'middle',
+	size: '12px'
 })
 
 window.updateStatus = function() {
@@ -153,6 +154,25 @@ window.shuffleYValues = function(points) {
 		p.move(p.x, yvalues[i]);
 	}
 }
+
+
+/**
+ * From a gist by OTM: https://gist.github.com/otm/379a3cdb572ac81d8c19#file-svg-to-img
+ */
+$(".export").click(function() {
+	var data = new XMLSerializer().serializeToString(document.getElementById('svg'));
+	var ctx = canvas.getContext("2d");
+
+	var DOMURL = self.URL || self.webkitURL || self;
+	var img = new Image();
+	var svg = new Blob([data], {type: "image/svg+xml;charset=utf-8"});
+	var url = DOMURL.createObjectURL(svg);
+	img.onload = function() {
+		ctx.drawImage(img, 0, 0);
+		DOMURL.revokeObjectURL(url);
+	};
+	img.src = url;
+});
 
 }); // end of $(document).ready
 
