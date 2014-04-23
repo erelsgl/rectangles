@@ -54,6 +54,8 @@ ValueFunction.prototype.valueOf = function(envelope) {
  */
 ValueFunction.prototype.sizeOfSquareWithValue = function(southWestCorner, requestedValue) {
 	var requestedNumOfPoints = Math.ceil(requestedValue / this.valuePerPoint);
+	if (isNaN(requestedNumOfPoints)) 
+		throw new Error("requestedNumOfPoints is NaN: requestedValue="+requestedValue+" valuePerPoint="+this.valuePerPoint)
 	//console.log("requestedNumOfPoints="+requestedNumOfPoints)
 	if (this.points.length<requestedNumOfPoints) return Infinity;
 	var pointsToNorthEast = this.points.filter(function(point) {
@@ -64,6 +66,8 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(southWestCorner, reques
 		return Math.max(point.x-southWestCorner.x, point.y-southWestCorner.y);
 	});
 	var farthestPoint = pointsSortedByMaxDistance[requestedNumOfPoints-1];
+	if (!farthestPoint) 
+		throw new Error("farthestPoint not defined: requestedNumOfPoints="+requestedNumOfPoints+" pointsSortedByMaxDistance="+JSON.stringify(pointsSortedByMaxDistance));
 	var sideLength = Math.max(farthestPoint.x-southWestCorner.x, farthestPoint.y-southWestCorner.y);
 	return sideLength;
 }

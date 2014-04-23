@@ -497,10 +497,14 @@ var giveLandplotToSingleAgentIfValueAtLeast1 = function(valueFunction, landplot)
  */
 var norm2Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 2 Walls Algorithm "+JSON.stringify(valueFunctions));
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 2 Walls Algorithm");
 	
 	var initialCorner = {x:0,y:0};
-	return staircaseDivision(valueFunctions, [initialCorner]);
+	for (var requiredLandplotValue=2*numOfAgents-1; requiredLandplotValue>=1; requiredLandplotValue--) {
+		var landplots = staircaseDivision(valueFunctions, [initialCorner], requiredLandplotValue);
+		if (landplots.length==valueFunctions.length)
+			return landplots;
+	}
 }
 
 /**
@@ -510,102 +514,67 @@ var norm2Walls = function(valueFunctions, yLength, maxAspectRatio) {
  * - corners are ordered by increasing y = decreasing x (from south-east to north-west)
  * - Value per agent: at least 2*n-2+corners.length
  */
-var staircaseDivision = function(valueFunctions, corners) {
+var staircaseDivision = function(valueFunctions, corners, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	var numOfCorners = corners.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
 
-	// for each corner, calculate the size of the smallest square with a value of at least 1 to one or more agents
-	corners.forEach(function(corner) {
-		var sizesOfSquaresPerCorner = valueFunctions.map(function(valueFunction) {
-			return valueFunction.sizeOfSquareWithValue(corner, 1);
+	// for each agent, calculate the acceptable corner square with the smallest taxicab distance from the origin:
+	var index = 0;
+	valueFunctions.forEach(function(valueFunction) {
+		valueFunction.index = index++; // for removing the lucky agent later on
+		var cornerSquares = corners.map(function(corner) {
+			var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue);
+			var taxicabDistance = corner.x+corner.y+squareSize;
+			return {x:corner.x, y:corner.y, s:squareSize, t:taxicabDistance};
 		});
-		//TRACE(numOfAgents, "sizesOfSquaresPerCorner "+JSON.stringify(corner)+": "+JSON.stringify(sizesOfSquaresPerCorner));
-		corner.smallestSquareSize =  _.min(sizesOfSquaresPerCorner);
-		corner.maxx = corner.x + corner.smallestSquareSize;
-		corner.maxy = corner.y + corner.smallestSquareSize;
+		valueFunction.square = _.min(cornerSquares, function(square){return square.t});
 	});
-	//TRACE(numOfAgents, "corner squares: "+JSON.stringify(corners));
 
-	var currentCornerIndex = 0, currentCorner;
-	for (;;) {
-		currentCorner = corners[currentCornerIndex];
-		var newCornerIndex = -1;
-		for (var d=0; d<currentCornerIndex; ++d) {  // loop over the corners to the south-east of 'currentCorner':
-				var otherCorner = corners[d];
-				var currentDisturbsOther = 
-					(currentCorner.y > otherCorner.maxy && currentCorner.maxx > otherCorner.x)  ||
-					(currentCorner.maxx > otherCorner.maxx);
-				if (currentDisturbsOther) {
-					newCornerIndex = d;
-					break;
-				}
-		}
-		if (newCornerIndex<0)
-		for (var d=currentCornerIndex+1; d<numOfCorners; ++d) {  // loop over the corners to the north-west of 'currentCorner':
-			var otherCorner = corners[d];
-			var currentDisturbsOther = 
-				(currentCorner.x > otherCorner.maxx && currentCorner.maxy > otherCorner.y)  ||
-				(currentCorner.maxy > otherCorner.maxy);
-			if (currentDisturbsOther) {
-				newCornerIndex = d;
-				break;
-			}
-		}
-		if (newCornerIndex>=0) {
-			TRACE(numOfAgents, "-- square at corner "+currentCornerIndex+" "+JSON.stringify(currentCorner)+" disturbs corner "+newCornerIndex+" "+JSON.stringify(corners[newCornerIndex]));
-			currentCornerIndex = newCornerIndex;
-		} else {
-			TRACE(numOfAgents, "++ square at corner "+currentCornerIndex+" "+JSON.stringify(currentCorner)+" disturbs no other square");
-			break;
-		}
-	} // end of forever loop - assuming the "disturbs" relation is acyclic, we should now have a non-disturbing square
-	var landplot = {
-			minx: currentCorner.x,
-			miny: currentCorner.y,
-			maxx: currentCorner.maxx,
-			maxy: currentCorner.maxy
-	};
+	// get the agent with the square with the smallest taxicab distance overall:
+	var luckyAgent = _.min(valueFunctions, function(valueFunction) {
+		return valueFunction.square.t;
+	});
 	
-	var luckyAgent = -1;
-	for (var i=0; i<numOfAgents; ++i) {
-		var valueOflandplot = valueFunctions[i].valueOf(landplot);
-		if (valueOflandplot >= 1) {
-			luckyAgent = i;
-			break;
-		}
-	}
-	if (luckyAgent>=0) {
-		var valueFunction = valueFunctions[luckyAgent];
-		if (valueFunction.color) landplot.color = valueFunction.color;
-		TRACE(numOfAgents, "++ agent "+luckyAgent+" gets the non-disturbing square "+JSON.stringify(landplot));
-		if (valueFunctions.length==1)
-			return [landplot];
-		var remainingValueFunctions = valueFunctions.slice(0,luckyAgent).concat(valueFunctions.slice(luckyAgent+1,valueFunctions.length));
-		
-		// Create the remaining corners:
-		var remainingCorners = [];
-		var c = 0;
-		while (c<numOfCorners && corners[c].x>=landplot.maxx) {  // add corners to the southwest of the landplot
-			remainingCorners.push(corners[c]);
-			++c;
-		}
-		// HERE corners[c].x<landplot.maxx
-		remainingCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
-		while (c<numOfCorners && corners[c].y<landplot.maxy) { // skip corners shaded by the landplot
-			++c;
-		}
-		// HERE corners[c].y>=landplot.maxy
-		remainingCorners.push({x:corners[c-1].x, y:landplot.maxy});  // add northeast new corner
-		while (c<numOfCorners) {  // add corners to the northeast of the landplot
-			remainingCorners.push(corners[c]);
-			++c;
-		}
-		var remainingLandplots = staircaseDivision(remainingValueFunctions, remainingCorners);
-		remainingLandplots.push(landplot);
-		return remainingLandplots;
-	} else {
-		TRACE(numOfAgents, "-- no agent wants the non-disturbing square "+JSON.stringify(landplot));
+	if (!luckyAgent.square || !isFinite(luckyAgent.square.s)) {
+		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
 		return [];
-	} 
+	}
+
+	var landplot = {
+			minx: luckyAgent.square.x,
+			miny: luckyAgent.square.y,
+			maxx: luckyAgent.square.x+luckyAgent.square.s,
+			maxy: luckyAgent.square.y+luckyAgent.square.s,
+	};
+	if (luckyAgent.color) landplot.color = luckyAgent.color;
+	TRACE(numOfAgents, "++ agent "+luckyAgent.index+" gets from the square "+JSON.stringify(luckyAgent.square)+" the landplot "+JSON.stringify(landplot));
+	
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,luckyAgent.index).concat(valueFunctions.slice(luckyAgent.index+1,valueFunctions.length));
+
+	// Create the remaining corners:
+	var remainingCorners = [];
+	var c = 0;
+	while (c<numOfCorners && corners[c].x>=landplot.maxx) {  // add corners to the southwest of the landplot
+		remainingCorners.push(corners[c]);
+		++c;
+	}
+	// HERE corners[c].x<landplot.maxx
+	remainingCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
+	while (c<numOfCorners && corners[c].y<landplot.maxy) { // skip corners shaded by the landplot
+		++c;
+	}
+	// HERE corners[c].y>=landplot.maxy
+	remainingCorners.push({x:corners[c-1].x, y:landplot.maxy});  // add northeast new corner
+	while (c<numOfCorners) {  // add corners to the northeast of the landplot
+		remainingCorners.push(corners[c]);
+		++c;
+	}
+
+	var remainingLandplots = staircaseDivision(remainingValueFunctions, remainingCorners, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
 }
