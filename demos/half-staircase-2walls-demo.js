@@ -46,3 +46,5 @@ points1.color='red';
 console.log(jsts.stringify(factory.createHalfProportionalDivision([points1Rotated],quarterplaneRotated)));
 console.log("Two people on a rotated quarterplane");
 console.log(jsts.stringify(factory.createHalfProportionalDivision([points1Rotated, points1Rotated],quarterplaneRotated)));
+
+

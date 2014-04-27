@@ -49,27 +49,35 @@ ValueFunction.prototype.valueOf = function(envelope) {
 }
 
 /**
+ * @param direction direction of points relative to the corner: "NE", "SE", "NW" or "SW".
  * @return the smallest side-length of a square with the given south-west corner {x,y}, containing at least the requested value. 
  * @return Infinity if no such square exists.
  */
-ValueFunction.prototype.sizeOfSquareWithValue = function(southWestCorner, requestedValue) {
+ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue, direction) {
 	var requestedNumOfPoints = Math.ceil(requestedValue / this.valuePerPoint);
 	if (isNaN(requestedNumOfPoints)) 
 		throw new Error("requestedNumOfPoints is NaN: requestedValue="+requestedValue+" valuePerPoint="+this.valuePerPoint)
-	//console.log("requestedNumOfPoints="+requestedNumOfPoints)
+
 	if (this.points.length<requestedNumOfPoints) return Infinity;
-	var pointsToNorthEast = this.points.filter(function(point) {
-		return point.x>=southWestCorner.x && point.y>=southWestCorner.y;
-	});
-	if (pointsToNorthEast.length<requestedNumOfPoints) return Infinity;
-	var pointsSortedByMaxDistance = _.sortBy(pointsToNorthEast, function(point) {
-		return Math.max(point.x-southWestCorner.x, point.y-southWestCorner.y);
-	});
+	
+	var filterFunction = (
+		direction=="NE"? function(point) {return point.x>=corner.x && point.y>=corner.y;}: 
+		direction=="NW"? function(point) {return point.x<=corner.x && point.y>=corner.y;}: 
+		direction=="SE"? function(point) {return point.x>=corner.x && point.y<=corner.y;}: 
+		direction=="SW"? function(point) {return point.x<=corner.x && point.y<=corner.y;}:
+		null);
+	if (!filterFunction) throw new Error("Unsupported direction "+direction);
+	var relevantPoints = this.points.filter(filterFunction);
+	
+	if (relevantPoints.length<requestedNumOfPoints) return Infinity;
+	relevantPoints.forEach(function(point) {
+		point.maxDistance = Math.max(Math.abs(point.x-corner.x), Math.abs(point.y-corner.y));
+	})
+	var pointsSortedByMaxDistance = _.sortBy(relevantPoints, "maxDistance");
 	var farthestPoint = pointsSortedByMaxDistance[requestedNumOfPoints-1];
 	if (!farthestPoint) 
 		throw new Error("farthestPoint not defined: requestedNumOfPoints="+requestedNumOfPoints+" pointsSortedByMaxDistance="+JSON.stringify(pointsSortedByMaxDistance));
-	var sideLength = Math.max(farthestPoint.x-southWestCorner.x, farthestPoint.y-southWestCorner.y);
-	return sideLength;
+	return farthestPoint.maxDistance;
 }
 
 /** @return a ValueFunction object based on the given total value and list of points. */
