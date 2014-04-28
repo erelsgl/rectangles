@@ -1083,6 +1083,28 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	return landplots;
 }
 
+var eastCollision = function(x, y, squareSize, corners, c) {
+	for (var cc=c; cc<corners.length; ++cc) {
+		var corner = corners[cc];
+		if (corner.x>=x+squareSize)
+			return false;
+		if (corner.y>y)
+			return true;
+	}
+	return false;
+}
+
+var westCollision = function(x, y, squareSize, corners, c) {
+	for (var cc=c; cc>=0; --cc) {
+		var corner = corners[cc];
+		if (corner.x<=x-squareSize)
+			return false;
+		if (corner.y>y)
+			return true;
+	}
+	return false;
+}
+
 /**
  * Normalized 3-walls staircase algorithm:
  * - valueFunctions.length>=1
@@ -1101,21 +1123,20 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 		valueFunction.index = index++; // for removing the winning agent later on
 		var cornerSquares = [];
 		for (var c=1; c<numOfCorners-1; ++c) {
-			var prevprev = corners[c-2];
 			var prev = corners[c-1];
 			var cur  = corners[c];
 			var next = corners[c+1];
-			var nextnext = corners[c+2];
 			var LShape = (prev.y>cur.y && cur.x<next.x);
 			var JShape = (prev.x<cur.x && cur.y<next.y);
 
 			if (LShape) {
 				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NE");
-				if (cur.x+squareSize<=next.x || !nextnext || nextnext.y<=cur.y)
+				// check collision:
+				if (!eastCollision(cur.x, cur.y, squareSize, corners, c))
 					cornerSquares.push({minx:cur.x, miny:cur.y, maxx:cur.x+squareSize, maxy:cur.y+squareSize});
 			} else if (JShape) {  
 				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NW");
-				if (cur.x-squareSize>=prev.x || !prevprev || prevprev.y<=cur.y)
+				if (!westCollision(cur.x, cur.y, squareSize, corners, c))
 					cornerSquares.push({maxx:cur.x, miny:cur.y, minx:cur.x-squareSize, maxy:cur.y+squareSize});
 			}
 		}
