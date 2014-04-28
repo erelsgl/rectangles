@@ -209,7 +209,7 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 3 Walls Algorithm");
 
-	var initialCorners = [{x:0,y:1}, {x:0,y:0}, {x:1,y:0}, {x:1,y:1}];
+	var initialCorners = [{x:0,y:Infinity}, {x:0,y:0}, {x:1,y:0}, {x:1,y:Infinity}];
 	var maxVal = 2*numOfAgents-1;
 	var minVal = 1;
 	for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
@@ -230,7 +230,7 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	var numOfCorners = corners.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
 
 	// for each agent, calculate the acceptable corner square with the smallest height above the x axis (t = y+s):
 	var index = 0;
@@ -238,50 +238,47 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 		valueFunction.index = index++; // for removing the winning agent later on
 		var cornerSquares = [];
 		for (var c=1; c<numOfCorners-1; ++c) {
+			var prevprev = corners[c-2];
 			var prev = corners[c-1];
 			var cur  = corners[c];
 			var next = corners[c+1];
+			var nextnext = corners[c+2];
 			var LShape = (prev.y>cur.y && cur.x<next.x);
 			var JShape = (prev.x<cur.x && cur.y<next.y);
-			
+
 			if (LShape) {
 				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NE");
-				var height = cur.y+squareSize;
-				cornerSquares.push({x:cur.x, y:cur.y, s:squareSize, t:height});
+				if (cur.x+squareSize<=next.x || !nextnext || nextnext.y<=cur.y)
+					cornerSquares.push({minx:cur.x, miny:cur.y, maxx:cur.x+squareSize, maxy:cur.y+squareSize});
 			} else if (JShape) {  
 				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NW");
-				var height = cur.y+squareSize;
-				cornerSquares.push({x:cur.x, y:cur.y, s:squareSize, t:height});
+				if (cur.x-squareSize>=prev.x || !prevprev || prevprev.y<=cur.y)
+					cornerSquares.push({maxx:cur.x, miny:cur.y, minx:cur.x-squareSize, maxy:cur.y+squareSize});
 			}
 		}
-		valueFunction.square = _.min(cornerSquares, function(square){return square.t});
+		valueFunction.square = _.min(cornerSquares, function(square){return square.maxy});
 	});
 
 	// get the agent with the square with the smallest height overall:
 	var winningAgent = _.min(valueFunctions, function(valueFunction) {
-		return valueFunction.square.t;
+		return valueFunction.square.maxy;
 	});
 
-	if (!winningAgent.square || !isFinite(winningAgent.square.s)) {
+	if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
 		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
 		return [];
 	}
 
-	var landplot = {
-			minx: winningAgent.square.x,
-			miny: winningAgent.square.y,
-			maxx: winningAgent.square.x+winningAgent.square.s,
-			maxy: winningAgent.square.y+winningAgent.square.s,
-	};
+	var landplot = winningAgent.square;
 	if (winningAgent.color) landplot.color = winningAgent.color;
-	TRACE(numOfAgents, "++ agent "+winningAgent.index+" gets from the square "+JSON.stringify(winningAgent.square)+" the landplot "+JSON.stringify(landplot));
+	TRACE(numOfAgents, "++ agent "+winningAgent.index+" gets the landplot "+JSON.stringify(landplot));
 	
 	if (valueFunctions.length==1)
 		return [landplot];
 
 	var remainingValueFunctions = valueFunctions.slice(0,winningAgent.index).concat(valueFunctions.slice(winningAgent.index+1,valueFunctions.length));
 	var remainingCorners = jsts.algorithm.updatedCorners(corners, landplot);
-	var remainingLandplots = staircase2walls(remainingValueFunctions, remainingCorners, requiredLandplotValue);
+	var remainingLandplots = staircase3walls(remainingValueFunctions, remainingCorners, requiredLandplotValue);
 	remainingLandplots.push(landplot);
 	return remainingLandplots;
 }
@@ -319,7 +316,7 @@ var norm2Walls = function(valueFunctions, yLength, maxAspectRatio) {
 var staircase2walls = function(valueFunctions, corners, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	var numOfCorners = corners.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 2walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
 
 	// for each agent, calculate the acceptable corner square with the smallest taxicab distance from the origin:
 	var index = 0;
@@ -370,7 +367,8 @@ var staircase2walls = function(valueFunctions, corners, requiredLandplotValue) {
 		++c;
 	}
 	// HERE corners[c].y>=landplot.maxy
-	remainingCorners.push({x:corners[c-1].x, y:landplot.maxy});  // add northeast new corner
+	if (c>0)
+		remainingCorners.push({x:corners[c-1].x, y:landplot.maxy});  // add northeast new corner
 	while (c<numOfCorners) {  // add corners to the northwest of the landplot
 		remainingCorners.push(corners[c]);
 		++c;

@@ -7,8 +7,8 @@
 
 var jsts = require('jsts');
 
-var TRACE = console.log;
-//var TRACE = function(){};
+//var TRACE = console.log;
+var TRACE = function(){};
 
 /**
  * @param corners a list of points {x:,y:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
@@ -21,11 +21,12 @@ jsts.algorithm.updatedCorners = function(corners, landplot) {
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
 
-	console.dir(corners);
+	TRACE("corners: "+JSON.stringify(corners));
+	TRACE("landplot: "+JSON.stringify(landplot));
 	var numOfCorners = corners.length;
 	var newCorners = [];
 	var c = 0;
-	
+
 	// add all corners to the west of minx:
 	while (c<numOfCorners && corners[c].x<landplot.minx) {
 		TRACE("west: "+JSON.stringify(corners[c]));
@@ -55,8 +56,8 @@ jsts.algorithm.updatedCorners = function(corners, landplot) {
 	var maxXCorner = null;
 	if (c>0 && corners[c-1].x==landplot.maxx) {
 		maxXCorner = corners[c-1];
-	} else if (corners[c].y<landplot.miny) {
-		maxXCorner = {x:landplot.maxx, y:corners[c].y};
+	} else if (c>0 && corners[c-1].y<landplot.miny) {
+		maxXCorner = {x:landplot.maxx, y:corners[c-1].y};
 	} else {
 		maxXCorner = {x:landplot.maxx, y:landplot.miny};
 	}
