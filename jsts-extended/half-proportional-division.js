@@ -11,6 +11,8 @@ require("./AxisParallelRectangle");
 require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
+require("./corners");
+
 var _ = require("underscore");
 var util = require("util");
 var ValueFunction = require("./ValueFunction");
@@ -278,97 +280,7 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 		return [landplot];
 
 	var remainingValueFunctions = valueFunctions.slice(0,winningAgent.index).concat(valueFunctions.slice(winningAgent.index+1,valueFunctions.length));
-
-	// Create the remaining corners:
-	var remainingCorners = [];
-	remainingCorners.push(corners[0]);
-	var westShadow = false, eastShadow = true;
-	for (var c=1; c<numOfCorners-1; ++c) {
-		var cur  = corners[c];
-		if (cur.y>=landplot.maxy) {
-			remainingCorners.push(cur);
-			continue;
-		}
-		
-		// HERE cur.y < landplot.maxy
-		var yDistance = landplot.maxy-cur.y;
-
-		var prev = corners[c-1];
-		var next = corners[c+1];
-		var LShape = (prev.y>cur.y && cur.x<next.x);
-		var JShape = (prev.x<cur.x && cur.y<next.y);
-		
-		// Check the x-value of the current corner; note that x is non-decreasing:
-		if (cur.x<landplot.minx) {       // WEST
-			if (westShadow)  continue;     // skip all corners from the beginning of the west shadow to landplot.maxx
-
-			if (xDistance<yDistance) {   // need to add a corner to the west
-				if (prev.y > landplot.maxy) { // cur is an LShape
-					remainingCorners.push({x:cur.x, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else if (prev.x < cur.x) {  // cur is a ר shape
-					remainingCorners.push({x:landplot.minx, y:cur.y});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else if (prev.y > cur.y) {  // cur is an L Shape
-					remainingCorners.pop(); // remove prev
-					remainingCorners.push({x:landplot.minx, y:prev.y});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else {
-					console.warn("Unhandled condition in the west: prev="+JSON.stringify(prev)+" cur="+JSON.stringify(cur)+" next="+JSON.stringify(next));
-					remainingCorners.push({x:landplot.minx, y:landplot.miny});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				}
-				westShadow = true;     // skip all corners from here to landplot.maxx
-				continue;
-			}
-			remainingCorners.push(cur);
-
-		} else 	if (cur.x<=landplot.maxx) { // SOUTH 
-			if (westShadow)  continue;     // skip all corners from the beginning of the south shadow to landplot.maxx
-			
-			remainingCorners.push({x:landplot.minx, y:landplot.miny});
-			remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-			remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-			remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-			westShadow = true;
-			
-		} else {                           // EAST
-			var xDistance = cur.x - landplot.maxx;
-			if (xDistance<yDistance) 
-				continue;
-			
-			if (eastShadow) {
-				if (next.y > landplot.maxy) { // cur is a J Shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.pop();  // remove (maxx,maxy)
-					remainingCorners.push({x:cur.x, y:landplot.maxy});
-					// skip cur
-				} else if (cur.x < next.x) {  // cur is an r shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.push({x:landplot.maxx, y:cur.y});
-					//remainingCorners.push(cur); // skip cur
-				} else if (next.y > cur.y) { // cur is a J Shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.push({x:landplot.maxx, y:cur.y});
-					remainingCorners.push(cur);
-				} else {
-					console.warn("Unhandled condition in the east: prev="+JSON.stringify(prev)+" cur="+JSON.stringify(cur)+" next="+JSON.stringify(next));
-				}
-				eastShadow = false;
-				continue;
-			}
-			remainingCorners.push(cur);
-		}
-	}
-	remainingCorners.push(corners[numOfCorners-1]);
-
+	var remainingCorners = jsts.algorithm.updatedCorners(corners, landplot);
 	var remainingLandplots = staircase2walls(remainingValueFunctions, remainingCorners, requiredLandplotValue);
 	remainingLandplots.push(landplot);
 	return remainingLandplots;
