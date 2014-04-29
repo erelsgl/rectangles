@@ -12,6 +12,7 @@ require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
 require("./corners");
+var numutils = require("./numeric-utils")
 
 var _ = require("underscore");
 var util = require("util");
@@ -220,26 +221,22 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	return landplots;
 }
 
-var eastCollision = function(x, y, squareSize, corners, c) {
-	for (var cc=c; cc<corners.length; ++cc) {
+var xValueOfFirstWallAtEast = function(y, corners, c) {
+	for (var cc=c+1; cc<corners.length; ++cc) {
 		var corner = corners[cc];
-		if (corner.x>=x+squareSize)
-			return false;
 		if (corner.y>y)
-			return true;
+			return corner.x;
 	}
-	return false;
+	return Infinity;
 }
 
-var westCollision = function(x, y, squareSize, corners, c) {
-	for (var cc=c; cc>=0; --cc) {
+var xValueOfFirstWallAtWest = function(y, corners, c) {
+	for (var cc=c-1; cc>=0; --cc) {
 		var corner = corners[cc];
-		if (corner.x<=x-squareSize)
-			return false;
 		if (corner.y>y)
-			return true;
+			return corner.x;
 	}
-	return false;
+	return -Infinity;
 }
 
 /**
@@ -253,6 +250,7 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	var numOfCorners = corners.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
+	var yValues = numutils.sortedUniqueValues(corners, "y");
 
 	// for each agent, calculate the acceptable corner square with the smallest height above the x axis (t = y+s):
 	var index = 0;
@@ -260,22 +258,40 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 		valueFunction.index = index++; // for removing the winning agent later on
 		var cornerSquares = [];
 		for (var c=1; c<numOfCorners-1; ++c) {
-			var prev = corners[c-1];
+//			var prev = corners[c-1];
 			var cur  = corners[c];
-			var next = corners[c+1];
-			var LShape = (prev.y>cur.y && cur.x<next.x);
-			var JShape = (prev.x<cur.x && cur.y<next.y);
+			var x = cur.x;
+			for (var iy=_.indexOf(yValues,cur.y,true); iy<yValues.length; ++iy) {
+				var y = yValues[iy];
+				var corner = {x:x, y:y};
 
-			if (LShape) {
-				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NE");
-				// check collision:
-				if (!eastCollision(cur.x, cur.y, squareSize, corners, c))
-					cornerSquares.push({minx:cur.x, miny:cur.y, maxx:cur.x+squareSize, maxy:cur.y+squareSize});
-			} else if (JShape) {  
-				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NW");
-				if (!westCollision(cur.x, cur.y, squareSize, corners, c))
-					cornerSquares.push({maxx:cur.x, miny:cur.y, minx:cur.x-squareSize, maxy:cur.y+squareSize});
+				var xEastWall = xValueOfFirstWallAtEast(y, corners, c);
+				var squareSizeEast = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NE");
+				if (x+squareSizeEast<=xEastWall)
+					cornerSquares.push({minx:x, miny:y, maxx:x+squareSizeEast, maxy:y+squareSizeEast});
+
+				var xWestWall = xValueOfFirstWallAtWest(y, corners, c);
+				var squareSizeWest = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NW");
+				if (x-squareSizeWest>=xWestWall)
+					cornerSquares.push({maxx:x, miny:y, minx:x-squareSizeWest, maxy:y+squareSizeWest});
 			}
+//			var next = corners[c+1];
+//			var LShape = (prev.y>cur.y && cur.x<next.x);
+//			var JShape = (prev.x<cur.x && cur.y<next.y);
+//			var rShape = (prev.y<cur.y && cur.x<next.x);
+//			var רShape = (prev.x<cur.x && cur.y>next.y);
+
+//			if (LShape || rShape) { // cur.x<next.x
+//				var xValueOfWall = xValueOfFirstWallAtEast(corners, c);
+//				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NE");
+//				if (cur.x+squareSize<=xValueOfWall)
+//					cornerSquares.push({minx:cur.x, miny:cur.y, maxx:cur.x+squareSize, maxy:cur.y+squareSize});
+//			} else if (JShape || רShape) {   // prev.x<cur.x
+//				var xValueOfWall = xValueOfFirstWallAtWest(corners, c);
+//				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NW");
+//				if (cur.x-squareSize>=xValueOfWall)
+//					cornerSquares.push({maxx:cur.x, miny:cur.y, minx:cur.x-squareSize, maxy:cur.y+squareSize});
+//			}
 		}
 		valueFunction.square = _.min(cornerSquares, function(square){return square.maxy});
 	});

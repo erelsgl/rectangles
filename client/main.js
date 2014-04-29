@@ -24,19 +24,23 @@ window.svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
 
 /* STATUS */
 
-var statusText = window.svgpaper.text("ready");
-statusText.move(200,0);
-statusText.draggable();
-statusText.font({
-	family:   'Helvetica',
-	color:  'blue',
-	anchor: 'middle',
-	size: '12px'
-})
+//var statusText = window.svgpaper.text("ready");
+//statusText.move(200,0);
+//statusText.draggable();
+//statusText.font({
+//	family:   'Helvetica',
+//	color:  'blue',
+//	anchor: 'middle',
+//	size: '12px'
+//})
+
+var setStatus = function(text) {
+//	statusText.text(text);
+	$("#status").text(text);
+}
 
 window.updateStatus = function() {
-	statusText.text(""+window.points.length+" points ; "+window.landplots.length+" squares"+
-		"");
+	setStatus(""+window.points.length+" points ; "+window.landplots.length+" squares"+"");
 }
 
 
@@ -76,14 +80,17 @@ window.drawFairDivision = function(maxSlimness) {
 		});
 	}
 	drawShapes(null,fairDivision);
-	statusText.text(newStatus);
+	setStatus(newStatus);
+	
+	if (fairDivision.length<pointsPerAgent.length)
+		alert("Not enough land-plots! Please call Erel 09-7431290");
 }
 
 window.drawShapesFromPoints = function() {
 	if (window.solver) window.solver.interrupt();
 
 	$(".interrupt").removeAttr("disabled");
-	statusText.text("working...");
+	setStatus("working...");
 	window.landplots.clear();
 	var drawMode = $("#draw").val();
 	var shapeName = $("#shape").val();
@@ -126,7 +133,7 @@ window.drawShapesFromPoints = function() {
 				var shapes = jsts.algorithm.representativeDisjointSet(candidateSets);
 				newStatus += "   representatives:"+shapes.length;
 				drawShapes(null, shapes);
-				statusText.text(newStatus);
+				setStatus(newStatus);
 			} else {
 				drawShapes(null,candidateSets.reduce(function(a,b){return a.concat(b)}));
 			}

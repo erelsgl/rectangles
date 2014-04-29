@@ -15,22 +15,9 @@
 <script type='text/javascript' src='main.bundle.js'></script>
 
 <style>
-/* http://stackoverflow.com/questions/272799/vertical-rotated-text-in-html-table */
-.box_rotate {
-     -moz-transform: rotate(90deg);  /* FF3.5+ */
-       -o-transform: rotate(90deg);  /* Opera 10.5 */
-  -webkit-transform: rotate(90deg);  /* Saf3.1+, Chrome */
-          transform: rotate(90deg);  
-             filter:  progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25);  /* IE6,IE7 */
-         -ms-filter: "progid:DXImageTransform.Microsoft.BasicImage(rotation=0.25)"; /* IE8 */
-         writing-mode: tb-rl;
-}
-
-#walls, #points {
-	width: 200px
-}
-
+#walls, #points { width: 200px }
 td {vertical-align:top}
+#status {text-align:center; font-size:10px;}
 </style>
 
 </head>
@@ -47,6 +34,7 @@ td {vertical-align:top}
 	<td style='vertical-align:middle'><input class='wall' id='wall-right' type='checkbox'/></td>
 </tr>
 <tr><td colspan='3' style='text-align:center'><input class='wall' id='wall-bottom' type='checkbox'  checked='checked'/></td></tr>
+<tr><td colspan='3' id='status'></td></tr>
 </table>
 
 </td><td style='font-size:12px'>

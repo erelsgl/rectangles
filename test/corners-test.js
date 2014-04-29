@@ -10,16 +10,16 @@ var jsts = require("../jsts-extended");
 var updatedCorners = jsts.algorithm.updatedCorners; // shorthand
 
 describe('updatedCorners', function() {
-	it('works for simple initial corner set', function() {
+	it('simple initial corner set', function() {
 		var initialCorners = [{x:0,y:20},{x:0,y:0},{x:10,y:0},{x:10,y:20}];
 		updatedCorners(initialCorners, {minx:0,miny:0,maxx:5,maxy:5}).should.eql(
 			[{x:0,y:20},{x:0,y:5},{x:5,y:5},{x:5,y:0},{x:10,y:0},{x:10,y:20}]);
 		updatedCorners(initialCorners, {minx:5,miny:0,maxx:10,maxy:5}).should.eql(
 			[{x:0,y:20},{x:0,y:0},{x:5,y:0},{x:5,y:5},{x:10,y:5},{x:10,y:20}]);
-		console.log(JSON.stringify(updatedCorners(initialCorners, {minx:0,miny:0,maxx:5,maxy:5})).replace(/\"/g,""));
+		//console.log(JSON.stringify(updatedCorners(initialCorners, {minx:0,miny:0,maxx:5,maxy:5})).replace(/\"/g,""));
 	})
 	
-	it('works for 8 initial corners', function() {
+	it('8 initial corners', function() {
 		var initialCorners = [{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:8,y:0},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}];
 		updatedCorners(initialCorners, {minx:0,miny:2,maxx:1,maxy:3}).should.eql(
 			[{x:0,y:Infinity},{x:0,y:3},{x:1,y:3},{x:1,y:2},{x:2,y:2},{x:2,y:0},{x:8,y:0},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}]);
@@ -33,6 +33,14 @@ describe('updatedCorners', function() {
 			[{x:0,y:Infinity},{x:0,y:11},{x:9,y:11},{x:9,y:2},{x:10,y:2},{x:10,y:Infinity}]);
 		updatedCorners(initialCorners, {minx:0,miny:2,maxx:10,maxy:12}).should.eql(
 			[{x:0,y:Infinity},{x:0,y:12},{x:10,y:12},{x:10,y:Infinity}]);
+	})
+	
+	it('a flying square', function() {
+		var initialCorners = [{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:10,y:0},{x:10,y:Infinity}];
+		updatedCorners(initialCorners, {minx:6,miny:6,maxx:8,maxy:8}).should.eql(
+				[{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:6,y:0},{x:6,y:8},{x:8,y:8},{x:8,y:0},{x:10,y:0},{x:10,y:Infinity}]);
+		updatedCorners(initialCorners, {minx:6,miny:6,maxx:10,maxy:10}).should.eql(
+			[{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:6,y:0},{x:6,y:10},{x:10,y:10},{x:10,y:Infinity}]);
 	})
 })
 

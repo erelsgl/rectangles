@@ -50,7 +50,7 @@ ValueFunction.prototype.valueOf = function(envelope) {
 
 /**
  * @param direction direction of points relative to the corner: "NE", "SE", "NW" or "SW".
- * @return the smallest side-length of a square with the given south-west corner {x,y}, containing at least the requested value. 
+ * @return the smallest side-length of a square with the given corner {x,y}, containing at least the requested value. 
  * @return Infinity if no such square exists.
  */
 ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue, direction) {
