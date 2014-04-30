@@ -81,6 +81,12 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(va
 		}
 		var southernSide = mapOpenSidesStringToSouthernSide[openSidesString];
 		landplots = jsts.algorithm.halfProportionalDivision2Walls(valueFunctions, envelope, maxAspectRatio, southernSide);
+	} else if (openSides.length==3) {
+		var closedSide = (jsts.Side.North+jsts.Side.East+jsts.Side.South+jsts.Side.West) - (openSides[0]+openSides[1]+openSides[2]);
+		landplots = jsts.algorithm.halfProportionalDivision1Walls(valueFunctions, envelope, maxAspectRatio, /*southernSide=*/closedSide);
+	} else {  // all sides are open
+		var closedSide = jsts.Side.South;  // arbitrary; TEMPORARY
+		landplots = jsts.algorithm.halfProportionalDivision1Walls(valueFunctions, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	}
 	
 	return landplots.map(function(landplot) {
@@ -118,6 +124,17 @@ jsts.algorithm.halfProportionalDivision2Walls = function(agentsValuePoints, enve
 	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints);
 	var landplots = runDivisionAlgorithm(
 			norm2Walls, southernSide,
+			valueFunctions, envelope, maxAspectRatio);
+	landplots.forEach(roundFields3);
+	return landplots;
+};
+
+jsts.algorithm.halfProportionalDivision1Walls = function(agentsValuePoints, envelope, maxAspectRatio, closedSide) {
+	TRACE(10,"")
+	var southernSide = closedSide;
+	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints)
+	var landplots = runDivisionAlgorithm(
+			norm1Walls, southernSide,
 			valueFunctions, envelope, maxAspectRatio);
 	landplots.forEach(roundFields3);
 	return landplots;
@@ -168,13 +185,14 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 		throw new Error("Zero-sized envelope: "+JSON.stringify(enveloper));
 	if (width<=0)
 		width = height/1000;
-	var scaleFactor = 1/width;
+	var scaleFactor = (isFinite(width)? 1/width: 1);
+	var translateFactor = (isFinite(width)? [-enveloper.minx,-enveloper.miny]: [0,0]);
 	var yLength = height*scaleFactor;
 
 	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
 	var transformation = 
 		[rotateTransformation,
-		 {translate: [-enveloper.minx,-enveloper.miny]},
+		 {translate: translateFactor},
 		 {scale: scaleFactor}];
 
 	var transformedvalueFunctions = valueFunctions.map(function(valueFunction) {
@@ -416,3 +434,29 @@ var staircase2walls = function(valueFunctions, corners, requiredLandplotValue) {
 	return remainingLandplots;
 }
 
+
+
+
+
+/**
+ * Normalized 1-wall algorithm:
+ * - valueFunctions.length>=1
+ * - maxAspectRatio>=1
+ * - Value per agent: at least 2*n-1
+ * - Landplots may overflow the east, west and north borders
+ */
+var norm1Walls = function(valueFunctions, yLength, maxAspectRatio) {
+	var numOfAgents = valueFunctions.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 1 Wall Algorithm");
+	console.log(util.inspect(valueFunctions,{depth:3}));
+
+	var initialCorners = [{x:-2000,y:Infinity}, {x:-2000,y:0}, {x:2000,y:0}, {x:2000,y:Infinity}];
+	var maxVal = 2*numOfAgents-1;
+	var minVal = 1;
+	for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
+		var landplots = staircase3walls(valueFunctions, initialCorners, requiredLandplotValue);
+		if (landplots.length==valueFunctions.length)
+			return landplots;
+	}
+	return landplots;
+}

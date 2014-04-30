@@ -56,13 +56,11 @@ function drawShapes(err, shapes) {
 }
 
 window.drawFairDivision = function(maxSlimness) {
-	
-	// Make sure the envelope has only at most 2 infinite side:
 	var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
 	if (!$("#wall-left").is(':checked')) envelopeTemp.minx = -Infinity;
-	else if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
+	if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
 	if (!$("#wall-top").is(':checked')) envelopeTemp.miny = -Infinity;
-	else if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
+	if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
 
 	if (!window.points.byColor)
 		throw new Error("window.points is "+JSON.stringify(window.points));
