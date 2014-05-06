@@ -19,6 +19,13 @@ function wallsToString() {
 		($("#wall-right").is(":checked")? 1: 0);
 }
 
+function numOfWalls() {
+	return 	$("#wall-top").is(":checked") + 
+			$("#wall-bottom").is(":checked") +
+			$("#wall-left").is(":checked") +
+			$("#wall-right").is(":checked");
+}
+
 function wallsFromString(string) {
 	if (!string) return;
 	var flags = string.split(/,/);

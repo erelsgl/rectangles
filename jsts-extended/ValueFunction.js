@@ -68,6 +68,7 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue,
 		null);
 	if (!filterFunction) throw new Error("Unsupported direction "+direction);
 	var relevantPoints = this.points.filter(filterFunction);
+//	console.log("  relevantPoints="+JSON.stringify(relevantPoints));
 	
 	if (relevantPoints.length<requestedNumOfPoints) return Infinity;
 	relevantPoints.forEach(function(point) {

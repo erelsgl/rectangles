@@ -49,6 +49,8 @@ td {vertical-align:top}
 		<option>5</option>
 		<option>6</option>
 		<option>7</option>
+		<option>8</option>
+		<option>9</option>
 	</select>
 </td></tr>
 <tr><th>Total points per agent:</th><td>
@@ -89,19 +91,29 @@ window.landplots =  ShapeCollection(window.svgpaper, /*default style =*/ {
 });
 window.points = DraggablePoints(window.svgpaper, /* change event = */drawFairDivision);
 
+function valuePerAgent(numOfAgents) {
+	switch(numOfWalls()) {
+	case 4: return numOfAgents*2;
+	case 3: case 2: return numOfAgents*2-1;
+	case 1: return Math.ceil((numOfAgents-2)*7/4+2);
+	case 0: return numOfAgents;
+	}
+}
+
 $("#numOfAgents").change(function() {
 	var numOfAgents = parseInt($("#numOfAgents").val());
-	$("#pointsPerAgent").val(numOfAgents*2);
+	var pointsPerAgent = valuePerAgent(numOfAgents)+1;
+	$("#pointsPerAgent").val(pointsPerAgent);
 	$("#pointsPerAgent").trigger("change");
 })
 
 $("#pointsPerAgent").change(function() {
 	var numOfAgents = parseInt($("#numOfAgents").val());
 	var pointsPerAgent = parseInt($("#pointsPerAgent").val());
-	$("#guaranteedPointsPerAgent").val(Math.ceil(pointsPerAgent/(2*numOfAgents-1)));
+	$("#guaranteedPointsPerAgent").val(Math.ceil(pointsPerAgent/valuePerAgent(numOfAgents)));
 })
 
-var colors = ['blue', 'cyan', 'green', 'yellow', 'red', 'pink', 'black'];
+var colors = ['blue', 'cyan', 'green', 'yellow', 'pink', 'red', 'brown', 'black', 'grey'];
 $("#createStaircaseDemo").click(function() {
 	window.points.clear(); 
 	

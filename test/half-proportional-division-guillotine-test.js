@@ -18,7 +18,7 @@ var thinrect2 = new jsts.geom.Envelope(0,400, 0,90); // a 2-fat rectangle
 
 var testAlgorithm = jsts.algorithm.testAlgorithm;
 
-describe('4 walls algorithm', function() {
+describe.skip('4 walls algorithm', function() {
 	it('single agent with 2 points', function() {
 		var agent1 = [{x:100,y:100},{x:300,y:300}]; agent1.color='blue';
 		testAlgorithm(alg4walls, [[agent1], square], 2);
@@ -83,7 +83,7 @@ describe('4 walls algorithm', function() {
 	})
 })
 
-describe('3 walls algorithm', function() {
+describe.skip('3 walls algorithm', function() {
 	var agent1 = [{x:0,y:0},{x:100,y:400}];  agent1.color='blue';
 	it('single agent with 2 points and square', function() {
 		alg3walls([agent1], square,  1, jsts.Side.East).should.eql([{ minx: 0, maxx: 400, miny: 0, maxy: 400, color:'blue' }]);

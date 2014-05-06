@@ -55,7 +55,17 @@ jsts.Side = {
  * 
  * @return a list of rectangles; each rectangle is {minx,miny, maxx,maxy [,color]}.
  */
-jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(valueFunctions, envelope, maxAspectRatio) {
+jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
+	var landplots = jsts.algorithm.halfProportionalDivision(agentsValuePoints, envelope, maxAspectRatio);
+	return landplots.map(function(landplot) {
+		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
+		rect.color = landplot.color;
+		return rect;
+	});
+};
+
+jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
+	TRACE(10,"")
 	var landplots;
 	var openSides = [];
 	if (envelope.minx==-Infinity) openSides.push(jsts.Side.West);
@@ -63,10 +73,10 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(va
 	if (envelope.maxx== Infinity) openSides.push(jsts.Side.East);
 	if (envelope.maxy== Infinity) openSides.push(jsts.Side.North);
 	if (openSides.length==0) {
-		landplots = jsts.algorithm.halfProportionalDivision4Walls(valueFunctions, envelope, maxAspectRatio);
+		landplots = jsts.algorithm.halfProportionalDivision4Walls(agentsValuePoints, envelope, maxAspectRatio);
 	} else if (openSides.length==1) {
 		var openSide = openSides[0];
-		landplots = jsts.algorithm.halfProportionalDivision3Walls(valueFunctions, envelope, maxAspectRatio, openSide);
+		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSide);
 	} else if (openSides.length==2) {
 		openSides.sort();
 		var openSidesString = openSides.join("");
@@ -76,68 +86,55 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(va
 			"23": jsts.Side.South,
 			"03": jsts.Side.West,
 		}
-		if (!(openSidesString in mapOpenSidesStringToSouthernSide)) {
-			throw new Error("Cannot understand envelope "+JSON.stringify(envelope));
+		if (!(openSidesString in mapOpenSidesStringToSouthernSide)) {  
+			console.warn("Two opposite sides - treating as 3 walls "+JSON.stringify(envelope));
+			landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSides[0]);
+		} else {
+			var southernSide = mapOpenSidesStringToSouthernSide[openSidesString];
+			landplots = jsts.algorithm.halfProportionalDivision2Walls(agentsValuePoints, envelope, maxAspectRatio, southernSide);
 		}
-		var southernSide = mapOpenSidesStringToSouthernSide[openSidesString];
-		landplots = jsts.algorithm.halfProportionalDivision2Walls(valueFunctions, envelope, maxAspectRatio, southernSide);
 	} else if (openSides.length==3) {
 		var closedSide = (jsts.Side.North+jsts.Side.East+jsts.Side.South+jsts.Side.West) - (openSides[0]+openSides[1]+openSides[2]);
-		landplots = jsts.algorithm.halfProportionalDivision1Walls(valueFunctions, envelope, maxAspectRatio, /*southernSide=*/closedSide);
+		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	} else {  // all sides are open
 		var closedSide = jsts.Side.South;  // arbitrary; TEMPORARY
-		landplots = jsts.algorithm.halfProportionalDivision1Walls(valueFunctions, envelope, maxAspectRatio, /*southernSide=*/closedSide);
+		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	}
-	
-	return landplots.map(function(landplot) {
-		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
-		rect.color = landplot.color;
-		return rect;
-	});
-};
-
-jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, envelope, maxAspectRatio) {
-	TRACE(10,"")
-	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
-	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
-	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length, agentsValuePoints)
-	var landplots = runDivisionAlgorithm(
-			norm3Walls, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
-			valueFunctions, envelope, maxAspectRatio);
 	landplots.forEach(roundFields3);
 	return landplots;
 }
 
+
+jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, envelope, maxAspectRatio) {
+	var width = envelope.maxx-envelope.minx, height = envelope.maxy-envelope.miny;
+	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
+	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length, agentsValuePoints)
+	return runDivisionAlgorithm(
+			norm3Walls, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
+			valueFunctions, envelope, maxAspectRatio);
+}
+
 jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, envelope, maxAspectRatio, openSide) {
-	TRACE(10,"")
 	var southernSide = (openSide+2)%4;  // the southern side is opposite to the open side.
 	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints)
-	var landplots = runDivisionAlgorithm(
+	return runDivisionAlgorithm(
 			norm3Walls, southernSide,
 			valueFunctions, envelope, maxAspectRatio);
-	landplots.forEach(roundFields3);
-	return landplots;
 };
 
 jsts.algorithm.halfProportionalDivision2Walls = function(agentsValuePoints, envelope, maxAspectRatio, southernSide) {
-	TRACE(10,"")
 	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints);
-	var landplots = runDivisionAlgorithm(
+	return runDivisionAlgorithm(
 			norm2Walls, southernSide,
 			valueFunctions, envelope, maxAspectRatio);
-	landplots.forEach(roundFields3);
-	return landplots;
 };
 
 jsts.algorithm.halfProportionalDivision1Walls = function(agentsValuePoints, envelope, maxAspectRatio, closedSide) {
-	TRACE(10,"")
 	var southernSide = closedSide;
-	var valueFunctions = ValueFunction.createArray(2*agentsValuePoints.length-1, agentsValuePoints)
-	var landplots = runDivisionAlgorithm(
+	var valueFunctions = ValueFunction.createArray(Math.ceil((agentsValuePoints.length-2)*7/4+2), agentsValuePoints)
+	return runDivisionAlgorithm(
 			norm1Walls, southernSide,
 			valueFunctions, envelope, maxAspectRatio);
-	landplots.forEach(roundFields3);
-	return landplots;
 };
 
 /**
@@ -178,7 +175,9 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 	if (!maxAspectRatio) maxAspectRatio=1;
 
 	var rotateTransformation = {rotateQuarters: southernSide - jsts.Side.South};
+	//console.log("envelope="+JSON.stringify(envelope));
 	enveloper = jsts.algorithm.transformAxisParallelRectangle(rotateTransformation, {minx:envelope.minx, maxx:envelope.maxx, miny:envelope.miny, maxy:envelope.maxy});
+	//console.log("enveloper="+JSON.stringify(enveloper));
 
 	var width = enveloper.maxx-enveloper.minx, height = enveloper.maxy-enveloper.miny;
 	if (height<=0 && width<=0)
@@ -186,7 +185,9 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 	if (width<=0)
 		width = height/1000;
 	var scaleFactor = (isFinite(width)? 1/width: 1);
-	var translateFactor = (isFinite(width)? [-enveloper.minx,-enveloper.miny]: [0,0]);
+	var translateFactor = 
+		[isFinite(enveloper.minx)? -enveloper.minx: isFinite(enveloper.maxx)? -enveloper.maxx: 0,
+		 isFinite(enveloper.miny)? -enveloper.miny: isFinite(enveloper.maxy)? -enveloper.maxy: 0];
 	var yLength = height*scaleFactor;
 
 	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
@@ -269,6 +270,9 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 	var numOfCorners = corners.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
 	var yValues = numutils.sortedUniqueValues(corners, "y");
+	if (!isFinite(yValues[yValues.length-1]))
+			yValues.pop();
+//	console.log("yValues="+JSON.stringify(yValues))
 
 	// for each agent, calculate the acceptable corner square with the smallest height above the x axis (t = y+s):
 	var index = 0;
@@ -276,40 +280,26 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 		valueFunction.index = index++; // for removing the winning agent later on
 		var cornerSquares = [];
 		for (var c=1; c<numOfCorners-1; ++c) {
-//			var prev = corners[c-1];
 			var cur  = corners[c];
+//			console.log("cur="+JSON.stringify(cur))
 			var x = cur.x;
 			for (var iy=_.indexOf(yValues,cur.y,true); iy<yValues.length; ++iy) {
 				var y = yValues[iy];
 				var corner = {x:x, y:y};
-
 				var xEastWall = xValueOfFirstWallAtEast(y, corners, c);
+				var xWestWall = xValueOfFirstWallAtWest(y, corners, c);
+
 				var squareSizeEast = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NE");
+				var squareSizeWest = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NW");
+
+//				console.log("  corner="+JSON.stringify(corner)+" xEastWall="+xEastWall+" xWestWall="+xWestWall+" squareSizeEast="+squareSizeEast+" squareSizeWest="+squareSizeWest);
+
 				if (x+squareSizeEast<=xEastWall)
 					cornerSquares.push({minx:x, miny:y, maxx:x+squareSizeEast, maxy:y+squareSizeEast});
 
-				var xWestWall = xValueOfFirstWallAtWest(y, corners, c);
-				var squareSizeWest = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NW");
 				if (x-squareSizeWest>=xWestWall)
 					cornerSquares.push({maxx:x, miny:y, minx:x-squareSizeWest, maxy:y+squareSizeWest});
 			}
-//			var next = corners[c+1];
-//			var LShape = (prev.y>cur.y && cur.x<next.x);
-//			var JShape = (prev.x<cur.x && cur.y<next.y);
-//			var rShape = (prev.y<cur.y && cur.x<next.x);
-//			var רShape = (prev.x<cur.x && cur.y>next.y);
-
-//			if (LShape || rShape) { // cur.x<next.x
-//				var xValueOfWall = xValueOfFirstWallAtEast(corners, c);
-//				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NE");
-//				if (cur.x+squareSize<=xValueOfWall)
-//					cornerSquares.push({minx:cur.x, miny:cur.y, maxx:cur.x+squareSize, maxy:cur.y+squareSize});
-//			} else if (JShape || רShape) {   // prev.x<cur.x
-//				var xValueOfWall = xValueOfFirstWallAtWest(corners, c);
-//				var squareSize = valueFunction.sizeOfSquareWithValue(cur, requiredLandplotValue, "NW");
-//				if (cur.x-squareSize>=xValueOfWall)
-//					cornerSquares.push({maxx:cur.x, miny:cur.y, minx:cur.x-squareSize, maxy:cur.y+squareSize});
-//			}
 		}
 		valueFunction.square = _.min(cornerSquares, function(square){return square.maxy});
 	});
@@ -321,6 +311,8 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 
 	if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
 		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			console.log(util.inspect(valueFunctions,{depth:3}));
 		return [];
 	}
 
@@ -392,6 +384,8 @@ var staircase2walls = function(valueFunctions, corners, requiredLandplotValue) {
 	
 	if (!winningAgent.square || !isFinite(winningAgent.square.s)) {
 		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			console.dir(valueFunctions);
 		return [];
 	}
 
@@ -448,10 +442,10 @@ var staircase2walls = function(valueFunctions, corners, requiredLandplotValue) {
 var norm1Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 1 Wall Algorithm");
-	console.log(util.inspect(valueFunctions,{depth:3}));
+	//console.log(util.inspect(valueFunctions,{depth:3}));
 
 	var initialCorners = [{x:-2000,y:Infinity}, {x:-2000,y:0}, {x:2000,y:0}, {x:2000,y:Infinity}];
-	var maxVal = 2*numOfAgents-1;
+	var maxVal = 1;//2*numOfAgents-2;
 	var minVal = 1;
 	for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
 		var landplots = staircase3walls(valueFunctions, initialCorners, requiredLandplotValue);

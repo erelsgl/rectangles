@@ -11,7 +11,7 @@ require("./square-with-max-points");
 require("./corners");
 require("./transformations");
 require("./fair-division-of-points");
-require("./half-proportional-division");
+require("./half-proportional-division-staircase");
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
 		return object.map(function(cur) {
