@@ -49,7 +49,8 @@ window.updateStatus = function() {
 function drawShapes(err, shapes) {
 	for (var i in shapes) {
 		var shape = shapes[i];
-		window.landplots.add(shape, {fill:shape.color, stroke:shape.color});
+		var style = (shape.color? {fill:shape.color, stroke:shape.color}: shape);
+		window.landplots.add(shape, style);
 	}
 	window.updateStatus();
 	$(".interrupt").attr("disabled","disabled");

@@ -29,8 +29,8 @@ points2.color='blue';
 console.log("One person can get all points");
 console.log(jsts.stringify(factory.createHalfProportionalDivision([points1],halfplane)));
 
-//console.log("Two people can get at least 1/3 of the points");
-//console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points1],halfplane)));
-//console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points2],halfplane)));
+console.log("Two people can get at least 1/3 of the points");
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points1],halfplane)));
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points2],halfplane)));
 //
 

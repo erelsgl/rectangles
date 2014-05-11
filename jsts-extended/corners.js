@@ -6,6 +6,7 @@
  */
 
 var jsts = require('jsts');
+var _ = require('underscore')
 
 //var TRACE = console.log;
 var TRACE = function(){};
@@ -15,7 +16,7 @@ var TRACE = function(){};
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
  * @return a new list of corners describing the border after the landplot has been annexed. 
  */
-jsts.algorithm.updatedCorners = function(corners, landplot) {
+jsts.algorithm.updatedCornersNorth = function(corners, landplot) {
 	if (!Array.isArray(corners))
 		throw new Error("corners: expected array but got "+JSON.stringify(corners));
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
@@ -75,7 +76,97 @@ jsts.algorithm.updatedCorners = function(corners, landplot) {
 }
 
 
-function old(corners, landplot) {
+
+/**
+ * @param corners a list of points {x:,y:}, describing a north-eastern border. x is non-increasing and y is non-decreasing. Only southwestern corners are listed (i.e. only every other point).
+ * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southwestern corner conicides with one of the existing corners.
+ * @return a new list of corners describing the border after the landplot has been annexed. 
+ */
+jsts.algorithm.updatedCornersNorthEast = function(corners, landplot) {
+	if (!Array.isArray(corners))
+		throw new Error("corners: expected array but got "+JSON.stringify(corners));
+	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
+		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
+
+	TRACE("corners: "+JSON.stringify(corners));
+	TRACE("landplot: "+JSON.stringify(landplot));
+	var numOfCorners = corners.length;
+	var newCorners = [];
+	var c = 0;
+
+	while (c<numOfCorners && corners[c].x>=landplot.maxx) {  // add corners to the southeast of the landplot
+		newCorners.push(corners[c]);
+		++c;
+	}
+	// HERE corners[c].x<landplot.maxx
+	newCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
+	while (c<numOfCorners && corners[c].y<landplot.maxy) { // skip corners shaded by the landplot
+		++c;
+	}
+	// HERE corners[c].y>=landplot.maxy
+	if (c>0)
+		newCorners.push({x:corners[c-1].x, y:landplot.maxy});  // add northeast new corner
+	while (c<numOfCorners) {  // add corners to the northwest of the landplot
+		newCorners.push(corners[c]);
+		++c;
+	}
+	
+	return newCorners;
+}
+
+
+/**
+ * @param corners a list of points {x:,y:}, describing a north-western border. x is non-decreasing and y is non-decreasing. Only southeastern corners are listed (i.e. only every other point).
+ * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southeastern corner conicides with one of the existing corners.
+ * @return a new list of corners describing the border after the landplot has been annexed. 
+ */
+jsts.algorithm.updatedCornersNorthWest = function(corners, landplot) {
+	if (!Array.isArray(corners))
+		throw new Error("corners: expected array but got "+JSON.stringify(corners));
+	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
+		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
+
+	TRACE("corners: "+JSON.stringify(corners));
+	TRACE("landplot: "+JSON.stringify(landplot));
+	var numOfCorners = corners.length;
+	var newCorners = [];
+	var c = 0;
+
+	while (c<numOfCorners && corners[c].x<=landplot.minx) {  // add corners to the southwest of the landplot
+		newCorners.push(corners[c]);
+		++c;
+	}
+	// HERE corners[c].x>landplot.minx
+	newCorners.push({x:landplot.minx, y:corners[c].y});  // add southeast new corner
+	while (c<numOfCorners && corners[c].y<landplot.maxy) { // skip corners shaded by the landplot
+		++c;
+	}
+	// HERE corners[c].y>=landplot.maxy
+	if (c>0)
+		newCorners.push({x:corners[c-1].x, y:landplot.maxy});  // add northwest new corner
+	while (c<numOfCorners) {  // add corners to the northwest of the landplot
+		newCorners.push(corners[c]);
+		++c;
+	}
+	
+	return newCorners;
+}
+
+jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corners, requiredLandplotValue, direction, origin) {
+	var cornerSquares = corners.map(function(corner) {
+		var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, direction);
+		var taxicabDistance = Math.abs(corner.x-origin.x)+Math.abs(corner.y-origin.y)+squareSize;
+		return {x:corner.x, y:corner.y, s:squareSize, t:taxicabDistance};
+	});
+	var minDistanceSquare = _.min(cornerSquares, function(square){return square.t});
+	if (!minDistanceSquare)
+		minDistanceSquare = {t: Infinity};
+	return minDistanceSquare;
+}
+
+
+
+function oldNorth(corners, landplot) {
 	if (!Array.isArray(corners))
 		throw new Error("corners: expected array but got "+JSON.stringify(corners));
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
