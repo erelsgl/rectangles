@@ -79,7 +79,7 @@ window.drawFairDivision = function(maxSlimness) {
 		});
 	}
 	drawShapes(null,fairDivision);
-	setStatus(newStatus);
+	setStatus($("#status").text()+" "+newStatus);
 	
 	if (fairDivision.length<pointsPerAgent.length)
 		alert("Not enough land-plots! Please call Erel 09-7431290");

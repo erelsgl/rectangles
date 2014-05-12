@@ -431,8 +431,14 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
 var norm1Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
 	//var initialCorners = [{x:-800,y:Infinity}, {x:-800,y:0}, {x:800,y:0}, {x:800,y:Infinity}];
 	//return staircase3walls(valueFunctions, initialCorners, requiredLandplotValue);
-	var origin = {x:0,y:0};
-	return staircase1walls(valueFunctions, origin, [origin], [origin], requiredLandplotValue);
+	var bestLandplots = [];
+	for (var x=0; x<=400; x+=10) {
+		var origin = {x:x,y:0};
+		var landplots = staircase1walls(valueFunctions, origin, [origin], [origin], requiredLandplotValue);
+		if (landplots.length>bestLandplots.length)
+			bestLandplots = landplots;
+	}
+	return bestLandplots;
 }
 
 /**
