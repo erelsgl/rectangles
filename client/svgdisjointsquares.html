@@ -104,6 +104,13 @@ Add a point by clicking a color. It is recommended to add no more than <span id=
 
 <script type='text/javascript'>$(document).ready(function() {
 
+// grid lines:
+window.svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
+window.svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
+window.svgpaper.line(0,0, 400,400).stroke({ width: 1, color:'#ccc' });
+window.svgpaper.line(0,400, 400,0).stroke({ width: 1, color:'#ccc' });
+
+
 function drawShapesAndUpdateLink() {
 	window.drawShapesFromPoints();
 	updatePermaLink();

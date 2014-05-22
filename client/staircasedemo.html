@@ -77,6 +77,11 @@ td {vertical-align:top}
 
 
 <script type='text/javascript'>$(document).ready(function() {
+	
+// grid lines:
+window.svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
+window.svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
+
 var drawFairDivision = function() {
 	$(".interrupt").removeAttr("disabled");
 	window.landplots.clear();
