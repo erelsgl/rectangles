@@ -7,8 +7,8 @@
 
 var jsts = require('jsts');
 var _ = require('underscore')
+_.mixin(require("../../argminmax/index"));
 
-//var TRACE = console.log;
 var TRACE = function(){};
 
 /**
@@ -167,11 +167,12 @@ jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corn
 
 
 /**
- * Auxilliary function - calculate, for each level, its most distant x-values that do not run through walls.
+ * Calculate, for each level, its most distant x-values that do not run through walls.
  * @param levels sequence of [{x,y}] ordered by increasing x. 
  * - Adds, to each level fields xw (west) and xe (east), such that xw <= x < xe.
  * @param xFarwest, xFareast - x-values of the extreme boundaries
  * @return levels after the change.
+ * @deprecated not used anymore.
  */
 jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
 	// add the xw field:
@@ -214,6 +215,55 @@ jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
 }
 
 
+/**
+ * Calculate a list of rectangles covering the cake defined by the given levels.
+ * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
+ * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
+ */
+jsts.algorithm.rectanglesCoveringLevels = function(levelsParam) {
+	var levels = levelsParam.slice(0);
+	var covering = [];
+	
+	while (levels.length>0) {
+		
+		// cover the lowest level:
+		var iLowestLevel = _.argmin(levels, function(level){return level.y});
+		var level = levels[iLowestLevel];
+		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
+		
+		// remove the lowest level:
+		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
+		var yWest = (west? west.y: Infinity);
+		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
+		var yEast = (east? east.y: Infinity);
+		
+		if (yWest < yEast) {
+			rectangle.maxy = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
+		} else if (yEast < yWest) {
+			rectangle.maxy = yEast;
+			levels.splice(
+					/* go to index */ iLowestLevel, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
+		} else if (west && east) { //  && yWest==yEast
+			rectangle.maxy = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      3 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
+		} else {  // a single level remaining
+			rectangle.maxy = Infinity;
+			levels.splice(iLowestLevel,1);
+		}
+		covering.push(rectangle);  
+	}
+	
+	return covering;
+}
 
 
 function oldNorth(corners, landplot) {

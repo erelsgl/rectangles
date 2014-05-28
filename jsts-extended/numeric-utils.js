@@ -1,5 +1,5 @@
 /**
- * Some utils for structss of numbers.
+ * Some utils for structs of numbers.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-04

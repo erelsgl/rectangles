@@ -35,7 +35,7 @@ describe('updatedCornersNorth', function() {
 			[{x:0,y:Infinity},{x:0,y:12},{x:10,y:12},{x:10,y:Infinity}]);
 	})
 	
-	it('a flying square', function() {
+	it('a hovering square', function() {
 		var initialCorners = [{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:10,y:0},{x:10,y:Infinity}];
 		updatedCornersNorth(initialCorners, {minx:6,miny:6,maxx:8,maxy:8}).should.eql(
 				[{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:6,y:0},{x:6,y:8},{x:8,y:8},{x:8,y:0},{x:10,y:0},{x:10,y:Infinity}]);
@@ -44,13 +44,56 @@ describe('updatedCornersNorth', function() {
 	})
 })
 
-var calculateSpansOfLevels = jsts.algorithm.calculateSpansOfLevels;
-var xFarWest = 0;
-var xFarEast = 1;
-describe.only('calculateSpansOfLevels', function() {
-	it('simple initial level set', function() {
-		calculateSpansOfLevels([{x:0,y:0}], xFarWest, xFarEast).should.eql(
-			[{x:0,y:0,xw:0,xe:1}]);
+//var calculateSpansOfLevels = jsts.algorithm.calculateSpansOfLevels;
+//var xFarWest = 0;  var xFarEast = 1;
+//describe.only('calculateSpansOfLevels', function() {
+//	it('simple initial level set', function() {
+//		calculateSpansOfLevels([{x:0,y:0}], xFarWest, xFarEast).should.eql(
+//			[{x:0,y:0,xw:0,xe:1}]);
+//	})
+//})
+//
+
+
+var rectanglesCoveringLevels = jsts.algorithm.rectanglesCoveringLevels;
+describe.only('rectanglesCoveringLevels', function() {
+	it('single level', function() {
+		rectanglesCoveringLevels([{y:0,minx:0,maxx:1}]).should.eql(
+			[{minx:0,maxx:1,miny:0,maxy:Infinity}]);
+	})
+	it('two levels 01', function() {
+		rectanglesCoveringLevels([{y:0,minx:0,maxx:1}, {y:1,minx:1,maxx:2}]).should.eql(
+			[{minx:0,maxx:1,miny:0,maxy:1}, {minx:0,maxx:2,miny:1,maxy:Infinity}]);
+	})
+	it('two levels 10', function() {
+		rectanglesCoveringLevels([{y:1,minx:0,maxx:1}, {y:0,minx:1,maxx:2}]).should.eql(
+			[{minx:1,maxx:2,miny:0,maxy:1}, {minx:0,maxx:2,miny:1,maxy:Infinity}]);
+	})
+	it('three levels 012', function() {
+		rectanglesCoveringLevels([{y:0,minx:0,maxx:1}, {y:1,minx:1,maxx:2}, {y:2,minx:2,maxx:4}]).should.eql(
+			[{minx:0,maxx:1,miny:0,maxy:1}, {minx:0,maxx:2,miny:1,maxy:2}, {minx:0,maxx:4,miny:2,maxy:Infinity}]);
+	})
+	it('three levels 102', function() {
+		rectanglesCoveringLevels([{y:1,minx:0,maxx:1}, {y:0,minx:1,maxx:2}, {y:2,minx:2,maxx:4}]).should.eql(
+			[{minx:1,maxx:2,miny:0,maxy:1}, {minx:0,maxx:2,miny:1,maxy:2}, {minx:0,maxx:4,miny:2,maxy:Infinity}]);
+	})
+	it('three levels 021', function() {
+		rectanglesCoveringLevels([{y:0,minx:0,maxx:1}, {y:2,minx:1,maxx:2}, {y:1,minx:2,maxx:4}]).should.eql(
+			[{minx:0,maxx:1,miny:0,maxy:2}, {minx:2,maxx:4,miny:1,maxy:2}, {minx:0,maxx:4,miny:2,maxy:Infinity}]);
+	})
+	it('three levels 201', function() {
+		rectanglesCoveringLevels([{y:2,minx:0,maxx:1}, {y:0,minx:1,maxx:2}, {y:1,minx:2,maxx:4}]).should.eql(
+			[{minx:1,maxx:2,miny:0,maxy:1}, {minx:1,maxx:4,miny:1,maxy:2}, {minx:0,maxx:4,miny:2,maxy:Infinity}]);
+	})
+	it('three levels 210', function() {
+		rectanglesCoveringLevels([{y:2,minx:0,maxx:1}, {y:1,minx:1,maxx:2}, {y:0,minx:2,maxx:4}]).should.eql(
+			[{minx:2,maxx:4,miny:0,maxy:1}, {minx:1,maxx:4,miny:1,maxy:2}, {minx:0,maxx:4,miny:2,maxy:Infinity}]);
+	})
+	it('three levels 120', function() {
+		rectanglesCoveringLevels([{y:1,minx:0,maxx:1}, {y:2,minx:1,maxx:2}, {y:0,minx:2,maxx:4}]).should.eql(
+			[{minx:2,maxx:4,miny:0,maxy:2}, {minx:0,maxx:1,miny:1,maxy:2}, {minx:0,maxx:4,miny:2,maxy:Infinity}]);
 	})
 })
+
+
 
