@@ -1,4 +1,6 @@
 var jsts = require("../jsts-extended");
+jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION = true;   // keep a single value function as a value function of a single agent
+
 var factory = new jsts.geom.GeometryFactory();
 
 var sukka    = new jsts.geom.Envelope(0,400, 0,Infinity);
@@ -26,11 +28,11 @@ var points2 =
 	 ];
 points2.color='blue';
 
-//console.log("One person can get all points");
-//console.log(jsts.stringify(factory.createHalfProportionalDivision([points1],sukka)));
+console.log("One person can get all points");
+console.log(jsts.stringify(factory.createHalfProportionalDivision([points1],sukka)));
 
-console.log("Two people can get at least 1/3 of the points");
-console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points1],sukka)));
+//console.log("Two people can get at least 1/3 of the points");
+//console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points1],sukka)));
 //console.log(jsts.stringify(factory.createHalfProportionalDivision([points1, points2],sukka)));
 
 
