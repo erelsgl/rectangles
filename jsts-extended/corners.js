@@ -7,7 +7,7 @@
 
 var jsts = require('jsts');
 var _ = require('underscore')
-_.mixin(require("../../argminmax/index"));
+_.mixin(require("argminmax"));
 
 var TRACE = function(){};
 
