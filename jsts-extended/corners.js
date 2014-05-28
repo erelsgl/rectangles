@@ -165,6 +165,36 @@ jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corn
 }
 
 
+/**
+ * @param levels a list of {y:,minx:,maxx:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
+ * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
+ * @return a new list of levels  describing the border after the landplot has been annexed. 
+ */
+jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
+	if (!Array.isArray(levels))
+		throw new Error("levels: expected array but got "+JSON.stringify(levels));
+	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
+		throw new Error("landplot: expected fields not found: "+JSON.stringify(landplot));
+	TRACE("levels: "+JSON.stringify(levels));
+	TRACE("landplot: "+JSON.stringify(landplot));
+
+	var numOfLevels = levels.length;
+	var newLevels = [];
+	var c = 0;
+
+	// add all corners to the west of minx:
+	while (c<numOfLevels && levels[c].maxx<landplot.minx) {
+		TRACE("west: "+JSON.stringify(levels[c]));
+		newLevels.push(levels[c++]);
+	}
+	
+	// HERE levels[c].maxx >= landplot.minx
+	newLevels.push({y:landplot.maxy, minx:landplot.minx, maxx:landplot.maxx});
+
+	return newLevels;
+}
+
+
 
 /**
  * Calculate, for each level, its most distant x-values that do not run through walls.
