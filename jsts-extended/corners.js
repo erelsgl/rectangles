@@ -166,6 +166,56 @@ jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corn
 
 
 
+/**
+ * Auxilliary function - calculate, for each level, its most distant x-values that do not run through walls.
+ * @param levels sequence of [{x,y}] ordered by increasing x. 
+ * - Adds, to each level fields xw (west) and xe (east), such that xw <= x < xe.
+ * @param xFarwest, xFareast - x-values of the extreme boundaries
+ * @return levels after the change.
+ */
+jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
+	// add the xw field:
+	var westWalls = [{y:Infinity, x:xFarWest}];  // ordered from west to east
+	for (var l=0; l<levels.length; ++l) {
+		var level = levels[l];
+
+		// add the xw field:
+		for (var w=westWalls.length-1; w>=0; --w) 
+			if (westWalls[w].y>level.y)
+				level.xw = westWalls[w].x;
+		
+		// add a new westWall:
+		if (l+1<levels.length) {
+			var nextLevel = levels[l+1];
+			if (nextLevel.y<level.y)
+				westWalls.push[{y:level.y, x:nextLevel.x}]
+		}
+	}
+
+	// add the xe field:
+	var eastWalls = [{y:Infinity, x:xFarEast}];  // ordered from east to west
+	for (var l=levels.length-1; l>=0; --l) {
+		var level = levels[l];
+
+		// add the xe field:
+		for (var w=eastWalls.length-1; w>=0; --w) 
+			if (eastWalls[w].y>level.y)
+				level.xe = eastWalls[w].x;
+
+		// add a new eastWall:
+		if (l-1>=0) {
+			var nextLevel = levels[l-1];
+			if (nextLevel.y<level.y)
+				eastWalls.push[{y:level.y, x:level.x}]
+		}
+	}
+
+	return levels;
+}
+
+
+
+
 function oldNorth(corners, landplot) {
 	if (!Array.isArray(corners))
 		throw new Error("corners: expected array but got "+JSON.stringify(corners));

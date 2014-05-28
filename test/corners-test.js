@@ -44,3 +44,13 @@ describe('updatedCornersNorth', function() {
 	})
 })
 
+var calculateSpansOfLevels = jsts.algorithm.calculateSpansOfLevels;
+var xFarWest = 0;
+var xFarEast = 1;
+describe.only('calculateSpansOfLevels', function() {
+	it('simple initial level set', function() {
+		calculateSpansOfLevels([{x:0,y:0}], xFarWest, xFarEast).should.eql(
+			[{x:0,y:0,xw:0,xe:1}]);
+	})
+})
+

@@ -280,7 +280,11 @@ var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
 
 	// for each agent, calculate all level squares with value 1:
 	valueFunctions.forEach(function(valueFunction) {
-		var cornerSquares = [];
+		var levelSquares = [];
+		for (var i=0; i<levelsSortedByY.length; ++i) {
+			var level = levelsSortedByY[i];
+			
+		}
 		for (var c=1; c<numOfCorners-1; ++c) {
 			var cur  = corners[c];
 			var x = cur.x;
