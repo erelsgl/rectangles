@@ -15,8 +15,7 @@ canvas.height = 400;
 
 window.svgpaper = SVG('svg');
 window.svgpaper.size(canvas.width,canvas.height);
-window.svgpaper.line(0,200, 400,200).stroke({ width: 1, color:'#ccc' });
-window.svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
+
 
 
 // var MAX_POINT_COUNT = parseInt($("#max-point-count").text());
@@ -183,7 +182,7 @@ $(".export").click(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":8,"underscore":24}],2:[function(require,module,exports){
+},{"../jsts-extended":8,"underscore":25}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -446,6 +445,7 @@ var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 	this.valuePerPoint = valuePerPoint;
 	this.pointsPerUnitValue = 1/valuePerPoint;
 	this.color = color? color: points.color? points.color: null;
+	this.index = points.index? points.index: null;
 	this.setPoints(points);
 };
 
@@ -549,7 +549,7 @@ ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot
 
 module.exports = ValueFunction;
 
-},{"underscore":24}],4:[function(require,module,exports){
+},{"underscore":25}],4:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -559,9 +559,10 @@ module.exports = ValueFunction;
 
 var jsts = require('jsts');
 var _ = require('underscore')
+_.mixin(require("argminmax"));
 
-//var TRACE = console.log;
-var TRACE = function(){};
+//var TRACE = function(){};
+var TRACE = console.log;
 
 /**
  * @param corners a list of points {x:,y:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
@@ -717,6 +718,160 @@ jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corn
 }
 
 
+/**
+ * @param levels a list of {y:,minx:,maxx:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
+ * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
+ * @return a new list of levels  describing the border after the landplot has been annexed. 
+ */
+jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
+	if (!Array.isArray(levels))
+		throw new Error("levels: expected array but got "+JSON.stringify(levels));
+	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
+		throw new Error("landplot: expected fields not found: "+JSON.stringify(landplot));
+	TRACE("  Update levels: "+JSON.stringify(levels));
+	TRACE("  with landplot: "+JSON.stringify(landplot));
+
+	var numOfLevels = levels.length;
+	var newLevels = [];
+	var c = 0;
+
+	// add all levels entirely to the west of minx:
+	while (c<numOfLevels && levels[c].maxx<=landplot.minx) {
+		TRACE("  west: "+JSON.stringify(levels[c]));
+		newLevels.push(levels[c++]);
+	}
+	
+	// HERE levels[c].maxx > landplot.minx
+
+	if (levels[c].minx < landplot.minx)
+		newLevels.push({y:levels[c].y, minx:levels[c].minx, maxx:landplot.minx});
+
+	// HERE we have added all levels with minx to the west of landplot.minx
+
+	newLevels.push({y:landplot.maxy, minx:landplot.minx, maxx:landplot.maxx});
+	
+	// skip all levels to the south of y:
+	while (c<numOfLevels && levels[c].minx<landplot.maxx) {
+		TRACE("  south: "+JSON.stringify(levels[c]));
+		c++;
+	}
+	c--;
+	if (levels[c].maxx > landplot.maxx)
+		newLevels.push({y:levels[c].y, minx:landplot.maxx, maxx:levels[c].maxx});
+	c++;
+	
+	// HERE levels[c].minx >= landplot.maxx
+
+	// add all levels entirely to the west of minx:
+	while (c<numOfLevels) {
+		TRACE("  east: "+JSON.stringify(levels[c]));
+		newLevels.push(levels[c++]);
+	}
+	
+	return newLevels;
+}
+
+
+
+/**
+ * Calculate, for each level, its most distant x-values that do not run through walls.
+ * @param levels sequence of [{x,y}] ordered by increasing x. 
+ * - Adds, to each level fields xw (west) and xe (east), such that xw <= x < xe.
+ * @param xFarwest, xFareast - x-values of the extreme boundaries
+ * @return levels after the change.
+ * @deprecated not used anymore.
+ */
+jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
+	// add the xw field:
+	var westWalls = [{y:Infinity, x:xFarWest}];  // ordered from west to east
+	for (var l=0; l<levels.length; ++l) {
+		var level = levels[l];
+
+		// add the xw field:
+		for (var w=westWalls.length-1; w>=0; --w) 
+			if (westWalls[w].y>level.y)
+				level.xw = westWalls[w].x;
+		
+		// add a new westWall:
+		if (l+1<levels.length) {
+			var nextLevel = levels[l+1];
+			if (nextLevel.y<level.y)
+				westWalls.push[{y:level.y, x:nextLevel.x}]
+		}
+	}
+
+	// add the xe field:
+	var eastWalls = [{y:Infinity, x:xFarEast}];  // ordered from east to west
+	for (var l=levels.length-1; l>=0; --l) {
+		var level = levels[l];
+
+		// add the xe field:
+		for (var w=eastWalls.length-1; w>=0; --w) 
+			if (eastWalls[w].y>level.y)
+				level.xe = eastWalls[w].x;
+
+		// add a new eastWall:
+		if (l-1>=0) {
+			var nextLevel = levels[l-1];
+			if (nextLevel.y<level.y)
+				eastWalls.push[{y:level.y, x:level.x}]
+		}
+	}
+
+	return levels;
+}
+
+
+/**
+ * Calculate a list of rectangles covering the cake defined by the given levels.
+ * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
+ * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
+ */
+jsts.algorithm.rectanglesCoveringLevels = function(levelsParam) {
+	var levels = levelsParam.slice(0);
+	var covering = [];
+	
+	while (levels.length>0) {
+		
+		// cover the lowest level:
+		var iLowestLevel = _.argmin(levels, function(level){return level.y});
+		var level = levels[iLowestLevel];
+		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
+		
+		// remove the lowest level:
+		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
+		var yWest = (west? west.y: Infinity);
+		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
+		var yEast = (east? east.y: Infinity);
+		
+		if (yWest < yEast) {
+			rectangle.maxy = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
+		} else if (yEast < yWest) {
+			rectangle.maxy = yEast;
+			levels.splice(
+					/* go to index */ iLowestLevel, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
+		} else if (west && east) { //  && yWest==yEast
+			rectangle.maxy = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      3 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
+		} else {  // a single level remaining
+			rectangle.maxy = Infinity;
+			levels.splice(iLowestLevel,1);
+		}
+		covering.push(rectangle);  
+	}
+	
+	return covering;
+}
+
 
 function oldNorth(corners, landplot) {
 	if (!Array.isArray(corners))
@@ -817,7 +972,7 @@ function oldNorth(corners, landplot) {
 	return remainingCorners;
 }
 
-},{"jsts":21,"underscore":24}],5:[function(require,module,exports){
+},{"argminmax":19,"jsts":22,"underscore":25}],5:[function(require,module,exports){
 /**
  * Adds to jsts.geom some simple utility functions related to rectangles.
  * @author Erel Segal-Halevi
@@ -958,7 +1113,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":5,"./numeric-utils":12,"./square-with-max-points":17,"jsts":21,"underscore":24}],7:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":5,"./numeric-utils":12,"./square-with-max-points":17,"jsts":22,"underscore":25}],7:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -976,6 +1131,8 @@ require("./corners");
 var numutils = require("./numeric-utils")
 
 var _ = require("underscore");
+_.mixin(require("argminmax"));
+
 var util = require("util");
 var ValueFunction = require("./ValueFunction");
 
@@ -1000,7 +1157,8 @@ jsts.Side = {
 };
 
 
-
+jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION = false;  // convert a single value function to multi agents with the same value
+//jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION = true;   // keep a single value function as a value function of a single agent
 
 
 /**
@@ -1158,18 +1316,18 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 		 {translate: translateFactor},
 		 {scale: scaleFactor}];
 
-	//console.log("agentsValuePoints="+JSON.stringify(agentsValuePoints))
+	var index = 0;
 	var transformedValuePoints = agentsValuePoints.map(function(points) {
 		// transform the points of the agent to the envelope [0,1]x[0,L]:
 		var newPoints = 	jsts.algorithm.pointsInEnvelope(points, envelope)
 			.map(jsts.algorithm.transformedPoint.bind(0,transformation));
 		newPoints.color = points.color;
+		newPoints.index = index++;  // remember the index of the agent; it is used by the normalized functions for keeping track of who already got a land-plot
 		return newPoints;
 	});
-	//console.log("transformedValuePoints="+JSON.stringify(transformedValuePoints))
 
-	if (transformedValuePoints.length>1)  {  // subjective valuations
-		var transformedValueFunctions = ValueFunction.createArray(valuePerAgent, transformedValuePoints)
+	if (transformedValuePoints.length>1 || jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION)  {  // subjective valuations
+		var transformedValueFunctions = ValueFunction.createArray(valuePerAgent, transformedValuePoints);
 		var maxVal = valuePerAgent;
 		var minVal = 1;
 		var landplots = [];
@@ -1218,9 +1376,77 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
  * - Landplots may overflow the northern border
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
-	var initialCorners = [{x:0,y:Infinity}, {x:0,y:0}, {x:1,y:0}, {x:1,y:Infinity}];
-	return staircase3walls(valueFunctions, initialCorners, requiredLandplotValue);
+	//var initial = [{x:0,y:Infinity}, {x:0,y:0}, {x:1,y:0}, {x:1,y:Infinity}];  // corners
+	var initial = [{y:0,minx:0,maxx:1}];  // levels 
+	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
 }
+
+/**
+ * Normalized 3-walls staircase algorithm:
+ * - valueFunctions.length>=1
+ * - levels.length >= 1; each level is represented by {y,minx,maxx}.
+ * - levels are ordered by non-decreasing x value, from west to east.
+ * - Value per agent: at least 2*n-2+levels.length
+ */
+var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	var numOfLevels = levels.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfLevels+" levels: "+JSON.stringify(levels));
+
+	var rectangles = jsts.algorithm.rectanglesCoveringLevels(levels);
+//	console.dir(rectangles);
+
+	// for each agent, calculate all level squares with value 1:
+	valueFunctions.forEach(function(valueFunction) {
+		var levelSquares = [];
+		
+		for (var i=0; i<rectangles.length; ++i) {
+			var rectangle = rectangles[i];
+			var minx=rectangle.minx, maxx=rectangle.maxx, miny=rectangle.miny;
+			var squareSizeEast = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
+			var squareSizeWest = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
+//			console.log("squareSizeEast="+squareSizeEast+" squareSizeWest="+squareSizeWest)
+
+			if (minx+squareSizeEast <= maxx)
+				levelSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast});
+
+			if (maxx-squareSizeWest >= minx)
+				levelSquares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest});
+		}
+		
+//		console.dir(levelSquares);
+		valueFunction.square = _.min(levelSquares, function(square){return square.maxy});
+	});
+
+	// get the agent with the square with the smallest height overall:
+	var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
+		return valueFunction.square.maxy;
+	});
+	var winningAgent = valueFunctions[iWinningAgent];
+
+	if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
+		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			console.log(util.inspect(valueFunctions,{depth:3}));
+		return [];
+	}
+
+	var landplot = winningAgent.square;
+	if (winningAgent.color) landplot.color = winningAgent.color;
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
+	
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+	var remainingLevels = jsts.algorithm.updatedLevelsNorth(levels, landplot);
+	var remainingLandplots = staircase3walls(remainingValueFunctions, remainingLevels, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
+}
+
+
+
 
 var xValueOfFirstWallAtEast = function(y, corners, c) {
 	for (var cc=c+1; cc<corners.length; ++cc) {
@@ -1247,23 +1473,19 @@ var xValueOfFirstWallAtWest = function(y, corners, c) {
  * - corners are ordered by non-decreasing x value, from the NW to the SW to the SE to the NE.
  * - Value per agent: at least 2*n-2+(corners.length-3)
  */
-var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
+var staircase3walls_workingButOld = function(valueFunctions, corners, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	var numOfCorners = corners.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
 	var yValues = numutils.sortedUniqueValues(corners, "y");
 	if (!isFinite(yValues[yValues.length-1]))
 			yValues.pop();
-//	console.log("yValues="+JSON.stringify(yValues))
 
 	// for each agent, calculate the acceptable corner square with the smallest height above the x axis (t = y+s):
-	var index = 0;
 	valueFunctions.forEach(function(valueFunction) {
-		valueFunction.index = index++; // for removing the winning agent later on
 		var cornerSquares = [];
 		for (var c=1; c<numOfCorners-1; ++c) {
 			var cur  = corners[c];
-//			console.log("cur="+JSON.stringify(cur))
 			var x = cur.x;
 			for (var iy=_.indexOf(yValues,cur.y,true); iy<yValues.length; ++iy) {
 				var y = yValues[iy];
@@ -1273,8 +1495,6 @@ var staircase3walls = function(valueFunctions, corners, requiredLandplotValue) {
 
 				var squareSizeEast = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NE");
 				var squareSizeWest = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NW");
-
-//				console.log("  corner="+JSON.stringify(corner)+" xEastWall="+xEastWall+" xWestWall="+xWestWall+" squareSizeEast="+squareSizeEast+" squareSizeWest="+squareSizeWest);
 
 				if (x+squareSizeEast<=xEastWall)
 					cornerSquares.push({minx:x, miny:y, maxx:x+squareSizeEast, maxy:y+squareSizeEast});
@@ -1340,9 +1560,7 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 2-walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
 
 	// for each agent, calculate the acceptable corner square with the smallest taxicab distance from the origin:
-	var index = 0;
 	valueFunctions.forEach(function(valueFunction) {
-		valueFunction.index = index++; // for removing the winning agent later on
 		valueFunction.square = jsts.algorithm.cornerSquareWithMinTaxicabDistance(valueFunction, corners, requiredLandplotValue, "NE", origin)
 	});
 
@@ -1414,9 +1632,7 @@ var staircase1walls = function(valueFunctions, origin, westCorners, eastCorners,
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 1-wall staircase algorithm with origin="+JSON.stringify(origin)+" westCorners="+JSON.stringify(westCorners)+" eastCorners="+JSON.stringify(eastCorners));
 
 	// for each agent, calculate the acceptable corner square with the smallest taxicab distance from the origin:
-	var index = 0;
 	valueFunctions.forEach(function(valueFunction) {
-		valueFunction.index = index++; // for removing the winning agent later on
 		valueFunction.eastSquare = jsts.algorithm.cornerSquareWithMinTaxicabDistance(valueFunction, eastCorners, requiredLandplotValue, "NE", origin);
 		valueFunction.westSquare = jsts.algorithm.cornerSquareWithMinTaxicabDistance(valueFunction, westCorners, requiredLandplotValue, "NW", origin);
 	});
@@ -1520,7 +1736,7 @@ var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 }
 
 
-},{"./AxisParallelRectangle":2,"./ValueFunction":3,"./corners":4,"./factory-utils":5,"./numeric-utils":12,"./point-utils":14,"./square-with-max-points":17,"./transformations":18,"jsts":21,"underscore":24,"util":28}],8:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./ValueFunction":3,"./corners":4,"./factory-utils":5,"./numeric-utils":12,"./point-utils":14,"./square-with-max-points":17,"./transformations":18,"argminmax":19,"jsts":22,"underscore":25,"util":29}],8:[function(require,module,exports){
 var jsts = require("jsts");
 require("./intersection-cache");
 require("./factory-utils");
@@ -1545,7 +1761,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./corners":4,"./factory-utils":5,"./fair-division-of-points":6,"./half-proportional-division-staircase":7,"./intersection-cache":9,"./maximum-disjoint-set-async":10,"./maximum-disjoint-set-sync":11,"./point-utils":14,"./representative-disjoint-set-sync":15,"./shapes-touching-points":16,"./square-with-max-points":17,"./transformations":18,"jsts":21}],9:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./corners":4,"./factory-utils":5,"./fair-division-of-points":6,"./half-proportional-division-staircase":7,"./intersection-cache":9,"./maximum-disjoint-set-async":10,"./maximum-disjoint-set-sync":11,"./point-utils":14,"./representative-disjoint-set-sync":15,"./shapes-touching-points":16,"./square-with-max-points":17,"./transformations":18,"jsts":22}],9:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -1792,7 +2008,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-cache":9,"./partition-utils":13,"async":19,"js-combinatorics":20,"jsts":21,"underscore":24}],11:[function(require,module,exports){
+},{"./intersection-cache":9,"./partition-utils":13,"async":20,"js-combinatorics":21,"jsts":22,"underscore":25}],11:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -1908,9 +2124,9 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-cache":9,"./partition-utils":13,"js-combinatorics":20,"jsts":21,"underscore":24}],12:[function(require,module,exports){
+},{"./intersection-cache":9,"./partition-utils":13,"js-combinatorics":21,"jsts":22,"underscore":25}],12:[function(require,module,exports){
 /**
- * Some utils for structss of numbers.
+ * Some utils for structs of numbers.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-04
@@ -2100,7 +2316,7 @@ function partitionDescription(partition) {
 }
 
 
-},{"./numeric-utils":12,"underscore":24}],14:[function(require,module,exports){
+},{"./numeric-utils":12,"underscore":25}],14:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to collections of points.
  * 
@@ -2152,7 +2368,7 @@ jsts.algorithm.pointsToString = function(points, color) {
 	return s;
 }
 
-},{"underscore":24}],15:[function(require,module,exports){
+},{"underscore":25}],15:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
  * 
@@ -2222,7 +2438,7 @@ function representativeDisjointSetSub(candidateSets) {
 
 
 
-},{"./intersection-cache":9,"./partition-utils":13,"js-combinatorics":20,"jsts":21,"underscore":24}],16:[function(require,module,exports){
+},{"./intersection-cache":9,"./partition-utils":13,"js-combinatorics":21,"jsts":22,"underscore":25}],16:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -2435,7 +2651,7 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-},{"./AxisParallelRectangle":2,"./factory-utils":5,"jsts":21}],17:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":5,"jsts":22}],17:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -2514,7 +2730,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"./numeric-utils":12,"./point-utils":14,"jsts":21,"underscore":24}],18:[function(require,module,exports){
+},{"./numeric-utils":12,"./point-utils":14,"jsts":22,"underscore":25}],18:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to affine transformations.
  * 
@@ -2665,6 +2881,81 @@ jsts.algorithm.roundFields = function(significantFigures, object) {
 }
 
 },{}],19:[function(require,module,exports){
+var _ = require("underscore");
+
+  // Internal function: creates a callback bound to its context if supplied
+  // Copied from underscore.js: 
+  // https://github.com/jashkenas/underscore/blob/master/underscore.js
+  var createCallback = function(func, context, argCount) {
+    if (!context) return func;
+    switch (argCount == null ? 3 : argCount) {
+      case 1: return function(value) {
+        return func.call(context, value);
+      };
+      case 2: return function(value, other) {
+        return func.call(context, value, other);
+      };
+      case 3: return function(value, index, collection) {
+        return func.call(context, value, index, collection);
+      };
+      case 4: return function(accumulator, value, index, collection) {
+        return func.call(context, accumulator, value, index, collection);
+      };
+    }
+    return function() {
+      return func.apply(this, arguments);
+    };
+  };
+
+// An internal function to generate lookup iterators. 
+// Copied from underscore.js: 
+// https://github.com/jashkenas/underscore/blob/master/underscore.js
+  var lookupIterator = function(value, context, argCount) {
+    if (value == null) return _.identity;
+    if (_.isFunction(value)) return createCallback(value, context, argCount);
+    if (_.isObject(value)) return _.matches(value);
+    return _.property(value);
+  };
+
+
+module.exports = {
+	// return the index of the smallest element in the array "obj".
+	// If "iterator" is given, it is called on each element and the result is used for comparison. 
+	argmin: function(obj, iterator, context) {
+		var min = null, argmin = null,  value;
+		if (iterator) iterator = lookupIterator(iterator, context);
+		for (var i = 0, length = obj.length; i < length; i++) {
+		    value = iterator? iterator(obj[i]): obj[i];
+		    if (min==null || value < min) {
+		      min = value;
+		      argmin = i;
+		    }
+		};
+		return argmin;
+	},
+	
+	
+
+	// return the index of the largest element in the array "obj".
+	// If "iterator" is given, it is called on each element and the result is used for comparison. 
+	argmax: function(obj, iterator, context) {
+		var max = null, argmax = null,  value;
+		if (iterator) iterator = lookupIterator(iterator, context);
+		for (var i = 0, length = obj.length; i < length; i++) {
+		    value = iterator? iterator(obj[i]): obj[i];
+		    if (max==null || value > max) {
+		    	max = value;
+		    	argmax = i;
+		    }
+		  };
+		return argmax;
+	}
+	
+}
+
+
+
+},{"underscore":25}],20:[function(require,module,exports){
 var process=require("__browserify_process");/*!
  * async
  * https://github.com/caolan/async
@@ -3724,7 +4015,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":26}],20:[function(require,module,exports){
+},{"__browserify_process":27}],21:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -4014,14 +4305,14 @@ var process=require("__browserify_process");/*!
     });
 })(this);
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":22,"javascript.util":23}],22:[function(require,module,exports){
+},{"./lib/jsts":23,"javascript.util":24}],23:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -5636,7 +5927,7 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /*
   javascript.util is a port of selected parts of java.util to JavaScript which
   main purpose is to ease porting Java code to JavaScript.
@@ -5696,7 +5987,7 @@ return true;};HashSet.prototype.remove=function(o){throw new OperationNotSupport
 return array;};HashSet.prototype.iterator=function(){return new HashSet.Iterator(this);};HashSet.Iterator=function(hashSet){this.hashSet=hashSet;};HashSet.Iterator.prototype.hashSet=null;HashSet.Iterator.prototype.position=0;HashSet.Iterator.prototype.next=function(){if(this.position===this.hashSet.size()){throw new NoSuchElementException();}
 return this.hashSet.array[this.position++];};HashSet.Iterator.prototype.hasNext=function(){if(this.position<this.hashSet.size()){return true;}
 return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript.util.OperationNotSupported();};javascript.util.HashSet=HashSet;})();
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 //     Underscore.js 1.6.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -7041,7 +7332,7 @@ return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript
   }
 }).call(this);
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -7066,7 +7357,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -7121,14 +7412,14 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7716,4 +8007,4 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":27,"__browserify_process":26,"inherits":25}]},{},[1])
+},{"./support/isBuffer":28,"__browserify_process":27,"inherits":26}]},{},[1])

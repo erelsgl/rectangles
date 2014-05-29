@@ -9,7 +9,8 @@ var jsts = require('jsts');
 var _ = require('underscore')
 _.mixin(require("argminmax"));
 
-var TRACE = function(){};
+//var TRACE = function(){};
+var TRACE = console.log;
 
 /**
  * @param corners a list of points {x:,y:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
@@ -175,22 +176,46 @@ jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
 		throw new Error("levels: expected array but got "+JSON.stringify(levels));
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not found: "+JSON.stringify(landplot));
-	TRACE("levels: "+JSON.stringify(levels));
-	TRACE("landplot: "+JSON.stringify(landplot));
+	TRACE("  Update levels: "+JSON.stringify(levels));
+	TRACE("  with landplot: "+JSON.stringify(landplot));
 
 	var numOfLevels = levels.length;
 	var newLevels = [];
 	var c = 0;
 
-	// add all corners to the west of minx:
-	while (c<numOfLevels && levels[c].maxx<landplot.minx) {
-		TRACE("west: "+JSON.stringify(levels[c]));
+	// add all levels entirely to the west of minx:
+	while (c<numOfLevels && levels[c].maxx<=landplot.minx) {
+		TRACE("  west: "+JSON.stringify(levels[c]));
 		newLevels.push(levels[c++]);
 	}
 	
-	// HERE levels[c].maxx >= landplot.minx
-	newLevels.push({y:landplot.maxy, minx:landplot.minx, maxx:landplot.maxx});
+	// HERE levels[c].maxx > landplot.minx
 
+	if (levels[c].minx < landplot.minx)
+		newLevels.push({y:levels[c].y, minx:levels[c].minx, maxx:landplot.minx});
+
+	// HERE we have added all levels with minx to the west of landplot.minx
+
+	newLevels.push({y:landplot.maxy, minx:landplot.minx, maxx:landplot.maxx});
+	
+	// skip all levels to the south of y:
+	while (c<numOfLevels && levels[c].minx<landplot.maxx) {
+		TRACE("  south: "+JSON.stringify(levels[c]));
+		c++;
+	}
+	c--;
+	if (levels[c].maxx > landplot.maxx)
+		newLevels.push({y:levels[c].y, minx:landplot.maxx, maxx:levels[c].maxx});
+	c++;
+	
+	// HERE levels[c].minx >= landplot.maxx
+
+	// add all levels entirely to the west of minx:
+	while (c<numOfLevels) {
+		TRACE("  east: "+JSON.stringify(levels[c]));
+		newLevels.push(levels[c++]);
+	}
+	
 	return newLevels;
 }
 
