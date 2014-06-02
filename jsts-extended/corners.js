@@ -167,16 +167,17 @@ jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corn
 
 
 /**
- * @param levels a list of {y:,minx:,maxx:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
+ * @param levels a list of {y:,minx:,maxx:}, describing a southern or northern border. x is non-decreasing: NW - SW - SE - NE 
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
- * @return a new list of levels  describing the border after the landplot has been annexed. 
+ * @param direction "N" (north) or "S" (south)
+ * @return a new list of levels  describing the border after the landplot has been removed. 
  */
-jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
+jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 	if (!Array.isArray(levels))
 		throw new Error("levels: expected array but got "+JSON.stringify(levels));
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not found: "+JSON.stringify(landplot));
-	TRACE("  Update levels: "+JSON.stringify(levels));
+	TRACE("  Update "+(direction=='S'? "south": "north")+" levels: "+JSON.stringify(levels));
 	TRACE("  with landplot: "+JSON.stringify(landplot));
 
 	var numOfLevels = levels.length;
@@ -196,7 +197,7 @@ jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
 
 	// HERE we have added all levels with minx to the west of landplot.minx
 
-	newLevels.push({y:landplot.maxy, minx:landplot.minx, maxx:landplot.maxx});
+	newLevels.push({y: (direction=='S'? landplot.maxy: landplot.miny), minx:landplot.minx, maxx:landplot.maxx});
 	
 	// skip all levels to the south of y:
 	while (c<numOfLevels && levels[c].minx<landplot.maxx) {
@@ -271,17 +272,17 @@ jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
 
 
 /**
- * Calculate a list of rectangles covering the cake defined by the given levels.
+ * Calculate a list of rectangles covering the cake whose southern border is defined by the given levels.
  * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
  * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
  */
-jsts.algorithm.rectanglesCoveringLevels = function(levelsParam) {
+jsts.algorithm.rectanglesCoveringSouthernLevels = function(levelsParam) {
 	var levels = levelsParam.slice(0);
 	var covering = [];
 	
 	while (levels.length>0) {
 		
-		// cover the lowest level:
+		// cover the lowest (most southern) level:
 		var iLowestLevel = _.argmin(levels, function(level){return level.y});
 		var level = levels[iLowestLevel];
 		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
@@ -320,102 +321,52 @@ jsts.algorithm.rectanglesCoveringLevels = function(levelsParam) {
 	return covering;
 }
 
-
-function oldNorth(corners, landplot) {
-	if (!Array.isArray(corners))
-		throw new Error("corners: expected array but got "+JSON.stringify(corners));
-	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
-		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
-
-	var numOfCorners = corners.length;
-
-	var remainingCorners = [];
-	remainingCorners.push(corners[0]);
-	var westShadow = false, eastShadow = true;
-	for (var c=1; c<numOfCorners-1; ++c) {
-		var cur  = corners[c];
-		if (cur.y>=landplot.maxy) {
-			remainingCorners.push(cur);
-			continue;
-		}
+/**
+ * Calculate a list of rectangles covering the cake whose northern border is defined by the given levels.
+ * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
+ * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
+ */
+jsts.algorithm.rectanglesCoveringNorthernLevels = function(levelsParam) {
+	var levels = levelsParam.slice(0);
+	var covering = [];
+	
+	while (levels.length>0) {
 		
-		// HERE cur.y < landplot.maxy
-		var yDistance = landplot.maxy-cur.y;
-
-		var prev = corners[c-1];
-		var next = corners[c+1];
-		var LShape = (prev.y>cur.y && cur.x<next.x);
-		var JShape = (prev.x<cur.x && cur.y<next.y);
+		// cover the highest (most northern) level:
+		var iLowestLevel = _.argmax(levels, function(level){return level.y});
+		var level = levels[iLowestLevel];
+		var rectangle = {minx:level.minx, maxx:level.maxx, maxy:level.y};
 		
-		// Check the x-value of the current corner; note that x is non-decreasing:
-		if (cur.x<landplot.minx) {       // WEST
-			if (westShadow)  continue;     // skip all corners from the beginning of the west shadow to landplot.maxx
-
-			if (xDistance<yDistance) {   // need to add a corner to the west
-				if (prev.y > landplot.maxy) { // cur is an LShape
-					remainingCorners.push({x:cur.x, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else if (prev.x < cur.x) {  // cur is a ר shape
-					remainingCorners.push({x:landplot.minx, y:cur.y});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else if (prev.y > cur.y) {  // cur is an L Shape
-					remainingCorners.pop(); // remove prev
-					remainingCorners.push({x:landplot.minx, y:prev.y});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else {
-					console.warn("Unhandled condition in the west: prev="+JSON.stringify(prev)+" cur="+JSON.stringify(cur)+" next="+JSON.stringify(next));
-					remainingCorners.push({x:landplot.minx, y:landplot.miny});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				}
-				westShadow = true;     // skip all corners from here to landplot.maxx
-				continue;
-			}
-			remainingCorners.push(cur);
-
-		} else 	if (cur.x<=landplot.maxx) { // SOUTH 
-			if (westShadow)  continue;     // skip all corners from the beginning of the south shadow to landplot.maxx
-			
-			remainingCorners.push({x:landplot.minx, y:landplot.miny});
-			remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-			remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-			remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-			westShadow = true;
-			
-		} else {                           // EAST
-			var xDistance = cur.x - landplot.maxx;
-			if (xDistance<yDistance) 
-				continue;
-			
-			if (eastShadow) {
-				if (next.y > landplot.maxy) { // cur is a J Shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.pop();  // remove (maxx,maxy)
-					remainingCorners.push({x:cur.x, y:landplot.maxy});
-					// skip cur
-				} else if (cur.x < next.x) {  // cur is an r shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.push({x:landplot.maxx, y:cur.y});
-					//remainingCorners.push(cur); // skip cur
-				} else if (next.y > cur.y) { // cur is a J Shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.push({x:landplot.maxx, y:cur.y});
-					remainingCorners.push(cur);
-				} else {
-					console.warn("Unhandled condition in the east: prev="+JSON.stringify(prev)+" cur="+JSON.stringify(cur)+" next="+JSON.stringify(next));
-				}
-				eastShadow = false;
-				continue;
-			}
-			remainingCorners.push(cur);
+		// remove the highest level:
+		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
+		var yWest = (west? west.y: -Infinity);
+		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
+		var yEast = (east? east.y: -Infinity);
+		
+		if (yWest > yEast) {
+			rectangle.miny = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
+		} else if (yEast > yWest) {
+			rectangle.miny = yEast;
+			levels.splice(
+					/* go to index */ iLowestLevel, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
+		} else if (west && east) { //  && yWest==yEast
+			rectangle.miny = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      3 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
+		} else {  // a single level remaining
+			rectangle.miny = -Infinity;
+			levels.splice(iLowestLevel,1);
 		}
+		covering.push(rectangle);  
 	}
-	remainingCorners.push(corners[numOfCorners-1]);
-	return remainingCorners;
+	
+	return covering;
 }

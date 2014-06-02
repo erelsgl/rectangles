@@ -14,6 +14,7 @@ var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 	this.valuePerPoint = valuePerPoint;
 	this.pointsPerUnitValue = 1/valuePerPoint;
 	this.color = color? color: points.color? points.color: null;
+	//console.log(this.color+": valuePerPoint = "+totalValue+"/"+points.length+"="+valuePerPoint)
 	this.index = points.index? points.index: null;
 	this.setPoints(points);
 };

@@ -445,6 +445,7 @@ var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 	this.valuePerPoint = valuePerPoint;
 	this.pointsPerUnitValue = 1/valuePerPoint;
 	this.color = color? color: points.color? points.color: null;
+	//console.log(this.color+": valuePerPoint = "+totalValue+"/"+points.length+"="+valuePerPoint)
 	this.index = points.index? points.index: null;
 	this.setPoints(points);
 };
@@ -719,16 +720,17 @@ jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corn
 
 
 /**
- * @param levels a list of {y:,minx:,maxx:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
+ * @param levels a list of {y:,minx:,maxx:}, describing a southern or northern border. x is non-decreasing: NW - SW - SE - NE 
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
- * @return a new list of levels  describing the border after the landplot has been annexed. 
+ * @param direction "N" (north) or "S" (south)
+ * @return a new list of levels  describing the border after the landplot has been removed. 
  */
-jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
+jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 	if (!Array.isArray(levels))
 		throw new Error("levels: expected array but got "+JSON.stringify(levels));
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not found: "+JSON.stringify(landplot));
-	TRACE("  Update levels: "+JSON.stringify(levels));
+	TRACE("  Update "+(direction=='S'? "south": "north")+" levels: "+JSON.stringify(levels));
 	TRACE("  with landplot: "+JSON.stringify(landplot));
 
 	var numOfLevels = levels.length;
@@ -748,7 +750,7 @@ jsts.algorithm.updatedLevelsNorth = function(levels, landplot) {
 
 	// HERE we have added all levels with minx to the west of landplot.minx
 
-	newLevels.push({y:landplot.maxy, minx:landplot.minx, maxx:landplot.maxx});
+	newLevels.push({y: (direction=='S'? landplot.maxy: landplot.miny), minx:landplot.minx, maxx:landplot.maxx});
 	
 	// skip all levels to the south of y:
 	while (c<numOfLevels && levels[c].minx<landplot.maxx) {
@@ -823,17 +825,17 @@ jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
 
 
 /**
- * Calculate a list of rectangles covering the cake defined by the given levels.
+ * Calculate a list of rectangles covering the cake whose southern border is defined by the given levels.
  * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
  * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
  */
-jsts.algorithm.rectanglesCoveringLevels = function(levelsParam) {
+jsts.algorithm.rectanglesCoveringSouthernLevels = function(levelsParam) {
 	var levels = levelsParam.slice(0);
 	var covering = [];
 	
 	while (levels.length>0) {
 		
-		// cover the lowest level:
+		// cover the lowest (most southern) level:
 		var iLowestLevel = _.argmin(levels, function(level){return level.y});
 		var level = levels[iLowestLevel];
 		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
@@ -872,104 +874,54 @@ jsts.algorithm.rectanglesCoveringLevels = function(levelsParam) {
 	return covering;
 }
 
-
-function oldNorth(corners, landplot) {
-	if (!Array.isArray(corners))
-		throw new Error("corners: expected array but got "+JSON.stringify(corners));
-	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
-		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
-
-	var numOfCorners = corners.length;
-
-	var remainingCorners = [];
-	remainingCorners.push(corners[0]);
-	var westShadow = false, eastShadow = true;
-	for (var c=1; c<numOfCorners-1; ++c) {
-		var cur  = corners[c];
-		if (cur.y>=landplot.maxy) {
-			remainingCorners.push(cur);
-			continue;
-		}
+/**
+ * Calculate a list of rectangles covering the cake whose northern border is defined by the given levels.
+ * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
+ * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
+ */
+jsts.algorithm.rectanglesCoveringNorthernLevels = function(levelsParam) {
+	var levels = levelsParam.slice(0);
+	var covering = [];
+	
+	while (levels.length>0) {
 		
-		// HERE cur.y < landplot.maxy
-		var yDistance = landplot.maxy-cur.y;
-
-		var prev = corners[c-1];
-		var next = corners[c+1];
-		var LShape = (prev.y>cur.y && cur.x<next.x);
-		var JShape = (prev.x<cur.x && cur.y<next.y);
+		// cover the highest (most northern) level:
+		var iLowestLevel = _.argmax(levels, function(level){return level.y});
+		var level = levels[iLowestLevel];
+		var rectangle = {minx:level.minx, maxx:level.maxx, maxy:level.y};
 		
-		// Check the x-value of the current corner; note that x is non-decreasing:
-		if (cur.x<landplot.minx) {       // WEST
-			if (westShadow)  continue;     // skip all corners from the beginning of the west shadow to landplot.maxx
-
-			if (xDistance<yDistance) {   // need to add a corner to the west
-				if (prev.y > landplot.maxy) { // cur is an LShape
-					remainingCorners.push({x:cur.x, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else if (prev.x < cur.x) {  // cur is a ר shape
-					remainingCorners.push({x:landplot.minx, y:cur.y});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else if (prev.y > cur.y) {  // cur is an L Shape
-					remainingCorners.pop(); // remove prev
-					remainingCorners.push({x:landplot.minx, y:prev.y});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				} else {
-					console.warn("Unhandled condition in the west: prev="+JSON.stringify(prev)+" cur="+JSON.stringify(cur)+" next="+JSON.stringify(next));
-					remainingCorners.push({x:landplot.minx, y:landplot.miny});
-					remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-					remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-				}
-				westShadow = true;     // skip all corners from here to landplot.maxx
-				continue;
-			}
-			remainingCorners.push(cur);
-
-		} else 	if (cur.x<=landplot.maxx) { // SOUTH 
-			if (westShadow)  continue;     // skip all corners from the beginning of the south shadow to landplot.maxx
-			
-			remainingCorners.push({x:landplot.minx, y:landplot.miny});
-			remainingCorners.push({x:landplot.minx, y:landplot.maxy});
-			remainingCorners.push({x:landplot.maxx, y:landplot.maxy});
-			remainingCorners.push({x:landplot.maxx, y:landplot.miny});
-			westShadow = true;
-			
-		} else {                           // EAST
-			var xDistance = cur.x - landplot.maxx;
-			if (xDistance<yDistance) 
-				continue;
-			
-			if (eastShadow) {
-				if (next.y > landplot.maxy) { // cur is a J Shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.pop();  // remove (maxx,maxy)
-					remainingCorners.push({x:cur.x, y:landplot.maxy});
-					// skip cur
-				} else if (cur.x < next.x) {  // cur is an r shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.push({x:landplot.maxx, y:cur.y});
-					//remainingCorners.push(cur); // skip cur
-				} else if (next.y > cur.y) { // cur is a J Shape
-					remainingCorners.pop();  // remove (maxx,miny)
-					remainingCorners.push({x:landplot.maxx, y:cur.y});
-					remainingCorners.push(cur);
-				} else {
-					console.warn("Unhandled condition in the east: prev="+JSON.stringify(prev)+" cur="+JSON.stringify(cur)+" next="+JSON.stringify(next));
-				}
-				eastShadow = false;
-				continue;
-			}
-			remainingCorners.push(cur);
+		// remove the highest level:
+		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
+		var yWest = (west? west.y: -Infinity);
+		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
+		var yEast = (east? east.y: -Infinity);
+		
+		if (yWest > yEast) {
+			rectangle.miny = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
+		} else if (yEast > yWest) {
+			rectangle.miny = yEast;
+			levels.splice(
+					/* go to index */ iLowestLevel, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
+		} else if (west && east) { //  && yWest==yEast
+			rectangle.miny = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      3 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
+		} else {  // a single level remaining
+			rectangle.miny = -Infinity;
+			levels.splice(iLowestLevel,1);
 		}
+		covering.push(rectangle);  
 	}
-	remainingCorners.push(corners[numOfCorners-1]);
-	return remainingCorners;
+	
+	return covering;
 }
 
 },{"argminmax":19,"jsts":22,"underscore":25}],5:[function(require,module,exports){
@@ -1231,7 +1183,7 @@ jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, enve
 	var shorterSide = (width<=height? jsts.Side.South: jsts.Side.East);
 	var valuePerAgent = 2*agentsValuePoints.length;
 	return runDivisionAlgorithm(
-			norm3Walls, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
+			norm4Walls, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
 			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio);
 }
 
@@ -1328,6 +1280,7 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 
 	if (transformedValuePoints.length>1 || jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION)  {  // subjective valuations
 		var transformedValueFunctions = ValueFunction.createArray(valuePerAgent, transformedValuePoints);
+		//console.log("pointsPerUnitValue="+_.pluck(transformedValueFunctions,'pointsPerUnitValue'));
 		var maxVal = valuePerAgent;
 		var minVal = 1;
 		var landplots = [];
@@ -1368,6 +1321,156 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 
 
 /**
+ * Normalized 4-walls algorithm:
+ * - valueFunctions.length>=1
+ * - The envelope is normalized to [0,1]x[0,yLength]
+ * - maxAspectRatio>=1
+ * - Value per agent: at least 2*n
+ */
+var norm4Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
+	//var initial = [{x:0,y:Infinity}, {x:0,y:0}, {x:1,y:0}, {x:1,y:Infinity}];  // corners
+	var initial = [{y:0,minx:0,maxx:1}];  // levels 
+	return staircase4walls(yLength, valueFunctions, initial, requiredLandplotValue);
+}
+
+
+/**
+ * Normalized 4-walls staircase algorithm:
+ * - valueFunctions.length>=1
+ * - levels.length >= 1; each level is represented by {y,minx,maxx}.
+ * - levels are ordered by non-decreasing x value, from west to east.
+ * - Value per agent: at least 2*n-2+levels.length
+ */
+var staircase4walls = function(yLength, valueFunctions, levels, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	var numOfLevels = levels.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 4-walls staircase algorithm with yLength="+yLength+" and "+numOfLevels+" levels: "+JSON.stringify(levels));
+
+	var rectangles = jsts.algorithm.rectanglesCoveringSouthernLevels(levels);
+	
+	var squaresFound = false;
+
+	// for each agent, calculate all level squares with value 1:
+	valueFunctions.forEach(function(valueFunction) {
+		var levelSquares = [];
+		
+		for (var i=0; i<rectangles.length; ++i) {
+			var rectangle = rectangles[i];
+			var minx=rectangle.minx, maxx=rectangle.maxx, miny=rectangle.miny;
+			var squareSizeEast = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
+			var squareSizeWest = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
+
+			if (minx+squareSizeEast <= maxx && miny+squareSizeEast<=yLength/2)
+				levelSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast});
+
+			if (maxx-squareSizeWest >= minx && miny+squareSizeWest<=yLength/2)
+				levelSquares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest});
+		}
+		if (levelSquares.length>0) {
+			squaresFound = true;
+			valueFunction.square = 	_.min(levelSquares, function(square){return square.maxy});
+		} else {
+			valueFunction.square = {maxy:Infinity};
+		}
+	});
+	
+	if (squaresFound) {
+		// get the agent with the square with the smallest height overall:
+		var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
+			return valueFunction.square.maxy;
+		});
+		var winningAgent = valueFunctions[iWinningAgent];
+	
+		if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
+			TRACE(numOfAgents, "-- no southern square with the required value "+requiredLandplotValue);
+			if (requiredLandplotValue<=1)
+				console.log(util.inspect(valueFunctions,{depth:3}));
+			return [];
+		}
+	
+		var landplot = winningAgent.square;
+		if (winningAgent.color) landplot.color = winningAgent.color;
+		TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the southern landplot "+JSON.stringify(landplot));
+		
+		if (valueFunctions.length==1)
+			return [landplot];
+	
+		var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+		var remainingLevels = jsts.algorithm.updatedLevels(levels, landplot,"S");
+		var remainingLandplots = staircase4walls(yLength, remainingValueFunctions, remainingLevels, requiredLandplotValue);
+		remainingLandplots.push(landplot);
+		return remainingLandplots;
+	} else {
+		var newLevels = [{y:yLength,minx:0,maxx:1}]
+		return staircase4wallsNorth(yLength, valueFunctions, newLevels, requiredLandplotValue);
+	}
+}
+	
+var staircase4wallsNorth = function(yLength, valueFunctions, levels, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	var numOfLevels = levels.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 4-walls staircase algorithm from the north, with yLength="+yLength+" and "+numOfLevels+" levels: "+JSON.stringify(levels));
+	
+	// No squares found at the south - try to divide from the north:
+	rectangles = jsts.algorithm.rectanglesCoveringNorthernLevels(levels);
+
+	squaresFound = false;
+
+	// for each agent, calculate all level squares with value 1:
+	valueFunctions.forEach(function(valueFunction) {
+		var levelSquares = [];
+		
+		for (var i=0; i<rectangles.length; ++i) {
+			var rectangle = rectangles[i];
+			var minx=rectangle.minx, maxx=rectangle.maxx, maxy=rectangle.maxy;
+			var squareSizeEast = valueFunction.sizeOfSquareWithValue({x:minx,y:maxy}, requiredLandplotValue, "SE");
+			var squareSizeWest = valueFunction.sizeOfSquareWithValue({x:maxx,y:maxy}, requiredLandplotValue, "SW");
+
+			if (minx+squareSizeEast <= maxx && maxy-squareSizeEast>=yLength/2)
+				levelSquares.push({minx:minx, maxy:maxy, maxx:minx+squareSizeEast, miny:maxy-squareSizeEast});
+
+			if (maxx-squareSizeWest >= minx && maxy-squareSizeWest>=yLength/2)
+				levelSquares.push({maxx:maxx, maxy:maxy, minx:maxx-squareSizeWest, miny:maxy-squareSizeWest});
+		}
+		if (levelSquares.length>0) {
+			squaresFound = true;
+			valueFunction.square = 	_.max(levelSquares, function(square){return square.miny});
+		} else {
+			valueFunction.square = {miny:-Infinity};
+		}
+	});
+	
+	if (!squaresFound) {
+		TRACE(numOfAgents, "-- no northern square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			console.log(util.inspect(valueFunctions,{depth:3}));
+		return [];
+	}
+
+	// get the agent with the square with the smallest height overall:
+	var iWinningAgent = _.argmax(valueFunctions, function(valueFunction) {
+		return valueFunction.square.miny;
+	});
+	var winningAgent = valueFunctions[iWinningAgent];
+
+	var landplot = winningAgent.square;
+	if (winningAgent.color) landplot.color = winningAgent.color;
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the northern landplot "+JSON.stringify(landplot));
+	
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+	var remainingLevels = jsts.algorithm.updatedLevels(levels, landplot, "N");
+	var remainingLandplots = staircase4wallsNorth(yLength, remainingValueFunctions, remainingLevels, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
+	
+}
+
+
+
+/**
  * Normalized 3-walls algorithm:
  * - valueFunctions.length>=1
  * - The envelope is normalized to [0,1]x[0,yLength]
@@ -1381,6 +1484,7 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandp
 	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
 }
 
+
 /**
  * Normalized 3-walls staircase algorithm:
  * - valueFunctions.length>=1
@@ -1393,8 +1497,7 @@ var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
 	var numOfLevels = levels.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfLevels+" levels: "+JSON.stringify(levels));
 
-	var rectangles = jsts.algorithm.rectanglesCoveringLevels(levels);
-//	console.dir(rectangles);
+	var rectangles = jsts.algorithm.rectanglesCoveringSouthernLevels(levels);
 
 	// for each agent, calculate all level squares with value 1:
 	valueFunctions.forEach(function(valueFunction) {
@@ -1405,7 +1508,6 @@ var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
 			var minx=rectangle.minx, maxx=rectangle.maxx, miny=rectangle.miny;
 			var squareSizeEast = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
 			var squareSizeWest = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
-//			console.log("squareSizeEast="+squareSizeEast+" squareSizeWest="+squareSizeWest)
 
 			if (minx+squareSizeEast <= maxx)
 				levelSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast});
@@ -1414,7 +1516,6 @@ var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
 				levelSquares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest});
 		}
 		
-//		console.dir(levelSquares);
 		valueFunction.square = _.min(levelSquares, function(square){return square.maxy});
 	});
 
@@ -1439,98 +1540,12 @@ var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
 		return [landplot];
 
 	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
-	var remainingLevels = jsts.algorithm.updatedLevelsNorth(levels, landplot);
+	var remainingLevels = jsts.algorithm.updatedLevels(levels, landplot, "S");
 	var remainingLandplots = staircase3walls(remainingValueFunctions, remainingLevels, requiredLandplotValue);
 	remainingLandplots.push(landplot);
 	return remainingLandplots;
 }
 
-
-
-
-var xValueOfFirstWallAtEast = function(y, corners, c) {
-	for (var cc=c+1; cc<corners.length; ++cc) {
-		var corner = corners[cc];
-		if (corner.y>y)
-			return corner.x;
-	}
-	return Infinity;
-}
-
-var xValueOfFirstWallAtWest = function(y, corners, c) {
-	for (var cc=c-1; cc>=0; --cc) {
-		var corner = corners[cc];
-		if (corner.y>y)
-			return corner.x;
-	}
-	return -Infinity;
-}
-
-/**
- * Normalized 3-walls staircase algorithm:
- * - valueFunctions.length>=1
- * - corners.length >= 4
- * - corners are ordered by non-decreasing x value, from the NW to the SW to the SE to the NE.
- * - Value per agent: at least 2*n-2+(corners.length-3)
- */
-var staircase3walls_workingButOld = function(valueFunctions, corners, requiredLandplotValue) {
-	var numOfAgents = valueFunctions.length;
-	var numOfCorners = corners.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfCorners+" corners: "+JSON.stringify(corners));
-	var yValues = numutils.sortedUniqueValues(corners, "y");
-	if (!isFinite(yValues[yValues.length-1]))
-			yValues.pop();
-
-	// for each agent, calculate the acceptable corner square with the smallest height above the x axis (t = y+s):
-	valueFunctions.forEach(function(valueFunction) {
-		var cornerSquares = [];
-		for (var c=1; c<numOfCorners-1; ++c) {
-			var cur  = corners[c];
-			var x = cur.x;
-			for (var iy=_.indexOf(yValues,cur.y,true); iy<yValues.length; ++iy) {
-				var y = yValues[iy];
-				var corner = {x:x, y:y};
-				var xEastWall = xValueOfFirstWallAtEast(y, corners, c);
-				var xWestWall = xValueOfFirstWallAtWest(y, corners, c);
-
-				var squareSizeEast = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NE");
-				var squareSizeWest = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, "NW");
-
-				if (x+squareSizeEast<=xEastWall)
-					cornerSquares.push({minx:x, miny:y, maxx:x+squareSizeEast, maxy:y+squareSizeEast});
-
-				if (x-squareSizeWest>=xWestWall)
-					cornerSquares.push({maxx:x, miny:y, minx:x-squareSizeWest, maxy:y+squareSizeWest});
-			}
-		}
-		valueFunction.square = _.min(cornerSquares, function(square){return square.maxy});
-	});
-
-	// get the agent with the square with the smallest height overall:
-	var winningAgent = _.min(valueFunctions, function(valueFunction) {
-		return valueFunction.square.maxy;
-	});
-
-	if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
-		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-		if (requiredLandplotValue<=1)
-			console.log(util.inspect(valueFunctions,{depth:3}));
-		return [];
-	}
-
-	var landplot = winningAgent.square;
-	if (winningAgent.color) landplot.color = winningAgent.color;
-	TRACE(numOfAgents, "++ agent "+winningAgent.index+" gets the landplot "+JSON.stringify(landplot));
-	
-	if (valueFunctions.length==1)
-		return [landplot];
-
-	var remainingValueFunctions = valueFunctions.slice(0,winningAgent.index).concat(valueFunctions.slice(winningAgent.index+1,valueFunctions.length));
-	var remainingCorners = jsts.algorithm.updatedCornersNorth(corners, landplot);
-	var remainingLandplots = staircase3walls(remainingValueFunctions, remainingCorners, requiredLandplotValue);
-	remainingLandplots.push(landplot);
-	return remainingLandplots;
-}
 
 
 
@@ -1565,9 +1580,11 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
 	});
 
 	// get the agent with the square with the smallest taxicab distance overall:
-	var winningAgent = _.min(valueFunctions, function(valueFunction) {
+	var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
 		return valueFunction.square.t;
 	});
+	var winningAgent = valueFunctions[iWinningAgent];
+
 	if (winningAgent===Infinity) winningAgent = {square:{t:Infinity}};  // bug in _.min
 	
 	if (!isFinite(winningAgent.square.t)) {
@@ -1584,12 +1601,12 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
 			maxy: winningAgent.square.y+winningAgent.square.s,
 	};
 	if (winningAgent.color) landplot.color = winningAgent.color;
-	TRACE(numOfAgents, "++ agent "+winningAgent.index+" gets from the square "+JSON.stringify(winningAgent.square)+" the landplot "+JSON.stringify(landplot));
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets from the square "+JSON.stringify(winningAgent.square)+" the landplot "+JSON.stringify(landplot));
 	
 	if (valueFunctions.length==1)
 		return [landplot];
 
-	var remainingValueFunctions = valueFunctions.slice(0,winningAgent.index).concat(valueFunctions.slice(winningAgent.index+1,valueFunctions.length));
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
 	var remainingCorners = jsts.algorithm.updatedCornersNorthEast(corners, landplot);
 	var remainingLandplots = staircase2walls(remainingValueFunctions, origin, remainingCorners, requiredLandplotValue);
 	remainingLandplots.push(landplot);
