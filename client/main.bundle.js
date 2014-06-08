@@ -576,8 +576,7 @@ jsts.algorithm.updatedCornersNorth = function(corners, landplot) {
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
 
-	TRACE("corners: "+JSON.stringify(corners));
-	TRACE("landplot: "+JSON.stringify(landplot));
+	TRACE("  updatedCornersNorth with corners: "+JSON.stringify(corners)+"  landplot: "+JSON.stringify(landplot));
 	var numOfCorners = corners.length;
 	var newCorners = [];
 	var c = 0;
@@ -642,8 +641,7 @@ jsts.algorithm.updatedCornersNorthEast = function(corners, landplot) {
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
 
-	TRACE("corners: "+JSON.stringify(corners));
-	TRACE("landplot: "+JSON.stringify(landplot));
+	TRACE("  updatedCornersNorthEast with corners: "+JSON.stringify(corners)+"  landplot: "+JSON.stringify(landplot));
 	var numOfCorners = corners.length;
 	var newCorners = [];
 	var c = 0;
@@ -680,8 +678,7 @@ jsts.algorithm.updatedCornersNorthWest = function(corners, landplot) {
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
 
-	TRACE("corners: "+JSON.stringify(corners));
-	TRACE("landplot: "+JSON.stringify(landplot));
+	TRACE("  updatedCornersNorthWest with corners: "+JSON.stringify(corners)+"  landplot: "+JSON.stringify(landplot));
 	var numOfCorners = corners.length;
 	var newCorners = [];
 	var c = 0;
@@ -706,16 +703,112 @@ jsts.algorithm.updatedCornersNorthWest = function(corners, landplot) {
 	return newCorners;
 }
 
-jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corners, requiredLandplotValue, direction, origin) {
-	var cornerSquares = corners.map(function(corner) {
+
+
+/**
+ * @return a list of all corner squares with the given value.
+ */
+jsts.algorithm.cornerSquares = function(valueFunction, corners, requiredLandplotValue, direction, origin) {
+	if (typeof requiredLandplotValue != 'number')
+		throw new Error("requiredLandplotValue: expected a number but got "+JSON.stringify(requiredLandplotValue));
+	return corners.map(function(corner) {
 		var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, direction);
-		var taxicabDistance = Math.abs(corner.x-origin.x)+Math.abs(corner.y-origin.y)+squareSize;
-		return {x:corner.x, y:corner.y, s:squareSize, t:taxicabDistance};
+		var dx = Math.abs(corner.x-origin.x);
+		var dy = Math.abs(corner.y-origin.y);
+		var taxicabDistance = dx+dy+squareSize;
+		return {x:corner.x, y:corner.y, dx:dx, dy:dy, s:squareSize, t:taxicabDistance};
 	});
+}
+
+
+/**
+ * @return a list of all corner squares with the given value; for each corner, pick the valueFunction that gives the smallest square.
+ */
+jsts.algorithm.smallestCornerSquares = function(valueFunctions, corners, requiredLandplotValue, direction, origin, otherCorners) {
+	if (typeof requiredLandplotValue != 'number')
+		throw new Error("requiredLandplotValue: expected a number but got "+JSON.stringify(requiredLandplotValue));
+	return corners.map(function(corner) {
+		var outgoingCorner = jsts.algorithm.outgoingCorner(corner, otherCorners);
+		var maxAllowedSquareSize = Math.abs(outgoingCorner.x-corner.x);
+		var squareSizes = valueFunctions.map(function(valueFunction) {
+			return valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, direction);
+		})
+		console.log("  corner="+JSON.stringify(corner)+" outgoingCorner="+JSON.stringify(outgoingCorner)+" maxAllowedSquareSize="+maxAllowedSquareSize+"  squareSizes="+squareSizes);
+		squareSizes = squareSizes.filter(function(size) {
+			return size<=maxAllowedSquareSize;
+		});
+		if (squareSizes.length==0)
+			return null;
+		var iSmallestSquare = _.argmin(squareSizes)
+		var smallestSquareSize = squareSizes[iSmallestSquare];
+		var dx = Math.abs(corner.x-origin.x);
+		var dy = Math.abs(corner.y-origin.y);
+		var taxicabDistance = dx+dy+smallestSquareSize;
+		return {x:corner.x, y:corner.y, dx:dx, dy:dy, s:smallestSquareSize, t:taxicabDistance, index:iSmallestSquare, direction:direction};
+	}).filter(function(square) {
+		return square!=null;
+	});
+}
+
+jsts.algorithm.cornerSquareWithMinTaxicabDistance = function(valueFunction, corners, requiredLandplotValue, direction, origin) {
+	var cornerSquares = jsts.algorithm.cornerSquares(valueFunction, corners, requiredLandplotValue, direction, origin);
 	var minDistanceSquare = _.min(cornerSquares, function(square){return square.t});
 	if (!minDistanceSquare)
 		minDistanceSquare = {t: Infinity};
 	return minDistanceSquare;
+}
+
+
+
+
+/**
+ * @param corner {x,y}
+ * @param otherCorners corners at another side; ordered by non-decreasing y.
+ * @return the "out-going corner" {x,y} such that y is larger than corner.y.
+ */
+jsts.algorithm.outgoingCorner = function(corner, otherCorners) {
+	if (corner.y < otherCorners[0].y)
+		throw new Error("corner.y too low! corner="+JSON.stringify(corner)+"  otherCorners="+JSON.stringify(otherCorners));
+	for (var i=0; i<otherCorners.length; ++i) 
+		if (corner.y < otherCorners[i].y)  {
+			var result = {x: (i>0?otherCorners[i-1].x:otherCorners[i].x), y:otherCorners[i].y};
+			console.log("corner="+JSON.stringify(corner)+" otherCorners="+JSON.stringify(otherCorners)+" i="+i+" outgoingCorner="+JSON.stringify(result))
+			return result;
+		}
+	throw new Error("No outgoing corner found! corner="+JSON.stringify(corner)+"  otherCorners="+JSON.stringify(otherCorners));
+}
+
+/**
+ * @param corners ordered by non-decreasing y.
+ * @param otherCorners corners at another side; ordered by non-decreasing y.
+ * remove from "corners" those corners whose x-distance to the other side is smaller than the y-distance.
+ */
+jsts.algorithm.removeCornersWithSmallXDistance = function(corners, otherCorners) {
+	var newCorners = [];
+	for (var i=corners.length-1; i>=0; i--) {
+		var corner = corners[i];
+		if (corner.y>1)
+			continue; // skip corners above the valued square
+		var nextCornerY = (i+1<corners.length? corners[i+1].y: 1);
+		//console.log("\tcorner="+JSON.stringify(corner));
+		var outgoingCorner = jsts.algorithm.outgoingCorner(corner, otherCorners);
+		//console.log("\toutgoingCorner="+JSON.stringify(outgoingCorner));
+		var dx = Math.abs(outgoingCorner.x-corner.x);
+		var dy = Math.abs(Math.min(outgoingCorner.y,nextCornerY)-corner.y);
+		if (dx<dy) {
+			if (nextCornerY>outgoingCorner.y)
+				newCorners.unshift({
+					x:corner.x,
+					y:Math.max(0,Math.min(1,outgoingCorner.y))
+				});
+			break;
+		} else {
+			newCorners.unshift(corner)
+			continue;
+		}
+	}
+	TRACE("  removeCornersWithSmallXDistance with corners: "+JSON.stringify(corners)+"  otherCorners: "+JSON.stringify(otherCorners)+"  returns "+JSON.stringify(newCorners));
+	return newCorners; 
 }
 
 
@@ -1479,9 +1572,12 @@ var staircase4wallsNorth = function(yLength, valueFunctions, levels, requiredLan
  * - Landplots may overflow the northern border
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
-	//var initial = [{x:0,y:Infinity}, {x:0,y:0}, {x:1,y:0}, {x:1,y:Infinity}];  // corners
-	var initial = [{y:0,minx:0,maxx:1}];  // levels 
-	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
+//	var initial = [{y:0,minx:0,maxx:1}];  // levels 
+//	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
+	
+	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
+	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
+	
 }
 
 
@@ -1545,6 +1641,131 @@ var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
 	remainingLandplots.push(landplot);
 	return remainingLandplots;
 }
+
+
+/**
+ * @param b,a two corner squares near the *same* origin, represented by the fields: x, y, dx, dy, s, t.
+ * @returns true if square b puts a shadow over square a.
+ */
+function shadowsSameOrigin(b,a) {
+	if (b.dy > a.dy+a.s  &&  b.dx+b.s > a.dx) return true;  // a.dx > b.dx
+	if (b.dx > a.dx+a.s  &&  b.dy+b.s > a.dy) return true;  // a.dy > b.dy
+
+	if (b.dy > a.dy  &&  b.dx+b.s > a.dx+a.ds) return true;  // a.dx > b.dx
+	if (b.dx > a.dx  &&  b.dy+b.s > a.dy+a.s) return true;   // a.dy > b.dy
+	
+	return false;
+}
+
+
+/**
+ * @param b,a two corner squares near the *same* origin, represented by the fields: x, y, dx, dy, s, t.
+ * @returns true if square b puts a shadow over square a.
+ */
+function shadowsDifferentOrigin(b,a) {
+	if (b.dy+b.s > a.dy+a.s) return true;
+
+	return false;
+}
+
+function shadows(b,a) {
+	return b.direction==a.direction?
+			shadowsSameOrigin(b,a):
+			shadowsDifferentOrigin(b,a);
+}
+
+
+/**
+ * @param b a square.
+ * @param squares a list of squares.
+ * @return a square from the list, that is shadowed by b; or "null" if none found.
+ */
+function findShadowed(b, squares) {
+	for (var i=0; i<squares.length; ++i) {
+		var a = squares[i];
+		if (shadows(b, a)) 
+			return a;
+	}
+	return null;
+}
+
+/**
+ * Normalized staircase algorithm:
+ * - valueFunctions.length>=1
+ * - corners.length >= 1
+ * - corners are ordered by increasing y = decreasing x (from south-east to north-west)
+ * - Value per agent: at least 2*n-2+corners.length
+ */
+var staircase3walls_double2walls = function(valueFunctions, origin_sw, corners_sw, origin_se, corners_se, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 2-walls staircase algorithm with "+corners_sw.length+" SW corners: "+JSON.stringify(corners_sw)+" and "+corners_se.length+" SE corners: "+JSON.stringify(corners_se));
+	if (corners_se.length==0 && corners_sw.length==0)
+		throw new Error("no corners!");
+
+	// for each corner, calculate the smallest square of any agent:
+	var cornerSquares_sw = jsts.algorithm.smallestCornerSquares(valueFunctions, corners_sw, requiredLandplotValue, "NE", origin_sw, [{x:0,y:-0.001}].concat(corners_se).concat([{x:1,y:1.001}]));
+	var cornerSquares_se = jsts.algorithm.smallestCornerSquares(valueFunctions, corners_se, requiredLandplotValue, "NW", origin_se, [{x:1,y:-0.001}].concat(corners_sw).concat([{x:0,y:1.001}]));
+	var allCornerSquares = cornerSquares_sw.concat(cornerSquares_se);
+	if (allCornerSquares.length==0) {
+		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			console.dir(valueFunctions);
+		return [];
+	}
+	
+	var currentSquare = allCornerSquares[0];
+	for (;;) {
+		currentSquare.visited = true;
+		var shadowedByCurrentSquare = findShadowed(currentSquare, allCornerSquares);
+		if (shadowedByCurrentSquare) {
+			if (shadowedByCurrentSquare.visited) {
+				console.dir(cornerSquares_sw);
+				console.dir(cornerSquares_se);
+				throw new Error("Circular shadow! currentSquare="+JSON.stringify(currentSquare)+" shadowedByCurrentSquare="+JSON.stringify(shadowedByCurrentSquare));
+			}
+			currentSquare = shadowedByCurrentSquare;
+		} else {
+			break; // current square puts no shadow!
+		}
+	}
+	
+
+	// get the agent with the square with the smallest taxicab distance overall:
+	var iWinningAgent = currentSquare.index;
+	var winningAgent  = valueFunctions[iWinningAgent];
+
+	var landplot = currentSquare.direction=="NE"? {
+			minx: currentSquare.x,
+			miny: currentSquare.y,
+			maxx: currentSquare.x+currentSquare.s,
+			maxy: currentSquare.y+currentSquare.s,
+	}: {  // "NW"
+		maxx: currentSquare.x,
+		miny: currentSquare.y,
+		minx: currentSquare.x-currentSquare.s,
+		maxy: currentSquare.y+currentSquare.s,
+	};
+	if (winningAgent.color) landplot.color = winningAgent.color;
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets from the square "+JSON.stringify(currentSquare)+" the landplot "+JSON.stringify(landplot));
+	
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+	if (currentSquare.direction=="NE") {
+		var remainingCorners_sw = jsts.algorithm.updatedCornersNorthEast(corners_sw, landplot);
+		remainingCorners_se = jsts.algorithm.removeCornersWithSmallXDistance(corners_se, [{x:1,y:-0.001}].concat(remainingCorners_sw).concat([{x:0,y:1.001}]));
+		remainingCorners_sw = jsts.algorithm.removeCornersWithSmallXDistance(remainingCorners_sw, [{x:0,y:-0.001}].concat(corners_se).concat([{x:1,y:1.001}]));
+	} else {  // "NW"
+		var remainingCorners_se = jsts.algorithm.updatedCornersNorthWest(corners_se, landplot);
+		remainingCorners_sw = jsts.algorithm.removeCornersWithSmallXDistance(corners_sw, [{x:0,y:-0.001}].concat(remainingCorners_se).concat([{x:1,y:1.001}]));
+		remainingCorners_se = jsts.algorithm.removeCornersWithSmallXDistance(remainingCorners_se, [{x:1,y:-0.001}].concat(corners_sw).concat([{x:0,y:1.001}]));
+	}
+	var remainingLandplots = staircase3walls_double2walls(remainingValueFunctions, origin_sw, remainingCorners_sw, origin_se, remainingCorners_se, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
+}
+
 
 
 
