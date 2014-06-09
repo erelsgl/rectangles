@@ -56,7 +56,7 @@ describe('updatedCornersNorth', function() {
 
 
 var rectanglesCoveringSouthernLevels = jsts.algorithm.rectanglesCoveringSouthernLevels;
-describe.only('rectanglesCoveringSouthernLevels', function() {
+describe('rectanglesCoveringSouthernLevels', function() {
 	it('single level', function() {
 		rectanglesCoveringSouthernLevels([{y:0,minx:0,maxx:1}]).should.eql(
 			[{minx:0,maxx:1,miny:0,maxy:Infinity}]);
@@ -96,4 +96,22 @@ describe.only('rectanglesCoveringSouthernLevels', function() {
 })
 
 
+var updatedLevels = jsts.algorithm.updatedLevels;
+describe('updatedLevels', function() {
+	it('single level', function() {
+		var levels = [{"y":0,"minx":0,"maxx":1}];
+		var landplot = {"minx":0,"miny":0,"maxx":0.75,"maxy":0.75};
+		updatedLevels(levels,landplot,"S").should.eql([{"y":0.75,"minx":0,"maxx":0.75},{"y":0,"minx":0.75,"maxx":1}]);
+	})
+	it('zero-sized plot at south', function() {
+		var levels = [{"y":0,"minx":0,"maxx":1}];
+		var landplot = {"minx":0,"miny":0,"maxx":0,"maxy":0};
+		updatedLevels(levels,landplot,"S").should.eql(levels);
+	})
+	it('zero-sized plot at north', function() {
+		var levels = [{"y":0,"minx":0,"maxx":1}];
+		var landplot = {"minx":1,"miny":0,"maxx":1,"maxy":0};
+		updatedLevels(levels,landplot,"S").should.eql(levels);
+	})
+});
 

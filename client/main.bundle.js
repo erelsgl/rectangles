@@ -823,9 +823,9 @@ jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 		throw new Error("levels: expected array but got "+JSON.stringify(levels));
 	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
 		throw new Error("landplot: expected fields not found: "+JSON.stringify(landplot));
-	TRACE("  Update "+(direction=='S'? "south": "north")+" levels: "+JSON.stringify(levels));
-	TRACE("  with landplot: "+JSON.stringify(landplot));
 
+	TRACE("  updating "+(direction=='S'? "south": "north")+" levels: "+JSON.stringify(levels)+"  with landplot: "+JSON.stringify(landplot));
+	
 	var numOfLevels = levels.length;
 	var newLevels = [];
 	var c = 0;
@@ -838,22 +838,37 @@ jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 	
 	// HERE levels[c].maxx > landplot.minx
 
-	if (levels[c].minx < landplot.minx)
-		newLevels.push({y:levels[c].y, minx:levels[c].minx, maxx:landplot.minx});
+	if (c<numOfLevels) {
+		var newLevelY = (direction=='S'? landplot.maxy: landplot.miny);
+	//	console.log("newLevelY="+newLevelY+" levels[c]="+JSON.stringify(levels[c]));
+		if (levels[c].minx < landplot.minx) {
+			if (newLevelY!=levels[c].y) {
+				newLevels.push({y:levels[c].y, minx:levels[c].minx, maxx:landplot.minx});
+				newLevels.push({y:newLevelY, minx:landplot.minx, maxx:landplot.maxx});
+			} else {
+				newLevels.push({y:newLevelY, minx:levels[c].minx, maxx:landplot.maxx});
+			}
+		} else if (levels[c].minx == landplot.minx) {
+			if (newLevelY!=levels[c].y) {
+				newLevels.push({y:newLevelY, minx:landplot.minx, maxx:landplot.maxx});
+			} 
+		}
+	}
 
-	// HERE we have added all levels with minx to the west of landplot.minx
-
-	newLevels.push({y: (direction=='S'? landplot.maxy: landplot.miny), minx:landplot.minx, maxx:landplot.maxx});
+	// HERE we have added all levels with minx weakly to the west of landplot.minx,
+	// and the new level created by landplot.
 	
-	// skip all levels to the south of y:
+	// skip all levels shaded by y:
 	while (c<numOfLevels && levels[c].minx<landplot.maxx) {
 		TRACE("  south: "+JSON.stringify(levels[c]));
 		c++;
 	}
-	c--;
-	if (levels[c].maxx > landplot.maxx)
-		newLevels.push({y:levels[c].y, minx:landplot.maxx, maxx:levels[c].maxx});
-	c++;
+	if (c>0) {
+		c--;
+		if (levels[c].maxx > landplot.maxx)
+			newLevels.push({y:levels[c].y, minx:landplot.maxx, maxx:levels[c].maxx});
+		c++;
+	}
 	
 	// HERE levels[c].minx >= landplot.maxx
 
@@ -863,6 +878,7 @@ jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 		newLevels.push(levels[c++]);
 	}
 	
+	TRACE("  updated "+(direction=='S'? "south": "north")+" levels: "+JSON.stringify(levels)+"  with landplot: "+JSON.stringify(landplot)+"  returns: "+JSON.stringify(newLevels));
 	return newLevels;
 }
 
@@ -1572,12 +1588,11 @@ var staircase4wallsNorth = function(yLength, valueFunctions, levels, requiredLan
  * - Landplots may overflow the northern border
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
-//	var initial = [{y:0,minx:0,maxx:1}];  // levels 
-//	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
+	var initial = [{y:0,minx:0,maxx:1}];  // levels 
+	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
 	
-	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
-	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
-	
+//	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
+//	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
 }
 
 

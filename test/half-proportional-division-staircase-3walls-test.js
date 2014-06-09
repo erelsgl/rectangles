@@ -40,12 +40,25 @@ describe('3 walls algorithm', function() {
 		testAlgorithm(alg3walls, [[agent1,agent2,agent3], sukka], 2);
 	})
 
-	it.only('3 agents with 6 points - 2-thin bug', function() {
+	it('3 agents with 6 points - 2-thin bug', function() {
 		var agent1 = [{x:0,y:0},{x:180,y:0},{x:0,y:200},{x:100,y:200},{x:200,y:200},{x:300,y:200}]; agent1.color='blue';
 		var agent2 = [{x:0,y:0},{x:0,y:190},{x:370,y:370},{x:370,y:380},{x:370,y:390},{x:370,y:400}]; agent2.color='green';
 		var agent3 = [{x:0,y:0},{x:400,y:0},{x:0,y:220},{x:400,y:320},{x:400,y:360},{x:400,y:400}]; agent3.color='red';
 		//testAlgorithm(alg3walls, [[agent1,agent2], sukka], 6);
 		testAlgorithm(alg3walls, [[agent1,agent2,agent3], sukka], 2);
 	})
-});
 
+	it('3 agents with 6 points - levels bug', function() {
+		var agent1 = [{x:0,y:0},{x:180,y:0},{x:0,y:0},{x:100,y:220},{x:200,y:400},{x:300,y:400}]; agent1.color='blue';
+		var agent2 = [{x:0,y:0},{x:0,y:200},{x:370,y:360},{x:370,y:370},{x:370,y:390},{x:370,y:200}]; agent2.color='green';
+		var agent3 = [{x:0,y:200},{x:400,y:190},{x:0,y:200},{x:400,y:380},{x:400,y:0},{x:400,y:320}]; agent3.color='red';
+		testAlgorithm(alg3walls, [[agent1,agent2,agent3], sukka], 2);
+	})
+
+	it('3 agents with 6 points - levels bug 2', function() {
+		var agent1 = [{x:0,y:190},{x:0,y:400},{x:100,y:200},{x:200,y:390},{x:300,y:200},{x:180,y:400}]; agent1.color='blue';
+		var agent2 = [{x:0,y:0},{x:0,y:380},{x:370,y:0},{x:370,y:320},{x:370,y:360},{x:370,y:0}]; agent2.color='green';
+		var agent3 = [{x:0,y:200},{x:400,y:0},{x:0,y:370},{x:400,y:0},{x:400,y:220},{x:400,y:200}]; agent3.color='red';
+		testAlgorithm(alg3walls, [[agent1,agent2,agent3], sukka], 2);
+	})
+});

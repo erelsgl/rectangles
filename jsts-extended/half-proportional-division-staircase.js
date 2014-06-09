@@ -411,12 +411,11 @@ var staircase4wallsNorth = function(yLength, valueFunctions, levels, requiredLan
  * - Landplots may overflow the northern border
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
-//	var initial = [{y:0,minx:0,maxx:1}];  // levels 
-//	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
+	var initial = [{y:0,minx:0,maxx:1}];  // levels 
+	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
 	
-	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
-	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
-	
+//	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
+//	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
 }
 
 
