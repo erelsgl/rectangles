@@ -12,69 +12,9 @@ _.mixin(require("argminmax"));
 //var TRACE = function(){};
 var TRACE = console.log;
 
-/**
- * @param corners a list of points {x:,y:}, describing a northern border. x is non-decreasing: NW - SW - SE - NE 
- * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
- * @return a new list of corners describing the border after the landplot has been annexed. 
- */
-jsts.algorithm.updatedCornersNorth = function(corners, landplot) {
-	if (!Array.isArray(corners))
-		throw new Error("corners: expected array but got "+JSON.stringify(corners));
-	if (!('minx' in landplot && 'maxx' in landplot && 'miny' in landplot && 'maxy' in landplot))
-		throw new Error("landplot: expected fields not fount: "+JSON.stringify(landplot));
 
-	TRACE("  updatedCornersNorth with corners: "+JSON.stringify(corners)+"  landplot: "+JSON.stringify(landplot));
-	var numOfCorners = corners.length;
-	var newCorners = [];
-	var c = 0;
 
-	// add all corners to the west of minx:
-	while (c<numOfCorners && corners[c].x<landplot.minx) {
-		TRACE("west: "+JSON.stringify(corners[c]));
-		newCorners.push(corners[c++]);
-	}
-
-	// handle corners at minx:
-	var minXCorner = null;
-	if (corners[c].x==landplot.minx) {
-		minXCorner = corners[c++];
-	} else if (corners[c].y<landplot.miny) {
-		minXCorner = {x:landplot.minx, y:corners[c].y};
-	} else {
-		minXCorner = {x:landplot.minx, y:landplot.miny};
-	}
-	TRACE("minx: "+JSON.stringify(minXCorner));
-	newCorners.push(minXCorner);
-	newCorners.push({x:landplot.minx, y:landplot.maxy});
-
-	// skip corners between minx and maxx:
-	while (c<numOfCorners && corners[c].x<=landplot.maxx) {
-		TRACE("south: "+JSON.stringify(corners[c]));
-		c++;
-	}
-	
-	// handle corners at maxx:
-	var maxXCorner = null;
-	if (c>0 && corners[c-1].x==landplot.maxx) {
-		maxXCorner = corners[c-1];
-	} else if (c>0 && corners[c-1].y<landplot.miny) {
-		maxXCorner = {x:landplot.maxx, y:corners[c-1].y};
-	} else {
-		maxXCorner = {x:landplot.maxx, y:landplot.miny};
-	}
-	TRACE("maxx: "+JSON.stringify(maxXCorner));
-	newCorners.push({x:landplot.maxx, y:landplot.maxy});
-	newCorners.push(maxXCorner);
-
-	// add all corners to the east of maxx:
-	while (c<numOfCorners) {
-		TRACE("east: "+JSON.stringify(corners[c]));
-		newCorners.push(corners[c++]); 
-	}
-
-	return newCorners;
-}
-
+/*********************** 2 WALLS ************************/
 
 
 /**
@@ -146,7 +86,7 @@ jsts.algorithm.updatedCornersNorthWest = function(corners, landplot) {
 		newCorners.push(corners[c]);
 		++c;
 	}
-	
+
 	return newCorners;
 }
 
@@ -259,6 +199,12 @@ jsts.algorithm.removeCornersWithSmallXDistance = function(corners, otherCorners)
 }
 
 
+
+
+
+/*********************** 3 WALLS ************************/
+
+
 /**
  * @param levels a list of {y:,minx:,maxx:}, describing a southern or northern border. x is non-decreasing: NW - SW - SE - NE 
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} whose southern side is adjacent to the border from its north.
@@ -330,54 +276,6 @@ jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 }
 
 
-
-/**
- * Calculate, for each level, its most distant x-values that do not run through walls.
- * @param levels sequence of [{x,y}] ordered by increasing x. 
- * - Adds, to each level fields xw (west) and xe (east), such that xw <= x < xe.
- * @param xFarwest, xFareast - x-values of the extreme boundaries
- * @return levels after the change.
- * @deprecated not used anymore.
- */
-jsts.algorithm.calculateSpansOfLevels = function(levels, xFarWest, xFarEast) {
-	// add the xw field:
-	var westWalls = [{y:Infinity, x:xFarWest}];  // ordered from west to east
-	for (var l=0; l<levels.length; ++l) {
-		var level = levels[l];
-
-		// add the xw field:
-		for (var w=westWalls.length-1; w>=0; --w) 
-			if (westWalls[w].y>level.y)
-				level.xw = westWalls[w].x;
-		
-		// add a new westWall:
-		if (l+1<levels.length) {
-			var nextLevel = levels[l+1];
-			if (nextLevel.y<level.y)
-				westWalls.push[{y:level.y, x:nextLevel.x}]
-		}
-	}
-
-	// add the xe field:
-	var eastWalls = [{y:Infinity, x:xFarEast}];  // ordered from east to west
-	for (var l=levels.length-1; l>=0; --l) {
-		var level = levels[l];
-
-		// add the xe field:
-		for (var w=eastWalls.length-1; w>=0; --w) 
-			if (eastWalls[w].y>level.y)
-				level.xe = eastWalls[w].x;
-
-		// add a new eastWall:
-		if (l-1>=0) {
-			var nextLevel = levels[l-1];
-			if (nextLevel.y<level.y)
-				eastWalls.push[{y:level.y, x:level.x}]
-		}
-	}
-
-	return levels;
-}
 
 
 /**
@@ -479,3 +377,136 @@ jsts.algorithm.rectanglesCoveringNorthernLevels = function(levelsParam) {
 	
 	return covering;
 }
+
+
+
+/*********************** 4 WALLS ************************/
+
+function isCornerOfRectangle(point, rectangle) {
+	return (
+		(point.x==rectangle.minx || point.x==rectangle.maxx) &&
+		(point.y==rectangle.miny || point.y==rectangle.maxy) );
+}
+
+
+/**
+ * @param border a list of {x:, y:}, describing a border of a right-angled axis-parallel polygon, in clockwise or counter-clockwise order.
+ * The border must be closed, i.e. the last corner should be equal to the first corner.
+ * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} contained in the polygon and adjacent to the border.
+ * @return the new border after the landplot has been removed. 
+ */
+jsts.algorithm.updatedBorder = function(border, landplot) {
+	var newBorder = [];
+
+	for (var i=1; i<border.length; ++i) {
+		var corner0 = border[i-1];
+		var corner1 = border[i];
+		
+		if (isCornerOfRectangle(corner0, landplot)) {
+			if (newBorder.length>0) {
+				// handle the special case in which landplot covers two adjacent corners:
+				lastCornerAdded = newBorder[newBorder.length-1];
+				if (corner0.x==lastCornerAdded.x&&corner0.y==lastCornerAdded.y)
+					newBorder.pop();
+			}
+			continue;
+		}
+		
+		newBorder.push(corner0);
+		
+		if (corner0.x==corner1.x) {  // vertical wall
+			var x = corner0.x;       // x value of wall
+			if (landplot.minx==x) {  // landplot is adjacent to western vertical wall
+				if (corner0.y>corner1.y) {   // wall goes from north to south
+					if (corner0.y>landplot.maxy)
+						newBorder.push({x:x,y:landplot.maxy});
+					newBorder.push({x:landplot.maxx,y:landplot.maxy});
+					newBorder.push({x:landplot.maxx,y:landplot.miny});
+					if (landplot.miny>corner1.y) 
+						newBorder.push({x:x,y:landplot.miny});
+				} else if (corner0.y<corner1.y) { // wall goes from south to north
+					if (corner0.y<landplot.miny)
+						newBorder.push({x:x,y:landplot.miny});
+					newBorder.push({x:landplot.maxx,y:landplot.miny});
+					newBorder.push({x:landplot.maxx,y:landplot.maxy});
+					if (landplot.maxy<corner1.y)
+						newBorder.push({x:x,y:landplot.maxy});
+				} else {  // corner0 is identical to corner1 - error:
+					throw new Error("Illegal border - two identical corners: corner0="+JSON.stringify(corner0)+" corner1="+JSON.stringify(corner1));
+				}
+			} else if (landplot.maxx==x) {  // landplot is adjacent to eastern vertical wall
+				if (corner0.y>corner1.y) {   // wall goes from north to south
+					if (corner0.y>landplot.maxy)
+						newBorder.push({x:x,y:landplot.maxy});
+					newBorder.push({x:landplot.minx,y:landplot.maxy});
+					newBorder.push({x:landplot.minx,y:landplot.miny});
+					if (landplot.miny>corner1.y) 
+						newBorder.push({x:x,y:landplot.miny});
+				} else if (corner0.y<corner1.y) { // wall goes from south to north
+					if (corner0.y<landplot.miny)
+						newBorder.push({x:x,y:landplot.miny});
+					newBorder.push({x:landplot.minx,y:landplot.miny});
+					newBorder.push({x:landplot.minx,y:landplot.maxy});
+					if (landplot.maxy<corner1.y)
+						newBorder.push({x:x,y:landplot.maxy});
+				} else {  // corner0 is identical to corner1 - error:
+					throw new Error("Illegal border - two identical corners: corner0="+JSON.stringify(corner0)+" corner1="+JSON.stringify(corner1));
+				}
+			} // else, landplot is not adjacent to current wall.
+		} else if (corner0.y==corner1.y) {  // horizontal wall
+			var y = corner0.y;       //  value of wall
+			if (landplot.miny==y) {  // landplot is adjacent to southern horizontal wall
+				if (corner0.x>corner1.x) {   // wall goes from east to west
+					if (corner0.x>landplot.maxx)
+						newBorder.push({y:y,x:landplot.maxx});
+					newBorder.push({y:landplot.maxy,x:landplot.maxx});
+					newBorder.push({y:landplot.maxy,x:landplot.minx});
+					if (landplot.minx>corner1.x) 
+						newBorder.push({y:y,x:landplot.minx});
+				} else if (corner0.x<corner1.x) { // wall goes from west to east
+					if (corner0.x<landplot.minx)
+						newBorder.push({y:y,x:landplot.minx});
+					newBorder.push({y:landplot.maxy,x:landplot.minx});
+					newBorder.push({y:landplot.maxy,x:landplot.maxx});
+					if (landplot.maxx<corner1.x)
+						newBorder.push({y:y,x:landplot.maxx});
+				} else {  // corner0 is identical to corner1 - error:
+					throw new Error("Illegal border - two identical corners: corner0="+JSON.stringify(corner0)+" corner1="+JSON.stringify(corner1));
+				}
+			} else if (landplot.maxy==y) {  // landplot is adjacent to northern horizontal wall
+				if (corner0.x>corner1.x) {   // wall goes from east to west
+					if (corner0.x>landplot.maxx)
+						newBorder.push({y:y,x:landplot.maxx});
+					newBorder.push({y:landplot.miny,x:landplot.maxx});
+					newBorder.push({y:landplot.miny,x:landplot.minx});
+					if (landplot.minx>corner1.x) 
+						newBorder.push({y:y,x:landplot.minx});
+				} else if (corner0.x<corner1.x) { // wall goes from west to east
+					if (corner0.x<landplot.minx)
+						newBorder.push({y:y,x:landplot.minx});
+					newBorder.push({y:landplot.miny,x:landplot.minx});
+					newBorder.push({y:landplot.miny,x:landplot.maxx});
+					if (landplot.maxx<corner1.x) 
+						newBorder.push({y:y,x:landplot.maxx});
+				} else {  // corner0 is identical to corner1 - error:
+					throw new Error("Illegal border - two identical corners: corner0="+JSON.stringify(corner0)+" corner1="+JSON.stringify(corner1));
+				}
+			} // else, landplot is not adjacent to current wall
+		} else {   // corner0 and corner1 are different in both coordinates - not an axis-parallel polygon
+			throw new Error("Illegal border - not an axis-parallel polygon: corner0="+JSON.stringify(corner0)+" corner1="+JSON.stringify(corner1));
+		}
+	}
+
+	// remove redundant corners of the landplot, that overlap corners of the polygon:
+	lastCornerAdded = newBorder[newBorder.length-1];
+	if (corner1.x==lastCornerAdded.x&&corner1.y==lastCornerAdded.y)
+		newBorder.pop();
+	if (border[1].x==lastCornerAdded.x&&border[1].y==lastCornerAdded.y)
+		newBorder.pop();
+
+	// keep the border cyclic:
+	newBorder.push(newBorder[0]);
+	
+	return newBorder;
+}
+

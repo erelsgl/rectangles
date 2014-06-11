@@ -7,52 +7,6 @@
 
 var should = require('should');
 var jsts = require("../jsts-extended");
-var updatedCornersNorth = jsts.algorithm.updatedCornersNorth; // shorthand
-
-describe('updatedCornersNorth', function() {
-	it('simple initial corner set', function() {
-		var initialCorners = [{x:0,y:20},{x:0,y:0},{x:10,y:0},{x:10,y:20}];
-		updatedCornersNorth(initialCorners, {minx:0,miny:0,maxx:5,maxy:5}).should.eql(
-			[{x:0,y:20},{x:0,y:5},{x:5,y:5},{x:5,y:0},{x:10,y:0},{x:10,y:20}]);
-		updatedCornersNorth(initialCorners, {minx:5,miny:0,maxx:10,maxy:5}).should.eql(
-			[{x:0,y:20},{x:0,y:0},{x:5,y:0},{x:5,y:5},{x:10,y:5},{x:10,y:20}]);
-		//console.log(JSON.stringify(updatedCornersNorth(initialCorners, {minx:0,miny:0,maxx:5,maxy:5})).replace(/\"/g,""));
-	})
-	
-	it('8 initial corners', function() {
-		var initialCorners = [{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:8,y:0},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}];
-		updatedCornersNorth(initialCorners, {minx:0,miny:2,maxx:1,maxy:3}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:3},{x:1,y:3},{x:1,y:2},{x:2,y:2},{x:2,y:0},{x:8,y:0},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}]);
-		updatedCornersNorth(initialCorners, {minx:0,miny:2,maxx:2,maxy:4}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:4},{x:2,y:4},{x:2,y:0},{x:8,y:0},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}]);
-		updatedCornersNorth(initialCorners, {minx:0,miny:2,maxx:3,maxy:5}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:5},{x:3,y:5},{x:3,y:0},{x:8,y:0},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}]);
-		updatedCornersNorth(initialCorners, {minx:0,miny:2,maxx:8,maxy:10}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:10},{x:8,y:10},{x:8,y:2},{x:10,y:2},{x:10,y:Infinity}]);
-		updatedCornersNorth(initialCorners, {minx:0,miny:2,maxx:9,maxy:11}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:11},{x:9,y:11},{x:9,y:2},{x:10,y:2},{x:10,y:Infinity}]);
-		updatedCornersNorth(initialCorners, {minx:0,miny:2,maxx:10,maxy:12}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:12},{x:10,y:12},{x:10,y:Infinity}]);
-	})
-	
-	it('a hovering square', function() {
-		var initialCorners = [{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:10,y:0},{x:10,y:Infinity}];
-		updatedCornersNorth(initialCorners, {minx:6,miny:6,maxx:8,maxy:8}).should.eql(
-				[{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:6,y:0},{x:6,y:8},{x:8,y:8},{x:8,y:0},{x:10,y:0},{x:10,y:Infinity}]);
-		updatedCornersNorth(initialCorners, {minx:6,miny:6,maxx:10,maxy:10}).should.eql(
-			[{x:0,y:Infinity},{x:0,y:2},{x:2,y:2},{x:2,y:0},{x:6,y:0},{x:6,y:10},{x:10,y:10},{x:10,y:Infinity}]);
-	})
-})
-
-//var calculateSpansOfLevels = jsts.algorithm.calculateSpansOfLevels;
-//var xFarWest = 0;  var xFarEast = 1;
-//describe.only('calculateSpansOfLevels', function() {
-//	it('simple initial level set', function() {
-//		calculateSpansOfLevels([{x:0,y:0}], xFarWest, xFarEast).should.eql(
-//			[{x:0,y:0,xw:0,xe:1}]);
-//	})
-//})
-//
 
 
 var rectanglesCoveringSouthernLevels = jsts.algorithm.rectanglesCoveringSouthernLevels;
@@ -113,5 +67,46 @@ describe('updatedLevels', function() {
 		var landplot = {"minx":1,"miny":0,"maxx":1,"maxy":0};
 		updatedLevels(levels,landplot,"S").should.eql(levels);
 	})
+});
+
+var updatedBorder = jsts.algorithm.updatedBorder;
+describe.only('updatedBorder with square land', function() {
+	var land = [{x:0,y:0},{x:0,y:10},{x:10,y:10},{x:10,y:0},{x:0,y:0}];
+	it('SW corner', function() {
+		updatedBorder(land, {minx:0,miny:0, maxx:2,maxy:3}).should.eql([{x:0,y:10},{x:10,y:10},{x:10,y:0},{x:2,y:0},{x:2,y:3},{x:0,y:3},{x:0,y:10}]);
+	});
+	it('west wall', function() {
+		updatedBorder(land, {minx:0,miny:1, maxx:2,maxy:3}).should.eql([{x:0,y:0},{x:0,y:1},{x:2,y:1},{x:2,y:3},{x:0,y:3},{x:0,y:10},{x:10,y:10},{x:10,y:0},{x:0,y:0}]);
+	});
+	it('entire west wall', function() {
+		updatedBorder(land, {minx:0,miny:0, maxx:2,maxy:10}).should.eql([{x:10,y:10},{x:10,y:0},{y:0,x:2},{y:10,x:2},{x:10,y:10}]);
+	});
+	it('NW corner', function() {
+		updatedBorder(land, {minx:0,miny:1, maxx:2,maxy:10}).should.eql([{x:0,y:0},{x:0,y:1},{x:2,y:1},{x:2,y:10},{x:10,y:10},{x:10,y:0},{x:0,y:0}]);
+	});
+	it('north wall', function() {
+		updatedBorder(land, {minx:1,miny:1, maxx:9,maxy:10}).should.eql([{x:0,y:0},{x:0,y:10},{x:1,y:10},{x:1,y:1},{x:9,y:1},{x:9,y:10},{x:10,y:10},{x:10,y:0},{x:0,y:0}]);
+	});
+	it('entire north wall', function() {
+		updatedBorder(land, {minx:0,miny:1, maxx:10,maxy:10}).should.eql([{x:0,y:0},{x:0,y:1},{x:10,y:1},{x:10,y:0},{x:0,y:0}]);
+	});
+	it('NE corner', function() {
+		updatedBorder(land, {minx:1,miny:1, maxx:10,maxy:10}).should.eql([{x:0,y:0},{x:0,y:10},{x:1,y:10},{x:1,y:1},{x:10,y:1},{x:10,y:0},{x:0,y:0}]);
+	});
+	it('east wall', function() {
+		updatedBorder(land, {minx:1,miny:1, maxx:10,maxy:9}).should.eql([{x:0,y:0},{x:0,y:10},{x:10,y:10},{x:10,y:9},{x:1,y:9},{x:1,y:1},{x:10,y:1},{x:10,y:0},{x:0,y:0}]);
+	});
+	it('entire east wall', function() {
+		updatedBorder(land, {minx:1,miny:0, maxx:10,maxy:10}).should.eql([{x:0,y:0},{x:0,y:10},{y:10,x:1},{y:0,x:1},{x:0,y:0}]);
+	});
+	it('SE corner', function() {
+		updatedBorder(land, {minx:1,miny:0, maxx:10,maxy:3}).should.eql([{x:0,y:0},{x:0,y:10},{x:10,y:10},{x:10,y:3},{x:1,y:3},{x:1,y:0},{x:0,y:0}]);
+	});
+	it('south wall', function() {
+		updatedBorder(land, {minx:1,miny:0, maxx:8,maxy:3}).should.eql([{x:0,y:0},{x:0,y:10},{x:10,y:10},{x:10,y:0},{x:8,y:0},{x:8,y:3},{x:1,y:3},{x:1,y:0},{x:0,y:0}]);
+	});
+	it('entire south wall', function() {
+		updatedBorder(land, {minx:0,miny:0, maxx:10,maxy:3}).should.eql([{x:0,y:10},{x:10,y:10},{x:10,y:3},{x:0,y:3},{x:0,y:10}]);
+	});
 });
 
