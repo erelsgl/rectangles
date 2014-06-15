@@ -70,7 +70,7 @@ describe('updatedLevels', function() {
 });
 
 var updatedBorder = jsts.algorithm.updatedBorder;
-describe.only('updatedBorder with square land', function() {
+describe('updatedBorder with square land', function() {
 	var land = [{x:0,y:0},{x:0,y:10},{x:10,y:10},{x:10,y:0},{x:0,y:0}];
 	it('SW corner', function() {
 		updatedBorder(land, {minx:0,miny:0, maxx:2,maxy:3}).should.eql([{x:0,y:10},{x:10,y:10},{x:10,y:0},{x:2,y:0},{x:2,y:3},{x:0,y:3},{x:0,y:10}]);

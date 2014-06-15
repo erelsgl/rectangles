@@ -275,12 +275,63 @@ jsts.algorithm.updatedLevels = function(levels, landplot, direction) {
 	return newLevels;
 }
 
+/**
+ * Add to each level the properties: "yWest", "yEast", "isKnob", "westMinx", "eastMaxx"
+ */
+addPropertiesToLevel = function(levels, i) {
+	var level = levels[i];
+	var west = (i-1>=0?            levels[i-1]: null);
+	level.westMinx = (west? west.minx: 0);
+	level.yWest = (west? west.y: Infinity);
+	var east = (i+1<levels.length? levels[i+1]: null);
+	level.yEast = (east? east.y: Infinity);
+	level.eastMaxx = (east? east.maxx: 1);
+	level.isKnob = (level.yEast>level.y && level.yWest>level.y);
+}
 
+/**
+ * Add to each level the properties: "yWest", "yEast", "isKnob", "westMinx", "eastMaxx"
+ */
+jsts.algorithm.addPropertiesToLevels = function(levels) {
+	for (var i=0; i<levels.length; ++i) 
+		addPropertiesToLevel(levels, i);
+}
+
+/**
+ * Remove a single level from a southern border.
+ * @param levels sequence of [{minx,maxx,y}] with additional properties [{yWest,yEast,westMinx,eastMaxx,isKnob}], ordered by increasing minx. 
+ * @param iLevelToRemove index of level to remove.
+ * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
+ * @note updates the additional information of the levels, but very inefficiently (calls jsts.algorithm.addPropertiesToLevels(levels) to do that).
+ */
+jsts.algorithm.removeLevel = function(levels, iLevelToRemove) {
+	with (levels[iLevelToRemove]) {
+		if (yWest < yEast) {
+			levels.splice(
+					/* go to index */ iLevelToRemove-1, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: westMinx, maxx: maxx, y: yWest});
+		} else if (yEast < yWest) {
+			levels.splice(
+					/* go to index */ iLevelToRemove, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: minx, maxx: eastMaxx, y: yEast});
+		} else if (isFinite(yWest)) { //  && yWest==yEast
+			levels.splice(
+					/* go to index */ iLevelToRemove-1, 
+					/* remove */      3 /* elements*/, 
+					/* then add */    {minx: westMinx, maxx: eastMaxx, y: yWest});
+		} else {  // a single level remaining
+			levels.splice(iLevelToRemove,1);
+		}
+	}
+	jsts.algorithm.addPropertiesToLevels(levels);	
+}
 
 
 /**
  * Calculate a list of rectangles covering the cake whose southern border is defined by the given levels.
- * @param levels sequence of [{minx,maxx,y}] ordered by increasing minx. 
+ * @param levels sequence of [{minx,maxx,y}].
  * @return sequence of rectangles [{minx,maxx,miny,maxy}]. The number of rectangles should be equal to the number of levels.  
  */
 jsts.algorithm.rectanglesCoveringSouthernLevels = function(levelsParam) {
@@ -289,38 +340,33 @@ jsts.algorithm.rectanglesCoveringSouthernLevels = function(levelsParam) {
 	
 	while (levels.length>0) {
 		
-		// cover the lowest (most southern) level:
+		// cover the lowest (most southern) level and then remove it:
 		var iLowestLevel = _.argmin(levels, function(level){return level.y});
-		var level = levels[iLowestLevel];
-		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
-		
-		// remove the lowest level:
-		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
-		var yWest = (west? west.y: Infinity);
-		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
-		var yEast = (east? east.y: Infinity);
-		
-		if (yWest < yEast) {
-			rectangle.maxy = yWest;
-			levels.splice(
-					/* go to index */ iLowestLevel-1, 
-					/* remove */      2 /* elements*/, 
-					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
-		} else if (yEast < yWest) {
-			rectangle.maxy = yEast;
-			levels.splice(
-					/* go to index */ iLowestLevel, 
-					/* remove */      2 /* elements*/, 
-					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
-		} else if (west && east) { //  && yWest==yEast
-			rectangle.maxy = yWest;
-			levels.splice(
-					/* go to index */ iLowestLevel-1, 
-					/* remove */      3 /* elements*/, 
-					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
-		} else {  // a single level remaining
-			rectangle.maxy = Infinity;
-			levels.splice(iLowestLevel,1);
+		addPropertiesToLevel(levels, iLowestLevel);
+		with (levels[iLowestLevel]) {
+			var rectangle = {minx:minx, maxx:maxx, miny:y};
+			if (yWest < yEast) {
+				rectangle.maxy = yWest;
+				levels.splice(
+						/* go to index */ iLowestLevel-1, 
+						/* remove */      2 /* elements*/, 
+						/* then add */    {minx: westMinx, maxx: maxx, y: yWest});
+			} else if (yEast < yWest) {
+				rectangle.maxy = yEast;
+				levels.splice(
+						/* go to index */ iLowestLevel, 
+						/* remove */      2 /* elements*/, 
+						/* then add */    {minx: minx, maxx: eastMaxx, y: yEast});
+			} else if (isFinite(yWest)) { //  && yWest==yEast
+				rectangle.maxy = yWest;
+				levels.splice(
+						/* go to index */ iLowestLevel-1, 
+						/* remove */      3 /* elements*/, 
+						/* then add */    {minx: westMinx, maxx: eastMaxx, y: yWest});
+			} else {  // a single level remaining
+				rectangle.maxy = Infinity;
+				levels.splice(iLowestLevel,1);
+			}
 		}
 		covering.push(rectangle);  
 	}
@@ -390,7 +436,7 @@ function isCornerOfRectangle(point, rectangle) {
 
 
 /**
- * @param border a list of {x:, y:}, describing a border of a right-angled axis-parallel polygon, in clockwise or counter-clockwise order.
+ * @param border a list of {x:, y:}, describing a border of a right-angled axis-parallel simply-connected polygon, in clockwise or counter-clockwise order.
  * The border must be closed, i.e. the last corner should be equal to the first corner.
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} contained in the polygon and adjacent to the border.
  * @return the new border after the landplot has been removed. 
@@ -509,4 +555,58 @@ jsts.algorithm.updatedBorder = function(border, landplot) {
 	
 	return newBorder;
 }
+
+
+
+/**
+ * Calculate a list of rectangles covering the cake whose southern border is defined by the given levels.
+ * @param border a list of {x:, y:}, describing a border of a right-angled axis-parallel simply-connected polygon, in clockwise or counter-clockwise order.
+ * The border must be closed, i.e. the last corner should be equal to the first corner.
+ * @return sequence of rectangles [{minx,maxx,miny,maxy}], covering the polygon.
+ */
+jsts.algorithm.rectanglesCoveringPolygon = function(borderParam) {
+	var levels = levelsParam.slice(0);
+	var covering = [];
+	
+	while (levels.length>0) {
+		
+		// cover the lowest (most southern) level:
+		var iLowestLevel = _.argmin(levels, function(level){return level.y});
+		var level = levels[iLowestLevel];
+		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
+		
+		// remove the lowest level:
+		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
+		var yWest = (west? west.y: Infinity);
+		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
+		var yEast = (east? east.y: Infinity);
+		
+		if (yWest < yEast) {
+			rectangle.maxy = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
+		} else if (yEast < yWest) {
+			rectangle.maxy = yEast;
+			levels.splice(
+					/* go to index */ iLowestLevel, 
+					/* remove */      2 /* elements*/, 
+					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
+		} else if (west && east) { //  && yWest==yEast
+			rectangle.maxy = yWest;
+			levels.splice(
+					/* go to index */ iLowestLevel-1, 
+					/* remove */      3 /* elements*/, 
+					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
+		} else {  // a single level remaining
+			rectangle.maxy = Infinity;
+			levels.splice(iLowestLevel,1);
+		}
+		covering.push(rectangle);  
+	}
+	
+	return covering;
+}
+
 
