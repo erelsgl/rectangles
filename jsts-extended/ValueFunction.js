@@ -14,7 +14,6 @@ var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 	this.valuePerPoint = valuePerPoint;
 	this.pointsPerUnitValue = 1/valuePerPoint;
 	this.color = color? color: points.color? points.color: null;
-	//console.log(this.color+": valuePerPoint = "+totalValue+"/"+points.length+"="+valuePerPoint)
 	this.index = points.index? points.index: null;
 	this.setPoints(points);
 };
@@ -59,6 +58,10 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue,
 	var requestedNumOfPoints = Math.ceil(requestedValue / this.valuePerPoint);
 	if (isNaN(requestedNumOfPoints)) 
 		throw new Error("requestedNumOfPoints is NaN: requestedValue="+requestedValue+" valuePerPoint="+this.valuePerPoint)
+	if (requestedNumOfPoints==0) {
+		console.dir(this);
+		throw new Error("requestedNumOfPoints is 0: requestedValue="+requestedValue+" valuePerPoint="+this.valuePerPoint)
+	}
 
 	if (this.points.length<requestedNumOfPoints) return Infinity;
 	
@@ -70,7 +73,6 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue,
 		null);
 	if (!filterFunction) throw new Error("Unsupported direction "+direction);
 	var relevantPoints = this.points.filter(filterFunction);
-//	console.log("  relevantPoints="+JSON.stringify(relevantPoints));
 	
 	if (relevantPoints.length<requestedNumOfPoints) return Infinity;
 	relevantPoints.forEach(function(point) {

@@ -48,3 +48,12 @@ jsts.algorithm.pointsToString = function(points, color) {
 	}
 	return s;
 }
+
+jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
+	var s = "";
+	agentsValuePoints.forEach(function(points) {
+		s += jsts.algorithm.pointsToString(points, points.color)+":";
+	});
+	return s;
+}
+
