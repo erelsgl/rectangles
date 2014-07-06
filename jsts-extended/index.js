@@ -3,6 +3,7 @@ require("./intersection-cache");
 require("./factory-utils");
 require("./point-utils");
 require("./AxisParallelRectangle");
+require("./SimpleRectilinearPolygon");
 require("./maximum-disjoint-set-sync");
 require("./maximum-disjoint-set-async");
 require("./representative-disjoint-set-sync");
