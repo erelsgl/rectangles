@@ -27,12 +27,12 @@ describe('2 walls algorithm', function() {
 	it('2 agents with same 4 points in corners', function() {
 		var agent1 = [{x:0,y:0},{x:0,y:400},{x:400,y:0},{x:400,y:400}]; agent1.color='blue';
 		var agent2 = agent1.slice(0);  agent2.color='red';
-		alg([agent1,agent2], quarterplane_NE).should.eql(
-				[{ minx: 400, maxx: 800, miny: 0, maxy: 400, color:'red' },
-				 { minx: 0, maxx: 400, miny: 0, maxy: 400, color:'blue' }]);
-		alg([agent1,agent2], quarterplane_NE).should.eql(
-				[{ minx: 400, maxx: 800, miny: 0, maxy: 400, color:'red' },
-				 { minx: 0, maxx: 400, miny: 0, maxy: 400, color:'blue' }, ]);
+		alg([agent1,agent2], quarterplane_NE).slice(0).should.eql(
+				[{ minx: 400, miny: 0, maxx: 800, maxy: 400, color:'red' },
+				 { minx: 0, miny: 0, maxx: 400, maxy: 400, color:'blue' }]);
+		alg([agent1,agent2], quarterplane_NE).slice(0).should.eql(
+				[{ minx: 400, miny: 0, maxx: 800, maxy: 400, color:'red' },
+				 { minx: 0, miny: 0, maxx: 400, maxy: 400, color:'blue' }, ]);
 	});
 	
 	it('2 agents with 4 points, simple solution fails', function() {

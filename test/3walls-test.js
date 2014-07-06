@@ -26,7 +26,7 @@ describe('3 walls algorithm', function() {
 	it('2 agents with 4 points in corners - no intersection', function() {
 		var agent1 = [{x:0,y:0},{x:0,y:300},{x:300,y:0},{x:300,y:300}]; agent1.color='blue';
 		var agent2 = [{x:0,y:0},{x:0,y:400},{x:400,y:0},{x:400,y:400}]; agent2.color='red';
-		alg3walls([agent1,agent2], sukka).should.eql(
+		alg3walls([agent1,agent2], sukka).slice(0).should.eql(
 				[{ maxx: 400, miny: 300, minx: 0, maxy: 700, color:'red' },
 				 { minx: 0, miny: 0, maxx: 300, maxy: 300, color:'blue' }, ]);
 	})

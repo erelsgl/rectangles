@@ -9,14 +9,21 @@ var _ = require("underscore");
 var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 	if (!Array.isArray(points))
 		throw new Error("points: expected an array but got "+JSON.stringify(points));
-	this.totalValue = totalValue;
-	if (!valuePerPoint) valuePerPoint = totalValue/points.length;
-	this.valuePerPoint = valuePerPoint;
-	this.pointsPerUnitValue = 1/valuePerPoint;
+	if (!points.length)
+		throw new Error("No points! totalValue="+totalValue);
+	this.setTotalValue(totalValue, points.length, valuePerPoint);
 	this.color = color? color: points.color? points.color: null;
 	this.index = points.index? points.index: null;
 	this.setPoints(points);
 };
+
+ValueFunction.prototype.setTotalValue = function(totalValue, numOfPoints, valuePerPoint) {
+	this.totalValue = totalValue;
+	if (!numOfPoints) numOfPoints = this.points.length;
+	if (!valuePerPoint) valuePerPoint = totalValue/numOfPoints;
+	this.valuePerPoint = valuePerPoint;
+	this.pointsPerUnitValue = 1/valuePerPoint;
+}
 
 ValueFunction.prototype.setPoints = function(newPoints) {
 	this.points = newPoints;
@@ -25,7 +32,7 @@ ValueFunction.prototype.setPoints = function(newPoints) {
 	//	even when the points are filtered by an envelope!
 	var yVals = _.pluck(newPoints,"y");
 	yVals.sort(function(a,b){return a-b});
-	
+
 	var cuts = [0];
 	var curPointsInPiece = 0;
 	for (var i=0; i<yVals.length; ++i) {
@@ -46,6 +53,10 @@ ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
  * @return the value of the given rectangle, according to this value function.
  */
 ValueFunction.prototype.valueOf = function(envelope) {
+	if (!envelope) 
+		throw new Error("envelope is not defined");
+	if (!('minx' in envelope)) 
+		throw new Error("envelope does not contain minx: "+JSON.stringify(envelope));
 	return this.valuePerPoint * jsts.algorithm.numPointsInEnvelope(this.points, envelope);
 }
 

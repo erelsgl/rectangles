@@ -440,15 +440,21 @@ var _ = require("underscore");
 var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 	if (!Array.isArray(points))
 		throw new Error("points: expected an array but got "+JSON.stringify(points));
-	this.totalValue = totalValue;
-	if (!valuePerPoint) valuePerPoint = totalValue/points.length;
-	this.valuePerPoint = valuePerPoint;
-	this.pointsPerUnitValue = 1/valuePerPoint;
+	if (!points.length)
+		throw new Error("No points! totalValue="+totalValue);
+	this.setTotalValue(totalValue, points.length, valuePerPoint);
 	this.color = color? color: points.color? points.color: null;
-	//console.log(this.color+": valuePerPoint = "+totalValue+"/"+points.length+"="+valuePerPoint)
 	this.index = points.index? points.index: null;
 	this.setPoints(points);
 };
+
+ValueFunction.prototype.setTotalValue = function(totalValue, numOfPoints, valuePerPoint) {
+	this.totalValue = totalValue;
+	if (!numOfPoints) numOfPoints = this.points.length;
+	if (!valuePerPoint) valuePerPoint = totalValue/numOfPoints;
+	this.valuePerPoint = valuePerPoint;
+	this.pointsPerUnitValue = 1/valuePerPoint;
+}
 
 ValueFunction.prototype.setPoints = function(newPoints) {
 	this.points = newPoints;
@@ -457,7 +463,7 @@ ValueFunction.prototype.setPoints = function(newPoints) {
 	//	even when the points are filtered by an envelope!
 	var yVals = _.pluck(newPoints,"y");
 	yVals.sort(function(a,b){return a-b});
-	
+
 	var cuts = [0];
 	var curPointsInPiece = 0;
 	for (var i=0; i<yVals.length; ++i) {
@@ -478,6 +484,10 @@ ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
  * @return the value of the given rectangle, according to this value function.
  */
 ValueFunction.prototype.valueOf = function(envelope) {
+	if (!envelope) 
+		throw new Error("envelope is not defined");
+	if (!('minx' in envelope)) 
+		throw new Error("envelope does not contain minx: "+JSON.stringify(envelope));
 	return this.valuePerPoint * jsts.algorithm.numPointsInEnvelope(this.points, envelope);
 }
 
@@ -490,6 +500,10 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue,
 	var requestedNumOfPoints = Math.ceil(requestedValue / this.valuePerPoint);
 	if (isNaN(requestedNumOfPoints)) 
 		throw new Error("requestedNumOfPoints is NaN: requestedValue="+requestedValue+" valuePerPoint="+this.valuePerPoint)
+	if (requestedNumOfPoints==0) {
+		console.dir(this);
+		throw new Error("requestedNumOfPoints is 0: requestedValue="+requestedValue+" valuePerPoint="+this.valuePerPoint)
+	}
 
 	if (this.points.length<requestedNumOfPoints) return Infinity;
 	
@@ -501,7 +515,6 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue,
 		null);
 	if (!filterFunction) throw new Error("Unsupported direction "+direction);
 	var relevantPoints = this.points.filter(filterFunction);
-//	console.log("  relevantPoints="+JSON.stringify(relevantPoints));
 	
 	if (relevantPoints.length<requestedNumOfPoints) return Infinity;
 	relevantPoints.forEach(function(point) {
@@ -562,8 +575,8 @@ var jsts = require('jsts');
 var _ = require('underscore')
 _.mixin(require("argminmax"));
 
-//var TRACE = function(){};
-var TRACE = console.log;
+var TRACE = function(){};
+//var TRACE = console.log;
 
 
 
@@ -649,6 +662,8 @@ jsts.algorithm.updatedCornersNorthWest = function(corners, landplot) {
  * @return a list of all corner squares with the given value.
  */
 jsts.algorithm.cornerSquares = function(valueFunction, corners, requiredLandplotValue, direction, origin) {
+	if (valueFunction.points.length==0)
+		throw new Error("No value points: "+JSON.stringify(valueFunction));
 	if (typeof requiredLandplotValue != 'number')
 		throw new Error("requiredLandplotValue: expected a number but got "+JSON.stringify(requiredLandplotValue));
 	return corners.map(function(corner) {
@@ -673,7 +688,7 @@ jsts.algorithm.smallestCornerSquares = function(valueFunctions, corners, require
 		var squareSizes = valueFunctions.map(function(valueFunction) {
 			return valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, direction);
 		})
-		console.log("  corner="+JSON.stringify(corner)+" outgoingCorner="+JSON.stringify(outgoingCorner)+" maxAllowedSquareSize="+maxAllowedSquareSize+"  squareSizes="+squareSizes);
+		//console.log("  corner="+JSON.stringify(corner)+" outgoingCorner="+JSON.stringify(outgoingCorner)+" maxAllowedSquareSize="+maxAllowedSquareSize+"  squareSizes="+squareSizes);
 		squareSizes = squareSizes.filter(function(size) {
 			return size<=maxAllowedSquareSize;
 		});
@@ -712,7 +727,7 @@ jsts.algorithm.outgoingCorner = function(corner, otherCorners) {
 	for (var i=0; i<otherCorners.length; ++i) 
 		if (corner.y < otherCorners[i].y)  {
 			var result = {x: (i>0?otherCorners[i-1].x:otherCorners[i].x), y:otherCorners[i].y};
-			console.log("corner="+JSON.stringify(corner)+" otherCorners="+JSON.stringify(otherCorners)+" i="+i+" outgoingCorner="+JSON.stringify(result))
+			//console.log("corner="+JSON.stringify(corner)+" otherCorners="+JSON.stringify(otherCorners)+" i="+i+" outgoingCorner="+JSON.stringify(result))
 			return result;
 		}
 	throw new Error("No outgoing corner found! corner="+JSON.stringify(corner)+"  otherCorners="+JSON.stringify(otherCorners));
@@ -989,7 +1004,7 @@ function isCornerOfRectangle(point, rectangle) {
 
 
 /**
- * @param border a list of {x:, y:}, describing a border of a right-angled axis-parallel simply-connected polygon, in clockwise or counter-clockwise order.
+ * @param border a list of {x:, y:}, describing a border of a hole-free rectilinear polygon, in clockwise or counter-clockwise order.
  * The border must be closed, i.e. the last corner should be equal to the first corner.
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} contained in the polygon and adjacent to the border.
  * @return the new border after the landplot has been removed. 
@@ -1109,58 +1124,6 @@ jsts.algorithm.updatedBorder = function(border, landplot) {
 	return newBorder;
 }
 
-
-
-/**
- * Calculate a list of rectangles covering the cake whose southern border is defined by the given levels.
- * @param border a list of {x:, y:}, describing a border of a right-angled axis-parallel simply-connected polygon, in clockwise or counter-clockwise order.
- * The border must be closed, i.e. the last corner should be equal to the first corner.
- * @return sequence of rectangles [{minx,maxx,miny,maxy}], covering the polygon.
- */
-jsts.algorithm.rectanglesCoveringPolygon = function(borderParam) {
-	var levels = levelsParam.slice(0);
-	var covering = [];
-	
-	while (levels.length>0) {
-		
-		// cover the lowest (most southern) level:
-		var iLowestLevel = _.argmin(levels, function(level){return level.y});
-		var level = levels[iLowestLevel];
-		var rectangle = {minx:level.minx, maxx:level.maxx, miny:level.y};
-		
-		// remove the lowest level:
-		var west = (iLowestLevel-1>=0?            levels[iLowestLevel-1]: null);
-		var yWest = (west? west.y: Infinity);
-		var east = (iLowestLevel+1<levels.length? levels[iLowestLevel+1]: null);
-		var yEast = (east? east.y: Infinity);
-		
-		if (yWest < yEast) {
-			rectangle.maxy = yWest;
-			levels.splice(
-					/* go to index */ iLowestLevel-1, 
-					/* remove */      2 /* elements*/, 
-					/* then add */    {minx: west.minx, maxx: level.maxx, y: yWest});
-		} else if (yEast < yWest) {
-			rectangle.maxy = yEast;
-			levels.splice(
-					/* go to index */ iLowestLevel, 
-					/* remove */      2 /* elements*/, 
-					/* then add */    {minx: level.minx, maxx: east.maxx, y: yEast});
-		} else if (west && east) { //  && yWest==yEast
-			rectangle.maxy = yWest;
-			levels.splice(
-					/* go to index */ iLowestLevel-1, 
-					/* remove */      3 /* elements*/, 
-					/* then add */    {minx: west.minx, maxx: east.maxx, y: yWest});
-		} else {  // a single level remaining
-			rectangle.maxy = Infinity;
-			levels.splice(iLowestLevel,1);
-		}
-		covering.push(rectangle);  
-	}
-	
-	return covering;
-}
 
 
 
@@ -1330,9 +1293,18 @@ var ValueFunction = require("./ValueFunction");
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 
+function logValueFunctions(valueFunctions) {
+	console.log(util.inspect(valueFunctions,{depth:3}));
+}
+
 function TRACE (numOfAgents, s) {
-	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
+//	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
 };
+
+function TRACE_NO_LANDPLOT(valueFunctions) {
+//	logValueFunctions(valueFunctions);
+}
+
 
 function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAgents, southPlots) {
 	TRACE(numOfAgents,s+"(k="+k+", y="+round2(y)+"): "+southAgents.length+" south agents ("+_.pluck(southAgents,"color")+") got "+southPlots.length+" plots and "+northAgents.length+" north agents ("+_.pluck(northAgents,"color")+") got "+northPlots.length+" plots.");
@@ -1348,6 +1320,22 @@ jsts.Side = {
 	East: 3
 };
 
+var mapOpenSidesStringToSouthernSide = {
+		"01": jsts.Side.North,
+		"12": jsts.Side.East,
+		"23": jsts.Side.South,
+		"03": jsts.Side.West,
+};
+
+var openSidesToSouthernSide = function(openSides) {
+	openSides.sort();
+	var openSidesString = openSides.join("");
+	if (!(openSidesString in mapOpenSidesStringToSouthernSide)) 
+		return null;
+	 else 
+		return mapOpenSidesStringToSouthernSide[openSidesString];
+};
+
 
 jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION = false;    // convert a single value function to multi agents with the same value
 //jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION = true;   // keep a single value function as a value function of a single agent
@@ -1359,7 +1347,7 @@ jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE = true;  // try to find divi
 /**
  * Find a set of axis-parallel fat rectangles representing a fair-and-square division for the valueFunctions
  * 
- * @param valueFunctions an array in which each entry represents the valuation of a single agent.
+ * @param agentsValuePoints an array in which each entry represents the valuation of a single agent.
  * The valuation of an agent is represented by points with fields {x,y}. Each point has the same value.
  *    Each agent may also have a field "color", that is copied to the rectangle.
  * 
@@ -1380,37 +1368,36 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(ag
 	});
 };
 
-jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
-	TRACE(10,"")
-	var landplots;
+jsts.algorithm.getOpenSides = function(envelope) {
 	var openSides = [];
 	if (envelope.minx==-Infinity) openSides.push(jsts.Side.West);
 	if (envelope.miny==-Infinity) openSides.push(jsts.Side.South);
 	if (envelope.maxx== Infinity) openSides.push(jsts.Side.East);
 	if (envelope.maxy== Infinity) openSides.push(jsts.Side.North);
+	return openSides;
+}
+
+jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
+	TRACE(10,"")
+	var landplots;
+	var openSides = jsts.algorithm.getOpenSides(envelope);
+//	TRACE(agentsValuePoints.length, "openSides="+openSides);
 	if (openSides.length==0) {
 		landplots = jsts.algorithm.halfProportionalDivision4Walls(agentsValuePoints, envelope, maxAspectRatio);
 	} else if (openSides.length==1) {
 		var openSide = openSides[0];
 		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSide);
 	} else if (openSides.length==2) {
-		openSides.sort();
-		var openSidesString = openSides.join("");
-		var mapOpenSidesStringToSouthernSide = {
-			"01": jsts.Side.North,
-			"12": jsts.Side.East,
-			"23": jsts.Side.South,
-			"03": jsts.Side.West,
-		}
-		if (!(openSidesString in mapOpenSidesStringToSouthernSide)) {  
+		var southernSide = openSidesToSouthernSide(openSides);
+		if (southernSide==null) {  
 			console.warn("Two opposite sides - treating as 3 walls "+JSON.stringify(envelope));
 			landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSides[0]);
 		} else {
-			var southernSide = mapOpenSidesStringToSouthernSide[openSidesString];
 			landplots = jsts.algorithm.halfProportionalDivision2Walls(agentsValuePoints, envelope, maxAspectRatio, southernSide);
 		}
 	} else if (openSides.length==3) {
 		var closedSide = (jsts.Side.North+jsts.Side.East+jsts.Side.South+jsts.Side.West) - (openSides[0]+openSides[1]+openSides[2]);
+//		TRACE(agentsValuePoints.length, "closedSide="+closedSide);
 		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	} else {  // all sides are open
 		var closedSide = jsts.Side.South;  // arbitrary; TEMPORARY
@@ -1427,7 +1414,7 @@ jsts.algorithm.halfProportionalDivision4Walls = function(agentsValuePoints, enve
 	var valuePerAgent = 2*agentsValuePoints.length;
 	return runDivisionAlgorithm(
 			norm4Walls, shorterSide /* The norm4walls algorithm assumes that the southern side is shorter */,
-			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio);
+			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
 }
 
 jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, envelope, maxAspectRatio, openSide) {
@@ -1435,7 +1422,7 @@ jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, enve
 	var valuePerAgent = 2*agentsValuePoints.length - 1;
 	return runDivisionAlgorithm(
 			norm3Walls, southernSide,
-			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio);
+			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
 };
 
 jsts.algorithm.halfProportionalDivision2Walls = function(agentsValuePoints, envelope, maxAspectRatio, southernSide) {
@@ -1443,15 +1430,23 @@ jsts.algorithm.halfProportionalDivision2Walls = function(agentsValuePoints, enve
 	var valuePerAgent = 2*agentsValuePoints.length - 1;
 	return runDivisionAlgorithm(
 			norm2Walls, southernSide,
-			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio);
+			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
 };
 
 jsts.algorithm.halfProportionalDivision1Walls = function(agentsValuePoints, envelope, maxAspectRatio, closedSide) {
 	var southernSide = closedSide;
-	var valuePerAgent = 2*agentsValuePoints.length - 2;
+	var valuePerAgent = Math.max(1, 2*agentsValuePoints.length - 2);
 	return runDivisionAlgorithm(
 			norm1Walls, southernSide,
-			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio);
+			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
+};
+
+jsts.algorithm.halfProportionalDivision0Walls = function(agentsValuePoints, envelope, maxAspectRatio, closedSide) {
+	var southernSide = jsts.Side.South;
+	var valuePerAgent = Math.max(1, 2*agentsValuePoints.length - 4);
+	return runDivisionAlgorithm(
+			norm0Walls, southernSide,
+			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
 };
 
 /**
@@ -1461,15 +1456,13 @@ jsts.algorithm.halfProportionalDivision1Walls = function(agentsValuePoints, enve
  */
 jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
 	var landplots = algorithm.apply(0, args);
-	var setsOfPoints = args[0];
+	var agentsValuePoints = args[0];
 	
-	if (landplots.length<setsOfPoints.length) {
-		setsOfPoints.forEach(function(points) {
-			console.log(jsts.algorithm.pointsToString(points, points.color)+":");
-		});
+	if (landplots.length<agentsValuePoints.length) {
+		console.error(jsts.algorithm.agentsValuePointsToString(agentsValuePoints));
 		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
 	}
-	setsOfPoints.forEach(function(points) {
+	agentsValuePoints.forEach(function(points) {
 		landplots.forEach(function(landplot) {
 			if (points.color == landplot.color) {
 				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
@@ -1486,7 +1479,11 @@ jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
 
 /************ NORMALIZATION *******************/
 
-var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, valuePerAgent, agentsValuePoints, envelope, maxAspectRatio) {
+var runDivisionAlgorithm = jsts.algorithm.runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, allowSingleValueFunction) {
+	return runDivisionAlgorithm2(normalizedDivisionFunction, southernSide,
+			ValueFunction.createArray(valuePerAgent, agentsValuePoints),
+			envelope, maxAspectRatio, allowSingleValueFunction);
+/*
 	if (agentsValuePoints.length==0) 
 		return [];
 	if (!maxAspectRatio) maxAspectRatio=1;
@@ -1516,12 +1513,24 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 		// transform the points of the agent to the envelope [0,1]x[0,L]:
 		var newPoints = 	jsts.algorithm.pointsInEnvelope(points, envelope)
 			.map(jsts.algorithm.transformedPoint.bind(0,transformation));
+
+		if (newPoints.length==0)
+			throw new Error("No points from "+JSON.stringify(points)+" are in envelope "+JSON.stringify(envelope));
+		
 		newPoints.color = points.color;
 		newPoints.index = index++;  // remember the index of the agent; it is used by the normalized functions for keeping track of who already got a land-plot
 		return newPoints;
 	});
-
-	if (transformedValuePoints.length>1 || jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION)  {  // subjective valuations
+	
+	
+	transformedValuePoints = transformedValuePoints.filter(function(points) {
+		return (points.length>0);
+	});
+	
+	if (transformedValuePoints.length==0)
+		return [];
+	
+	if (transformedValuePoints.length>1 || allowSingleValueFunction)  {  // subjective valuations
 		var transformedValueFunctions = ValueFunction.createArray(valuePerAgent, transformedValuePoints);
 		//console.log("pointsPerUnitValue="+_.pluck(transformedValueFunctions,'pointsPerUnitValue'));
 		var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? valuePerAgent: 1;
@@ -1529,8 +1538,10 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 		var landplots = [];
 		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
 			landplots = normalizedDivisionFunction(transformedValueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
-			if (landplots.length==transformedValueFunctions.length)
+			if (landplots.length==transformedValueFunctions.length) {
+				landplots.minValuePerAgent = requiredLandplotValue;
 				break;
+			}
 		}
 	} else {   // identical valuations
 		var valuePoints = transformedValuePoints[0];
@@ -1545,8 +1556,10 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 		
 		while (transformedValueFunctions.length>0) {
 			landplots = normalizedDivisionFunction(transformedValueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
-			if (landplots.length==transformedValueFunctions.length)
+			if (landplots.length==transformedValueFunctions.length) {
+				landplots.minValuePerAgent = requiredLandplotValue;
 				break;
+			}
 			transformedValueFunctions.pop();
 		}
 	}
@@ -1557,8 +1570,97 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
 
 	return landplots;
+	*/
 }
 
+
+var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(normalizedDivisionFunction, southernSide, valueFunctions, envelope, maxAspectRatio, allowSingleValueFunction) {
+	if (valueFunctions.length==0) 
+		return [];
+
+	var rotateTransformation = {rotateQuarters: southernSide - jsts.Side.South};
+	enveloper = jsts.algorithm.transformAxisParallelRectangle(rotateTransformation, {minx:envelope.minx, maxx:envelope.maxx, miny:envelope.miny, maxy:envelope.maxy});
+
+	var width = enveloper.maxx-enveloper.minx, height = enveloper.maxy-enveloper.miny;
+	if (height<=0 && width<=0)
+		throw new Error("Zero-sized envelope: "+JSON.stringify(enveloper));
+	if (width<=0)
+		width = height/1000;
+	var scaleFactor = (isFinite(width)? 1/width: 1);
+	var translateFactor = 
+		[isFinite(enveloper.minx)? -enveloper.minx: isFinite(enveloper.maxx)? -enveloper.maxx: 0,
+		 isFinite(enveloper.miny)? -enveloper.miny: isFinite(enveloper.maxy)? -enveloper.maxy: 0];
+	var yLength = height*scaleFactor;
+
+	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
+	var transformation = 
+		[rotateTransformation,
+		 {translate: translateFactor},
+		 {scale: scaleFactor}];
+
+	valueFunctions = valueFunctions.map(function(valueFunction) {
+		// transform the points of the agent to the envelope [0,1]x[0,L]:
+		var pointsInEnvelope = jsts.algorithm.pointsInEnvelope(valueFunction.points, envelope);
+		if (pointsInEnvelope.length==0)  {
+			TRACE(valueFunctions.length, " -- No points from "+JSON.stringify(valueFunction)+" are in envelope "+JSON.stringify(envelope));
+			return null;
+		} else {
+			return valueFunction.cloneWithNewPoints(
+					pointsInEnvelope.map(jsts.algorithm.transformedPoint.bind(0,transformation)));
+		}
+	});
+	valueFunctions = valueFunctions.filter(function(x){return x}); // remove null elements
+
+	if (valueFunctions.length==0)
+		return [];
+
+	if (valueFunctions.length>1 || allowSingleValueFunction)  {  // subjective valuations
+		var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? 
+			_.min(_.pluck(valueFunctions,"totalValue")): 
+			1;
+		var minVal = 1;
+		var landplots = [];
+		
+		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
+			TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
+			landplots = normalizedDivisionFunction(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
+			if (landplots.length==valueFunctions.length) {
+				if (!landplots.minValuePerAgent)
+					landplots.minValuePerAgent = requiredLandplotValue;
+				break;
+			} else {
+				delete landplots.minValuePerAgent;
+			}
+		}
+	} else {   // identical valuations
+		var valueFunction = valueFunctions[0];
+		var valuePerAgent = valueFunction.points.length-1;
+		
+		var commonRequiredLandplotValue = 1;
+		var maxNumOfAgents = valueFunction.points.length;
+		var valueFunctions = [];
+		for (var i=0; i<maxNumOfAgents; ++i) 
+			valueFunctions.push(valueFunction);
+		
+		while (valueFunctions.length>0) {
+			TRACE(10, ":: Trying "+valueFunctions.length+" agents: ");
+			valueFunction.setTotalValue(valuePerAgent);
+			landplots = normalizedDivisionFunction(valueFunctions, yLength, maxAspectRatio, commonRequiredLandplotValue);
+			if (landplots.length==valueFunctions.length) {
+				landplots.minValuePerAgent = commonRequiredLandplotValue;
+				break;
+			}
+			valueFunctions.pop();
+		}
+	}
+
+	// transform the system back:
+	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
+	landplots.forEach(
+		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
+
+	return landplots;
+}
 
 
 
@@ -1625,7 +1727,7 @@ var staircase4walls = function(valueFunctions, border, requiredLandplotValue) {
 		if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
 			TRACE(numOfAgents, "-- no southern square with the required value "+requiredLandplotValue);
 			if (requiredLandplotValue<=1)
-				console.log(util.inspect(valueFunctions,{depth:3}));
+				TRACE_NO_LANDPLOT(valueFunctions);
 			return [];
 		}
 	
@@ -1707,7 +1809,7 @@ var staircase3walls_allCoveringRectangles = function(valueFunctions, levels, req
 	if (!winningSquare || !isFinite(winningSquare.maxy)) {
 		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
 		if (requiredLandplotValue<=1)
-			console.log(util.inspect(valueFunctions,{depth:3}));
+			TRACE_NO_LANDPLOT(valueFunctions);
 		return [];
 	}
 
@@ -1769,8 +1871,8 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
 	
 	if (!isFinite(winningAgent.square.t)) {
 		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-		if (requiredLandplotValue<=1)
-			console.dir(valueFunctions);
+		if (requiredLandplotValue<=1) 
+			TRACE_NO_LANDPLOT(valueFunctions);
 		return [];
 	}
 
@@ -1794,6 +1896,202 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
 }
 
 
+/**
+ * @return [westernValueFunctions, easternValueFunctions]
+ */
+var halvingEastWest  = function(valueFunctions, totalValue) {
+	if (!totalValue)
+		throw new Error("totalValue is 0");
+	var FARWEST = {x:-400,y:0}, FAREAST={x:800,y:0};
+	var numOfAgents = valueFunctions.length;
+	var westValue, eastValue, numOfWesternAgents;
+	if (numOfAgents%2==0) {
+		numOfWesternAgents = numOfAgents/2;
+		westValue = eastValue = totalValue/2;
+	} else {
+		numOfWesternAgents = (numOfAgents+1)/2;
+		westValue = totalValue*(1+1/numOfAgents)/2;
+		eastValue = totalValue*(1-1/numOfAgents)/2;
+	}
+	for (var i=0; i<valueFunctions.length; ++i) {
+		delete valueFunctions[i].yCuts;
+		if (valueFunctions[i].points.length==0) { // no points
+			TRACE(numOfAgents, " -- No value points for agent "+i);
+			TRACE_NO_LANDPLOT(valueFunctions);
+			return [];
+		}
+		var westHalvingPoint = FARWEST.x + valueFunctions[i].sizeOfSquareWithValue(FARWEST, westValue, 'NE');
+		var eastHalvingPoint = FAREAST.x - valueFunctions[i].sizeOfSquareWithValue(FAREAST, eastValue, 'NW');
+		valueFunctions[i].halvingPoint = (westHalvingPoint+eastHalvingPoint)/2;
+	}
+	
+	valueFunctions.sort(function(a,b){return a.halvingPoint-b.halvingPoint});
+
+	var westernValueFunctions = valueFunctions.slice(0, numOfWesternAgents);
+	var easternValueFunctions = valueFunctions.slice(numOfWesternAgents, numOfAgents);
+	var halvingPoint = (westernValueFunctions[westernValueFunctions.length-1].halvingPoint+easternValueFunctions[0].halvingPoint)/2;
+//	console.log("westernValueFunctions="+JSON.stringify(westernValueFunctions))
+//	console.log("halvingPoint="+halvingPoint)
+//	console.log("easternValueFunctions="+JSON.stringify(easternValueFunctions))
+	
+	TRACE(numOfAgents, " -- Halving at x="+halvingPoint+", giving the west to "+_.pluck(westernValueFunctions,"color")+" with halving points "+_.pluck(westernValueFunctions,"halvingPoint")+" and the east to "+_.pluck(easternValueFunctions,"color")+" with halving points "+_.pluck(easternValueFunctions,"halvingPoint"));
+	
+	return [westernValueFunctions, halvingPoint, easternValueFunctions];
+}
+
+/**
+ * Normalized 1-wall algorithm using an initial halving and then 2 calls to the 2-walls algorithm.
+ * - valueFunctions.length>=1
+ * - maxAspectRatio>=1
+ * - Landplots may overflow the east, west and north borders
+ */
+var norm1Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" with 1 wall");
+
+	if (numOfAgents<=1) {
+		var valueFunction = valueFunctions[0];
+		var minx = _.min(valueFunction.points, function(point){return point.x});
+		var maxx = _.max(valueFunction.points, function(point){return point.x});
+		var landplot = {
+				minx: minx,
+				miny: 0,
+				maxx: maxx,
+				maxy: maxx-minx,
+		};
+		var landplots = [landplot];
+		landplots.minValuePerAgent = valueFunction.totalValue;
+		return landplots;
+	}
+	
+	var halving = halvingEastWest(valueFunctions, valueFunctions[0].totalValue);
+		var westernValueFunctions = halving[0];
+		var halvingPoint = halving[1];
+		var easternValueFunctions = halving[2];
+	
+	var westernLandplots = runDivisionAlgorithm2(
+			norm2Walls, 
+			jsts.Side.East,
+			westernValueFunctions, 
+			new jsts.geom.Envelope(-Infinity,halvingPoint, 0,Infinity), 
+			maxAspectRatio, /*allow single value function = */true);
+	var easternLandplots = runDivisionAlgorithm2(
+			norm2Walls,
+			jsts.Side.South,
+			easternValueFunctions,
+			new jsts.geom.Envelope(halvingPoint,Infinity, 0,Infinity),
+			maxAspectRatio, /*allow single value function = */true);
+	var halvingLandplots = westernLandplots.concat(easternLandplots);
+	halvingLandplots.minValuePerAgent = Math.min(westernLandplots.minValuePerAgent||0, easternLandplots.minValuePerAgent||0);
+
+	TRACE(numOfAgents, " -- Trying to put everyone at the west");
+	var easternOpenLandplots = runDivisionAlgorithm2(
+			norm2Walls,
+			jsts.Side.South,
+			valueFunctions,
+			new jsts.geom.Envelope(0,Infinity, 0,Infinity),
+			maxAspectRatio, /*allow single value function = */true);
+	
+	TRACE(numOfAgents, " -- Trying to put everyone at the east");
+	var westernOpenLandplots = runDivisionAlgorithm2(
+			norm2Walls, 
+			jsts.Side.East,
+			valueFunctions, 
+			new jsts.geom.Envelope(-Infinity,400, 0,Infinity), 
+			maxAspectRatio, /*allow single value function = */true);
+
+	return _.max(
+		[halvingLandplots, easternOpenLandplots, westernOpenLandplots], 
+		function(landplots){return landplots.minValuePerAgent});
+}
+
+/**
+ * Normalized 0-wall algorithm using an initial halving and then 2 calls to the 1-wall algorithm.
+ * - valueFunctions.length>=1
+ * - maxAspectRatio>=1
+ * - Landplots may overflow all borders.
+ */
+var norm0Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" with 0 walls");
+
+	if (numOfAgents<=1) {
+		var valueFunction = valueFunctions[0];
+		var minx = _.min(valueFunction.points, function(point){return point.x});
+		var maxx = _.max(valueFunction.points, function(point){return point.x});
+		var miny = _.min(valueFunction.points, function(point){return point.y});
+		var maxy = _.max(valueFunction.points, function(point){return point.y});
+		if (maxy-miny<maxx-minx)
+			maxy = miny+(maxx-minx)
+		else
+			maxx = minx+(maxy-miny)
+		var landplot = {
+				minx: minx,
+				miny: miny,
+				maxx: maxx,
+				maxy: maxy,
+		};
+		var landplots = [landplot];
+		landplots.minValuePerAgent = valueFunction.totalValue;
+		return landplots;
+	}
+	
+	var halving = halvingEastWest(valueFunctions, valueFunctions[0].totalValue);
+		var westernValueFunctions = halving[0];
+		var halvingPoint = halving[1];
+		var easternValueFunctions = halving[2];
+	
+	var westernLandplots = runDivisionAlgorithm2(
+			norm1Walls, 
+			jsts.Side.East,
+			westernValueFunctions, 
+			new jsts.geom.Envelope(-Infinity,halvingPoint, -Infinity,Infinity), 
+			maxAspectRatio, /*allow single value function = */true);
+	var easternLandplots = runDivisionAlgorithm2(
+			norm1Walls,
+			jsts.Side.West,
+			easternValueFunctions,
+			new jsts.geom.Envelope(halvingPoint,Infinity, -Infinity,Infinity),
+			maxAspectRatio, /*allow single value function = */true);
+	var halvingLandplots = westernLandplots.concat(easternLandplots);
+	halvingLandplots.minValuePerAgent = Math.min(westernLandplots.minValuePerAgent||0, easternLandplots.minValuePerAgent||0);
+
+	TRACE(numOfAgents, " -- Trying to put everyone at the west");
+	var westernOpenLandplots = runDivisionAlgorithm2(
+			norm1Walls,
+			jsts.Side.East,
+			valueFunctions,
+			new jsts.geom.Envelope(-Infinity,400, -Infinity,Infinity),
+			maxAspectRatio, /*allow single value function = */true);
+	TRACE(numOfAgents, " -- Trying to put everyone at the east");
+	var easternOpenLandplots = runDivisionAlgorithm2(
+			norm2Walls, 
+			jsts.Side.West,
+			valueFunctions, 
+			new jsts.geom.Envelope(0,Infinity, -Infinity,Infinity), 
+			maxAspectRatio, /*allow single value function = */true);
+
+	TRACE(numOfAgents, " -- Trying to put everyone at the north");
+	var southernOpenLandplots = runDivisionAlgorithm2(
+			norm1Walls,
+			jsts.Side.East,
+			valueFunctions,
+			new jsts.geom.Envelope(-Infinity,Infinity, 0,Infinity),
+			maxAspectRatio, /*allow single value function = */true);
+	TRACE(numOfAgents, " -- Trying to put everyone at the south");
+	var northernOpenLandplots = runDivisionAlgorithm2(
+			norm2Walls, 
+			jsts.Side.West,
+			valueFunctions, 
+			new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,400), 
+			maxAspectRatio, /*allow single value function = */true);
+
+	return _.max(
+		[halvingLandplots, easternOpenLandplots, westernOpenLandplots, southernOpenLandplots, northernOpenLandplots],
+		function(landplots){return landplots.minValuePerAgent});
+}
+
+
 
 
 
@@ -1804,7 +2102,7 @@ var staircase2walls = function(valueFunctions, origin, corners, requiredLandplot
  * - Value per agent: at least 2*n-1
  * - Landplots may overflow the east, west and north borders
  */
-var norm1Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
+var norm1Walls_old = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
 	//var initialCorners = [{x:-800,y:Infinity}, {x:-800,y:0}, {x:800,y:0}, {x:800,y:Infinity}];
 	//return staircase3walls(valueFunctions, initialCorners, requiredLandplotValue);
 	var bestLandplots = [];
@@ -1847,8 +2145,8 @@ var staircase1walls = function(valueFunctions, origin, westCorners, eastCorners,
 	
 	if (!isFinite(eastWinningAgent.eastSquare.t) && !isFinite(westWinningAgent.westSquare.t)) {
 		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-		if (requiredLandplotValue<=1)
-			console.dir(valueFunctions);
+		if (requiredLandplotValue<=1) 
+			TRACE_NO_LANDPLOT(valueFunctions);
 		return [];
 	} else if (eastWinningAgent.eastSquare.t<westWinningAgent.westSquare.t) {
 		var winningAgent = eastWinningAgent;
@@ -1905,7 +2203,7 @@ var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	var valueFunction = valueFunctions[0];
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"): 1 Wall Algorithm");
-	// console.log(util.inspect(valueFunctions,{depth:3}));
+	TRACE_NO_LANDPLOT(valueFunctions);
 	
 	var landplots = [];
 	var previousSquare = null;
@@ -1932,6 +2230,12 @@ var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 	return landplots;
 }
 
+jsts.algorithm.mapOpenSidesToNormalizedAlgorithm = [];
+jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[0] = (norm4Walls);
+jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[1] = (norm3Walls);
+jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[2] = (norm2Walls);
+jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[3] = (norm1Walls);
+jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[4] = (norm0Walls);
 
 },{"./AxisParallelRectangle":2,"./ValueFunction":3,"./corners":4,"./factory-utils":5,"./numeric-utils":12,"./point-utils":14,"./square-with-max-points":17,"./transformations":18,"argminmax":19,"jsts":22,"underscore":25,"util":29}],8:[function(require,module,exports){
 var jsts = require("jsts");
@@ -2564,6 +2868,15 @@ jsts.algorithm.pointsToString = function(points, color) {
 	}
 	return s;
 }
+
+jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
+	var s = "";
+	agentsValuePoints.forEach(function(points) {
+		s += jsts.algorithm.pointsToString(points, points.color)+":";
+	});
+	return s;
+}
+
 
 },{"underscore":25}],15:[function(require,module,exports){
 /**
