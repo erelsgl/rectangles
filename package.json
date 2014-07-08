@@ -13,7 +13,8 @@
     "seed-random": "*",
     "js-combinatorics": "*",
     "jsts": "*",
-    "async": "*"
+    "async": "*",
+    "listish": "*"
   },
   "devDependencies": {
     "mocha": ">=1.0.0",

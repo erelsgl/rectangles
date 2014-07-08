@@ -12,6 +12,8 @@ require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
 require("./corners");
+require("./side");
+
 var numutils = require("./numeric-utils")
 
 var _ = require("underscore");
@@ -41,13 +43,6 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 
 var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
 var round2 = function(x) { 	return Math.round(x*100)/100; }
-
-jsts.Side = {
-	South: 0,
-	West: 1,
-	North: 2,
-	East: 3
-};
 
 var mapOpenSidesStringToSouthernSide = {
 		"01": jsts.Side.North,
@@ -624,7 +619,7 @@ var staircase3walls_cornerSquares = function(valueFunctions, levels, requiredLan
 		}
 	}
 
-	// Bid for squares in all other levels (non-knobs);
+	// Bid for corner squares in all other levels (non-knobs);
 	for (var iLevel=0; iLevel<levels.length; ++iLevel) {
 		var level = levels[iLevel];
 		if (level.squares) 
