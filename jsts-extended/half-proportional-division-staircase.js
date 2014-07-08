@@ -27,11 +27,11 @@ function logValueFunctions(valueFunctions) {
 }
 
 function TRACE (numOfAgents, s) {
-//	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
+	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
 };
 
 function TRACE_NO_LANDPLOT(valueFunctions) {
-//	logValueFunctions(valueFunctions);
+	logValueFunctions(valueFunctions);
 }
 
 
@@ -351,7 +351,7 @@ var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(norm
 		var landplots = [];
 		
 		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
-			TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
+			if (jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE) TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
 			landplots = normalizedDivisionFunction(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
 			if (landplots.length==valueFunctions.length) {
 				if (!landplots.minValuePerAgent)
@@ -489,13 +489,16 @@ var staircase4walls = function(valueFunctions, border, requiredLandplotValue) {
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
 	var initial = [{y:0,minx:0,maxx:1}];  // levels 
-	return staircase3walls_allCoveringRectangles(valueFunctions, initial, requiredLandplotValue);
+//	return staircase3walls_allCoveringRectangles(valueFunctions, initial, requiredLandplotValue);
+	return staircase3walls_cornerSquares(valueFunctions, initial, requiredLandplotValue);
 }
 
 
 
 /**
- * Normalized 3-walls staircase algorithm:
+ * Normalized 3-walls staircase algorithm.
+ * Each agent can draw squares in *all* 2k southern corners of *all* k covering squares.
+ * 
  * - valueFunctions.length>=1
  * - levels.length >= 1; each level is represented by {y,minx,maxx}.
  * - levels are ordered by non-decreasing x value, from west to east.
@@ -555,6 +558,114 @@ var staircase3walls_allCoveringRectangles = function(valueFunctions, levels, req
 	remainingLandplots.push(landplot);
 	return remainingLandplots;
 }
+
+
+
+
+var calculateLevelSquares = function(valueFunctions, level, requiredLandplotValue) {
+	level.squares = [];
+	var minx=level.minx, maxx=level.maxx, miny=level.y;
+	if (level.yWest>level.y) {  // western corner is convex - bid for squares
+		var swCorner = {x:minx,y:miny};
+		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
+			var valueFunction = valueFunctions[iAgent];
+			var squareSizeEast = valueFunction.sizeOfSquareWithValue(swCorner, requiredLandplotValue, "NE");
+			if (minx+squareSizeEast <= maxx)
+				level.squares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast, iAgent:iAgent});
+		}
+	}
+	if (level.yEast>level.y) {  // eastern corner is convex - bid for squares
+		var seCorner = {x:maxx,y:miny};
+		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
+			var valueFunction = valueFunctions[iAgent];
+			var squareSizeWest = valueFunction.sizeOfSquareWithValue(seCorner, requiredLandplotValue, "NW");
+			if (maxx-squareSizeWest >= minx)
+				level.squares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest, iAgent:iAgent});
+		};
+	}
+}
+
+
+
+/**
+ * Normalized 3-walls staircase algorithm - alternative algorithm:
+ * - valueFunctions.length>=1
+ * - levels.length >= 1; each level is represented by {y,minx,maxx}.
+ * - levels are ordered by non-decreasing x value, from west to east.
+ * - Value per agent: at least 2*n-2+levels.length
+ */
+var staircase3walls_cornerSquares = function(valueFunctions, levels, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	var numOfLevels = levels.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfLevels+" levels: "+JSON.stringify(levels));
+	jsts.algorithm.addPropertiesToLevels(levels);    // Add to each level the properties: "yWest", "yEast", "isKnob", "westMinx", "eastMaxx"
+
+	var winningSquaresInLevels = [];
+
+	// Bid for squares in all knobs; Remove all knobs with no square:
+	for (var iLevel=0; iLevel<levels.length; ++iLevel) {
+		var level = levels[iLevel];
+		if (!level.isKnob || level.squares) 
+			continue;
+
+		// HERE we found a knob with no squares yet:
+		calculateLevelSquares(valueFunctions, level, requiredLandplotValue);
+
+		if (level.squares.length==0) {  
+			// HERE no one wants a square in the current knob so we can remove it:
+			TRACE(numOfAgents,"  level "+JSON.stringify(level)+": no agent wants a square - removing level");
+			jsts.algorithm.removeLevel(levels, iLevel);
+			iLevel = -1;  // structure has changed - start looping again
+		} else {
+			// HERE some agents want squares in the current knob - find the lowest one:
+			var lowestSquareInLevel = _.min(level.squares, function(square){return square.maxy});
+			winningSquaresInLevels.push(lowestSquareInLevel);
+			TRACE(numOfAgents,"  level "+JSON.stringify(level)+": winning square is "+JSON.stringify(lowestSquareInLevel));
+		}
+	}
+
+	// Bid for squares in all other levels (non-knobs);
+	for (var iLevel=0; iLevel<levels.length; ++iLevel) {
+		var level = levels[iLevel];
+		if (level.squares) 
+			continue;
+		calculateLevelSquares(valueFunctions, level, requiredLandplotValue);
+		if (level.squares.length==0) {  // do nothing
+		} else {
+			var lowestSquareInLevel = _.min(level.squares, function(square){return square.maxy});
+			winningSquaresInLevels.push(lowestSquareInLevel);
+			TRACE(numOfAgents,"  level "+JSON.stringify(level)+": winning square is "+JSON.stringify(lowestSquareInLevel));
+		}
+	}
+
+	if (winningSquaresInLevels.length==0) {
+		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			TRACE_NO_LANDPLOT(util.inspect(valueFunctions,{depth:3}));
+		return [];
+	}
+
+	// get the agent with the square with the smallest height overall:
+	var landplot = _.min(winningSquaresInLevels, function(square){return square.maxy});
+	var iWinningAgent = landplot.iAgent;
+	delete landplot.iAgent;
+	var winningAgent = valueFunctions[iWinningAgent];
+
+	if (winningAgent.color) landplot.color = winningAgent.color;
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
+	
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+	var remainingLevels = jsts.algorithm.updatedLevels(levels, landplot, "S");
+	for (var iLevel=0; iLevel<remainingLevels.length; ++iLevel) 
+		delete remainingLevels[iLevel].squares;
+	var remainingLandplots = staircase3walls_cornerSquares(remainingValueFunctions, remainingLevels, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
+}
+
 
 
 

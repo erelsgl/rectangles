@@ -13,6 +13,8 @@ var testAlgorithm = jsts.algorithm.testAlgorithm;
 var alg3walls = jsts.algorithm.halfProportionalDivision3Walls; // shorthand
 var sukka    = new jsts.geom.Envelope(0,400, 0,Infinity);
 
+jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE = false; // find only value 1
+
 describe('3 walls algorithm', function() {
 	it('single agent with 2 points A', function() {
 		var agent1 = [{x:100,y:100},{x:250,y:100}]; agent1.color='blue';

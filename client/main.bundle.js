@@ -182,7 +182,7 @@ $(".export").click(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":8,"underscore":25}],2:[function(require,module,exports){
+},{"../jsts-extended":9,"underscore":26}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -429,6 +429,253 @@ $(".export").click(function() {
 
 
 },{}],3:[function(require,module,exports){
+(function() {
+
+  /**
+   * Represents a hole-free simply-connected polygon.
+   * Contains special data structures for calculating the minimum square covering.
+   * Based on Bar-Yehuda, R. and Ben-Hanoch, E. (1996). A linear-time algorithm for covering simple polygons with similar rectangles. International Journal of Computational Geometry & Applications, 6.01:79-102.
+   * 	http://www.citeulike.org/user/erelsegal-halevi/article/12475038
+   * 
+   * @author Erel Segal-Halevi
+   * @since 2014-07
+   */
+
+
+  /**
+   * @requires jsts/geom/Geometry.js
+   */
+
+  /**
+   * @extends {jsts.geom.Geometry}
+   * @param xy an array of alternating x and y values. The corners of the polygon are:
+   * 	(xy[0],xy[1]),(xy[1],xy[2]),...,(xy[n],xy[0]).
+   * @constructor
+   */
+  jsts.geom.SimpleRectilinearPolygon = function(xy, factory) {
+	  var points = [];
+	  for (var i=0; i<xy.length-1; ++i) {
+		  var point = {x:xy[i], y:xy[i+1]};
+		  points.push(point);
+	  }
+	  point = {x:xy[i], y:xy[0]};  points.push(point);
+	  point = {x:xy[0], y:xy[1]};  points.push(point);
+	  
+	  jsts.geom.LinearRing.apply(this, [points, factory]);
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype = new jsts.geom.LinearRing();
+  jsts.geom.SimpleRectilinearPolygon.constructor = jsts.geom.SimpleRectilinearPolygon;
+
+
+  /**
+   * @return {boolean}
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.isEmpty = function() {
+    return (this.minx==this.maxx || this.miny==this.maxy);
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.getExteriorRing = function() {
+	  return this;
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.getInteriorRingN = function(n) {
+	  throw new Error("not implemented");
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.getNumInteriorRing = function() {
+    return 0;
+  };
+
+  /**
+   * Returns the area of this <code>Polygon</code>
+   *
+   * @return the area of the polygon.
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.getArea = function() {
+	  if (!this.area)  {
+		  this.area = (this.maxx-this.minx)*(this.maxy-this.miny);
+	  }
+	  return this.area;
+  };
+
+  /**
+   * Returns the perimeter of this <code>Polygon</code>
+   *
+   * @return the perimeter of the polygon.
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.getLength = function() {
+	  if (!this.length)  {
+		  this.length = 2*((maxx-minx)+(maxy-miny));
+	  }
+	  return this.length;
+  };
+
+  /**
+   * Computes the boundary of this geometry
+   *
+   * @return {Geometry} a linear geometry (which may be empty).
+   * @see Geometry#getBoundary
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.getBoundary = function() {
+	  return this;
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.computeEnvelopeInternal = function() {
+    return new jsts.geom.Envelope(this.minx, this.maxx, this.miny, this.maxy);
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.getDimension = function() {
+    return 2;
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.getBoundaryDimension = function() {
+    return 1;
+  };
+
+
+  /**
+   * @param {Geometry}
+   *          other
+   * @param {number}
+   *          tolerance
+   * @return {boolean}
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.equalsExact = function(other, tolerance) {
+    if (!this.isEquivalentClass(other)) {
+      return false;
+    }
+    if (this.isEmpty() && other.isEmpty()) {
+      return true;
+    }
+    if (this.isEmpty() !== other.isEmpty()) {
+      return false;
+    }
+    return this.minx==other.minx && this.maxx==other.maxx && this.miny==other.miny && this.maxy==other.maxy;
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.compareToSameClass = function(o) {
+	  return this.minx==other.minx && this.maxx==other.maxx && this.miny==other.miny && this.maxy==other.maxy;
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.apply = function(filter) {
+	  throw new "not implemented";
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.apply2 = function(filter) {
+	  throw new "not implemented";
+  };
+
+  /**
+   * Creates and returns a full copy of this {@link Polygon} object. (including
+   * all coordinates contained by it).
+   *
+   * @return a clone of this instance.
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.clone = function() {
+    return new jsts.geom.SimpleRectilinearPolygon(this.minx, this.miny, this.maxx, this.maxy, this.factory);
+  };
+
+  jsts.geom.SimpleRectilinearPolygon.prototype.normalize = function() {
+  };
+  
+  jsts.geom.SimpleRectilinearPolygon.prototype.intersects = function(other) {
+	  if (other instanceof jsts.geom.SimpleRectilinearPolygon) {
+		  return (
+				  this.maxx>=other.minx && other.maxx>=this.minx && 
+				  this.maxy>=other.miny && other.maxy>=this.miny
+				 )
+	  } else {
+		  throw new "not implemented for "+other;
+	  }
+  }
+
+  var Location = jsts.geom.Location;
+
+//  jsts.geom.SimpleRectilinearPolygon.prototype.relate2 = function(other) {
+//	var im = new jsts.geom.IntersectionMatrix();
+//	var II = (
+//			  this.maxx>other.minx && other.maxx>this.minx && 
+//			  this.maxy>other.miny && other.maxy>this.miny
+//			 );
+//    im.setAtLeast('FFFFFFFFF');
+//	im.set(Location.INTERIOR, Location.INTERIOR, II? "2": "F");
+//	return im;
+//  }
+  
+  jsts.geom.SimpleRectilinearPolygon.prototype.overlaps = function(other) {
+	  if (other instanceof jsts.geom.SimpleRectilinearPolygon) {
+		  return !this.interiorDisjoint(other) && !this.contains(other) && !other.contains(this);
+	  } else {
+		  throw new "not implemented for "+other;
+	  }
+  }
+  
+  jsts.geom.SimpleRectilinearPolygon.prototype.interiorDisjoint = function(other) {
+	  if (other instanceof jsts.geom.SimpleRectilinearPolygon) {
+		  return (
+				  this.maxx<=other.minx || other.maxx<=this.minx || 
+				  this.maxy<=other.miny || other.maxy<=this.miny
+				 );
+	  } else {
+		  throw new "not implemented for "+other;
+	  }
+  }
+  
+  jsts.geom.SimpleRectilinearPolygon.prototype.contains = function(other) {
+	  if (other.coordinate) {
+		  var x = other.coordinate.x;
+		  var y = other.coordinate.y;
+		  return (
+				  this.minx<x && x<this.maxx &&
+				  this.miny<y && y<this.maxy
+				 )
+	  } else {
+		  throw new "not implemented for "+other;
+	  }
+  }
+
+  /**
+   * @return {String} String representation of Polygon type.
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.getGeometryType = function() {
+    return 'Polygon';
+  };
+
+  /**
+   * @return {String} String representation of Polygon type.
+   */
+  jsts.geom.SimpleRectilinearPolygon.prototype.toString = function() {
+    return 'RECTANGLE(['+this.minx+","+this.maxx+"]x["+this.miny+","+this.maxy+"])";
+  };
+  
+  jsts.geom.SimpleRectilinearPolygon.prototype.CLASS_NAME = 'jsts.geom.SimpleRectilinearPolygon';
+
+  
+
+  function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
+
+  /**
+   * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
+   * 
+   * Can be called either with 4 parameters (minx,miny, maxx,maxy)
+   * or with a single parameter with 4 fields (minx,miny, maxx,maxy).
+   */
+  jsts.geom.GeometryFactory.prototype.createSimpleRectilinearPolygon = function(minx,miny, maxx,maxy) {
+	if (arguments.length==1) {
+		var envelope = minx;
+		return new jsts.geom.SimpleRectilinearPolygon(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy, this);
+	} else if (arguments.length==4) {
+		return new jsts.geom.SimpleRectilinearPolygon(minx,miny, maxx,maxy, this);
+	} else {
+		throw new Error("createSimpleRectilinearPolygon expected 1 or 4 arguments, but found "+arguments.length)
+	}
+  };
+})();
+
+
+
+},{}],4:[function(require,module,exports){
 var _ = require("underscore");
 
 /**
@@ -563,7 +810,7 @@ ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot
 
 module.exports = ValueFunction;
 
-},{"underscore":25}],4:[function(require,module,exports){
+},{"underscore":26}],5:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -1127,7 +1374,7 @@ jsts.algorithm.updatedBorder = function(border, landplot) {
 
 
 
-},{"argminmax":19,"jsts":22,"underscore":25}],5:[function(require,module,exports){
+},{"argminmax":20,"jsts":23,"underscore":26}],6:[function(require,module,exports){
 /**
  * Adds to jsts.geom some simple utility functions related to rectangles.
  * @author Erel Segal-Halevi
@@ -1157,7 +1404,7 @@ jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
 	}, this);
 };
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a fair number of points.
  * 
@@ -1268,7 +1515,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":5,"./numeric-utils":12,"./square-with-max-points":17,"jsts":22,"underscore":25}],7:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":6,"./numeric-utils":13,"./square-with-max-points":18,"jsts":23,"underscore":26}],8:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -1760,13 +2007,16 @@ var staircase4walls = function(valueFunctions, border, requiredLandplotValue) {
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
 	var initial = [{y:0,minx:0,maxx:1}];  // levels 
-	return staircase3walls_allCoveringRectangles(valueFunctions, initial, requiredLandplotValue);
+//	return staircase3walls_allCoveringRectangles(valueFunctions, initial, requiredLandplotValue);
+	return staircase3walls_cornerSquares(valueFunctions, initial, requiredLandplotValue);
 }
 
 
 
 /**
- * Normalized 3-walls staircase algorithm:
+ * Normalized 3-walls staircase algorithm.
+ * Each agent can draw squares in *all* 2k southern corners of *all* k covering squares.
+ * 
  * - valueFunctions.length>=1
  * - levels.length >= 1; each level is represented by {y,minx,maxx}.
  * - levels are ordered by non-decreasing x value, from west to east.
@@ -1826,6 +2076,114 @@ var staircase3walls_allCoveringRectangles = function(valueFunctions, levels, req
 	remainingLandplots.push(landplot);
 	return remainingLandplots;
 }
+
+
+
+
+var calculateLevelSquares = function(valueFunctions, level, requiredLandplotValue) {
+	level.squares = [];
+	var minx=level.minx, maxx=level.maxx, miny=level.y;
+	if (level.yWest>level.y) {  // western corner is convex - bid for squares
+		var swCorner = {x:minx,y:miny};
+		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
+			var valueFunction = valueFunctions[iAgent];
+			var squareSizeEast = valueFunction.sizeOfSquareWithValue(swCorner, requiredLandplotValue, "NE");
+			if (minx+squareSizeEast <= maxx)
+				level.squares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast, iAgent:iAgent});
+		}
+	}
+	if (level.yEast>level.y) {  // eastern corner is convex - bid for squares
+		var seCorner = {x:maxx,y:miny};
+		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
+			var valueFunction = valueFunctions[iAgent];
+			var squareSizeWest = valueFunction.sizeOfSquareWithValue(seCorner, requiredLandplotValue, "NW");
+			if (maxx-squareSizeWest >= minx)
+				level.squares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest, iAgent:iAgent});
+		};
+	}
+}
+
+
+
+/**
+ * Normalized 3-walls staircase algorithm - alternative algorithm:
+ * - valueFunctions.length>=1
+ * - levels.length >= 1; each level is represented by {y,minx,maxx}.
+ * - levels are ordered by non-decreasing x value, from west to east.
+ * - Value per agent: at least 2*n-2+levels.length
+ */
+var staircase3walls_cornerSquares = function(valueFunctions, levels, requiredLandplotValue) {
+	var numOfAgents = valueFunctions.length;
+	var numOfLevels = levels.length;
+	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfLevels+" levels: "+JSON.stringify(levels));
+	jsts.algorithm.addPropertiesToLevels(levels);    // Add to each level the properties: "yWest", "yEast", "isKnob", "westMinx", "eastMaxx"
+
+	var winningSquaresInLevels = [];
+
+	// Bid for squares in all knobs; Remove all knobs with no square:
+	for (var iLevel=0; iLevel<levels.length; ++iLevel) {
+		var level = levels[iLevel];
+		if (!level.isKnob || level.squares) 
+			continue;
+
+		// HERE we found a knob with no squares yet:
+		calculateLevelSquares(valueFunctions, level, requiredLandplotValue);
+
+		if (level.squares.length==0) {  
+			// HERE no one wants a square in the current knob so we can remove it:
+			TRACE(numOfAgents,"  level "+JSON.stringify(level)+": no agent wants a square - removing level");
+			jsts.algorithm.removeLevel(levels, iLevel);
+			iLevel = -1;  // structure has changed - start looping again
+		} else {
+			// HERE some agents want squares in the current knob - find the lowest one:
+			var lowestSquareInLevel = _.min(level.squares, function(square){return square.maxy});
+			winningSquaresInLevels.push(lowestSquareInLevel);
+			TRACE(numOfAgents,"  level "+JSON.stringify(level)+": winning square is "+JSON.stringify(lowestSquareInLevel));
+		}
+	}
+
+	// Bid for squares in all other levels (non-knobs);
+	for (var iLevel=0; iLevel<levels.length; ++iLevel) {
+		var level = levels[iLevel];
+		if (level.squares) 
+			continue;
+		calculateLevelSquares(valueFunctions, level, requiredLandplotValue);
+		if (level.squares.length==0) {  // do nothing
+		} else {
+			var lowestSquareInLevel = _.min(level.squares, function(square){return square.maxy});
+			winningSquaresInLevels.push(lowestSquareInLevel);
+			TRACE(numOfAgents,"  level "+JSON.stringify(level)+": winning square is "+JSON.stringify(lowestSquareInLevel));
+		}
+	}
+
+	if (winningSquaresInLevels.length==0) {
+		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			TRACE_NO_LANDPLOT(util.inspect(valueFunctions,{depth:3}));
+		return [];
+	}
+
+	// get the agent with the square with the smallest height overall:
+	var landplot = _.min(winningSquaresInLevels, function(square){return square.maxy});
+	var iWinningAgent = landplot.iAgent;
+	delete landplot.iAgent;
+	var winningAgent = valueFunctions[iWinningAgent];
+
+	if (winningAgent.color) landplot.color = winningAgent.color;
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
+	
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+	var remainingLevels = jsts.algorithm.updatedLevels(levels, landplot, "S");
+	for (var iLevel=0; iLevel<remainingLevels.length; ++iLevel) 
+		delete remainingLevels[iLevel].squares;
+	var remainingLandplots = staircase3walls_cornerSquares(remainingValueFunctions, remainingLevels, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
+}
+
 
 
 
@@ -2237,12 +2595,13 @@ jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[2] = (norm2Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[3] = (norm1Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[4] = (norm0Walls);
 
-},{"./AxisParallelRectangle":2,"./ValueFunction":3,"./corners":4,"./factory-utils":5,"./numeric-utils":12,"./point-utils":14,"./square-with-max-points":17,"./transformations":18,"argminmax":19,"jsts":22,"underscore":25,"util":29}],8:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./ValueFunction":4,"./corners":5,"./factory-utils":6,"./numeric-utils":13,"./point-utils":15,"./square-with-max-points":18,"./transformations":19,"argminmax":20,"jsts":23,"underscore":26,"util":30}],9:[function(require,module,exports){
 var jsts = require("jsts");
 require("./intersection-cache");
 require("./factory-utils");
 require("./point-utils");
 require("./AxisParallelRectangle");
+require("./SimpleRectilinearPolygon");
 require("./maximum-disjoint-set-sync");
 require("./maximum-disjoint-set-async");
 require("./representative-disjoint-set-sync");
@@ -2262,7 +2621,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./corners":4,"./factory-utils":5,"./fair-division-of-points":6,"./half-proportional-division-staircase":7,"./intersection-cache":9,"./maximum-disjoint-set-async":10,"./maximum-disjoint-set-sync":11,"./point-utils":14,"./representative-disjoint-set-sync":15,"./shapes-touching-points":16,"./square-with-max-points":17,"./transformations":18,"jsts":22}],9:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./SimpleRectilinearPolygon":3,"./corners":5,"./factory-utils":6,"./fair-division-of-points":7,"./half-proportional-division-staircase":8,"./intersection-cache":10,"./maximum-disjoint-set-async":11,"./maximum-disjoint-set-sync":12,"./point-utils":15,"./representative-disjoint-set-sync":16,"./shapes-touching-points":17,"./square-with-max-points":18,"./transformations":19,"jsts":23}],10:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -2354,7 +2713,7 @@ jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
 
 
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 /**
  * Asynchronous version of maximum-disjoint-set, with option to interrupt.
  * 
@@ -2509,7 +2868,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-cache":9,"./partition-utils":13,"async":20,"js-combinatorics":21,"jsts":22,"underscore":25}],11:[function(require,module,exports){
+},{"./intersection-cache":10,"./partition-utils":14,"async":21,"js-combinatorics":22,"jsts":23,"underscore":26}],12:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -2625,7 +2984,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-cache":9,"./partition-utils":13,"js-combinatorics":21,"jsts":22,"underscore":25}],12:[function(require,module,exports){
+},{"./intersection-cache":10,"./partition-utils":14,"js-combinatorics":22,"jsts":23,"underscore":26}],13:[function(require,module,exports){
 /**
  * Some utils for structs of numbers.
  * 
@@ -2671,7 +3030,7 @@ module.exports = {
 	},
 }
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to partitioning collections of shapes.
  * 
@@ -2817,7 +3176,7 @@ function partitionDescription(partition) {
 }
 
 
-},{"./numeric-utils":12,"underscore":25}],14:[function(require,module,exports){
+},{"./numeric-utils":13,"underscore":26}],15:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to collections of points.
  * 
@@ -2878,7 +3237,7 @@ jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
 }
 
 
-},{"underscore":25}],15:[function(require,module,exports){
+},{"underscore":26}],16:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
  * 
@@ -2948,7 +3307,7 @@ function representativeDisjointSetSub(candidateSets) {
 
 
 
-},{"./intersection-cache":9,"./partition-utils":13,"js-combinatorics":21,"jsts":22,"underscore":25}],16:[function(require,module,exports){
+},{"./intersection-cache":10,"./partition-utils":14,"js-combinatorics":22,"jsts":23,"underscore":26}],17:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -3161,7 +3520,7 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-},{"./AxisParallelRectangle":2,"./factory-utils":5,"jsts":22}],17:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":6,"jsts":23}],18:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -3240,7 +3599,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"./numeric-utils":12,"./point-utils":14,"jsts":22,"underscore":25}],18:[function(require,module,exports){
+},{"./numeric-utils":13,"./point-utils":15,"jsts":23,"underscore":26}],19:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to affine transformations.
  * 
@@ -3390,7 +3749,7 @@ jsts.algorithm.roundFields = function(significantFigures, object) {
 			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
 }
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var _ = require("underscore");
 
   // Internal function: creates a callback bound to its context if supplied
@@ -3465,7 +3824,7 @@ module.exports = {
 
 
 
-},{"underscore":25}],20:[function(require,module,exports){
+},{"underscore":26}],21:[function(require,module,exports){
 var process=require("__browserify_process");/*!
  * async
  * https://github.com/caolan/async
@@ -4525,7 +4884,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":27}],21:[function(require,module,exports){
+},{"__browserify_process":28}],22:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -4815,14 +5174,14 @@ var process=require("__browserify_process");/*!
     });
 })(this);
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":23,"javascript.util":24}],23:[function(require,module,exports){
+},{"./lib/jsts":24,"javascript.util":25}],24:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -6437,7 +6796,7 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 /*
   javascript.util is a port of selected parts of java.util to JavaScript which
   main purpose is to ease porting Java code to JavaScript.
@@ -6497,7 +6856,7 @@ return true;};HashSet.prototype.remove=function(o){throw new OperationNotSupport
 return array;};HashSet.prototype.iterator=function(){return new HashSet.Iterator(this);};HashSet.Iterator=function(hashSet){this.hashSet=hashSet;};HashSet.Iterator.prototype.hashSet=null;HashSet.Iterator.prototype.position=0;HashSet.Iterator.prototype.next=function(){if(this.position===this.hashSet.size()){throw new NoSuchElementException();}
 return this.hashSet.array[this.position++];};HashSet.Iterator.prototype.hasNext=function(){if(this.position<this.hashSet.size()){return true;}
 return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript.util.OperationNotSupported();};javascript.util.HashSet=HashSet;})();
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 //     Underscore.js 1.6.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -7842,7 +8201,7 @@ return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript
   }
 }).call(this);
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -7867,7 +8226,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -7922,14 +8281,14 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],29:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8517,4 +8876,4 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":28,"__browserify_process":27,"inherits":26}]},{},[1])
+},{"./support/isBuffer":29,"__browserify_process":28,"inherits":27}]},{},[1])

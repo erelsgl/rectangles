@@ -411,74 +411,10 @@ var staircase4wallsNorth = function(yLength, valueFunctions, levels, requiredLan
  * - Landplots may overflow the northern border
  */
 var norm3Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
-	var initial = [{y:0,minx:0,maxx:1}];  // levels 
-	return staircase3walls(valueFunctions, initial, requiredLandplotValue);
-	
-//	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
-//	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
+	var origin_sw = {x:0,y:0}, origin_se = {x:1,y:0};
+	return staircase3walls_double2walls(valueFunctions, origin_sw, [origin_sw], origin_se, [origin_se], requiredLandplotValue);
 }
 
-
-/**
- * Normalized 3-walls staircase algorithm:
- * - valueFunctions.length>=1
- * - levels.length >= 1; each level is represented by {y,minx,maxx}.
- * - levels are ordered by non-decreasing x value, from west to east.
- * - Value per agent: at least 2*n-2+levels.length
- */
-var staircase3walls = function(valueFunctions, levels, requiredLandplotValue) {
-	var numOfAgents = valueFunctions.length;
-	var numOfLevels = levels.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 3-walls staircase algorithm with "+numOfLevels+" levels: "+JSON.stringify(levels));
-
-	var rectangles = jsts.algorithm.rectanglesCoveringSouthernLevels(levels);
-
-	// for each agent, calculate all level squares with value 1:
-	valueFunctions.forEach(function(valueFunction) {
-		var levelSquares = [];
-		
-		for (var i=0; i<rectangles.length; ++i) {
-			var rectangle = rectangles[i];
-			var minx=rectangle.minx, maxx=rectangle.maxx, miny=rectangle.miny;
-			var squareSizeEast = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
-			var squareSizeWest = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
-
-			if (minx+squareSizeEast <= maxx)
-				levelSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast});
-
-			if (maxx-squareSizeWest >= minx)
-				levelSquares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest});
-		}
-		
-		valueFunction.square = _.min(levelSquares, function(square){return square.maxy});
-	});
-
-	// get the agent with the square with the smallest height overall:
-	var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
-		return valueFunction.square.maxy;
-	});
-	var winningAgent = valueFunctions[iWinningAgent];
-
-	if (!winningAgent.square || !isFinite(winningAgent.square.maxy)) {
-		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-		if (requiredLandplotValue<=1)
-			console.log(util.inspect(valueFunctions,{depth:3}));
-		return [];
-	}
-
-	var landplot = winningAgent.square;
-	if (winningAgent.color) landplot.color = winningAgent.color;
-	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
-	
-	if (valueFunctions.length==1)
-		return [landplot];
-
-	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
-	var remainingLevels = jsts.algorithm.updatedLevels(levels, landplot, "S");
-	var remainingLandplots = staircase3walls(remainingValueFunctions, remainingLevels, requiredLandplotValue);
-	remainingLandplots.push(landplot);
-	return remainingLandplots;
-}
 
 
 /**
@@ -528,7 +464,7 @@ function findShadowed(b, squares) {
 }
 
 /**
- * Normalized staircase algorithm:
+ * Normalized staircase algorithm, using two 2-walls algorithm. DOESN'T WORK!
  * - valueFunctions.length>=1
  * - corners.length >= 1
  * - corners are ordered by increasing y = decreasing x (from south-east to north-west)
