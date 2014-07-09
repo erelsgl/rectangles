@@ -14,6 +14,10 @@ jsts.Side = {
 	East: 3
 };
 
+jsts.inverseSide = function(side) {
+	return (side+2)%4;
+}
+
 jsts.Turn = {
 	Left: -1,
 	Right: 1

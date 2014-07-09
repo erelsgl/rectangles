@@ -1,22 +1,24 @@
 var jsts = require('jsts');
 
-var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circular;
+var LinkedList = require('jsclass/src/linked_list').LinkedList;
+var DoublyLinkedList = LinkedList.Doubly.Circular;
+var ListNode = LinkedList.Node;
 
 
 (function() {
 	
 	DoublyLinkedList.prototype.toString = function() {
 		var s = "";
-		list.forEach(function(node, i) {
+		this.forEach(function(node, i) {
 			var sfield = "";
 			for (var field in node) {
-				if (field!='prev' && field !='next' && field !='list') {
+				if (node.hasOwnProperty(field) && field!='prev' && field !='next' && field !='list') {
 					if (sfield) sfield+=",";
 					sfield += field+":"+node[field];
 				}
 			}
 
-			if (s) s+=", ";
+			if (s) s+=",\n ";
 			s +="{"+sfield+"}"
 		});
 		return "["+s+"]";
@@ -120,7 +122,9 @@ var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circ
 	}
 	
 	Segment.prototype.addVisibleCorner = function(corner)	 {	
-		this.projectionList.push(corner);
+		var node = new ListNode(corner);   // we need a node because the same corner participates in two different projection lists - positive and negative
+		this.projectionList.push(node);
+		return node;
 	}
 
 	Segment.prototype.isVertical = function()	 {	return jsts.isVertical(this.direction);	}
@@ -172,6 +176,19 @@ var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circ
 		case jsts.Side.South: return this.c0.y<segment.c0.y;  // horizontal
 		}
 	}
+	
+	Segment.prototype.distanceToNearestVisibleCorner = function() {
+		var nearestSoFar = Infinity;
+		this.projectionList.forEach(function(node) {
+			var corner = node.data;
+			var distance = (this.isVertical()? 	
+				Math.abs(corner.x-this.c0.x):
+				Math.abs(corner.y-this.c0.y));
+			if (distance<nearestSoFar)
+				nearestSoFar = distance;
+		}, this);
+		return nearestSoFar;
+	}
 
 	
 	
@@ -190,17 +207,30 @@ var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circ
 		this.s0 = s0;
 		this.s1 = s1;
 		this.turn = jsts.turn(s0.direction, s1.direction);
+		this.isConvex = "?"; // will be calculated later
 	}
-
-		
-		
+	
+	/**
+	 * Set the two segments that see this (concave) corner, and remember our location in their projection lists.
+	 */
+	Corner.prototype.setVisibilityInfo = function(positiveVisibilitySegment,negativeVisibilitySegment) {
+		this.positiveVisibilitySegment = positiveVisibilitySegment;
+		this.positiveVisibilityNode = positiveVisibilitySegment.addVisibleCorner(this);
+		this.negativeVisibilitySegment = negativeVisibilitySegment;
+		this.negativeVisibilityNode = negativeVisibilitySegment.addVisibleCorner(this);
+	}
+	
+	Corner.prototype.toString = function() {
+		return "("+this.x+","+this.y+"; "+this.turn+","+(this.isConvex?"convex":"concave")+")";
+	}
 
 	jsts.geom.SimpleRectilinearPolygon.prototype.createDataStructuresForSquareCovering = function() {
 		/* Clone the sequence of corners in order to add more information: */
 		var points = this.points;
 		var corners = [];
-		for (var i=0; i<points.length; ++i) 
+		for (var i=0; i<points.length-1; ++i) 
 			corners.push(new Corner(points[i]));
+		corners.push(corners[0]);
 		this.corners = corners;
 		
 		/* Calculate the sequence of segments and the turn directions of the corners: */
@@ -218,7 +248,6 @@ var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circ
 		}
 		this.segments = segments;
 		corners[0].setSegments(segments.last, segments.first);
-		corners[corners.length-1] = corners[0];
 		totalTurn += corners[0].turn;
 		this.turnDirection = jsts.turnDirection(totalTurn);
 
@@ -227,14 +256,11 @@ var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circ
 			var corner = corners[i];
 			var isConvex = corner.isConvex = (corner.turn==this.turnDirection);
 			if (!isConvex) {   // concave corner - calculate visibility information:
-				corner.positiveVisibilitySegment = this.findClosestSegment(corner.s0.direction, corner);
-				corner.positiveVisibilitySegment.addVisibleCorner(corner);
-				corner.negativeVisibilitySegment = this.findClosestSegment(corner.s1.direction, corner);
-				corner.negativeVisibilitySegment.addVisibleCorner(corner);
+				var positiveVisibilitySegment = this.findClosestSegment(corner.s0.direction, corner);
+				var negativeVisibilitySegment = this.findClosestSegment(jsts.inverseSide(corner.s1.direction), corner);
+				corner.setVisibilityInfo(positiveVisibilitySegment,negativeVisibilitySegment);
 			}
 		}
-
-		/* Calculate visibility information: */
 	}
 	
 

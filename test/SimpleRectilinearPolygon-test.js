@@ -60,4 +60,15 @@ describe('SimpleRectilinearPolygon', function() {
 		srp2.findClosestSegment(North, point3).getY().should.equal(20);
 		srp2.findClosestSegment(South, point3).getY().should.equal(0);
 	})
+	
+	it('finds distance to nearest visible corner', function() {
+		var segment = srp2.segments.first;	segment.distanceToNearestVisibleCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(10); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(10); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestVisibleCorner().should.equal(10); // no concave corner visible
+	});
 })
