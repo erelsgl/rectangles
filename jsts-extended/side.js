@@ -28,3 +28,7 @@ jsts.turn = function(side1, side2) {
 	if (t<-1) t+=4;
 	return t;
 }
+
+jsts.turnDirection = function(turn) {
+	return turn>0? 1: -1;
+}
