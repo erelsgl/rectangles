@@ -14,7 +14,7 @@
     "js-combinatorics": "*",
     "jsts": "*",
     "async": "*",
-    "listish": "*"
+    "jsclass": "*"
   },
   "devDependencies": {
     "mocha": ">=1.0.0",

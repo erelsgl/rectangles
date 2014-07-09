@@ -1,25 +1,41 @@
 var jsts = require('jsts');
 
-var DoublyLinkedList = require('listish').DoublyLinkedList;
-
-//console.dir(DoublyLinkedList.prototype.toString);
+var DoublyLinkedList = require('jsclass/src/linked_list').LinkedList.Doubly.Circular;
 
 
 (function() {
 	
-	// return the first item of the list:
-	DoublyLinkedList.prototype.begin = function() {
-		return this.sentinel.next;
-	}
-	
-	DoublyLinkedList.prototype.end = function() {
-		return this.sentinel;
-	}
-	
+	DoublyLinkedList.prototype.toString = function() {
+		var s = "";
+		list.forEach(function(node, i) {
+			var sfield = "";
+			for (var field in node) {
+				if (field!='prev' && field !='next' && field !='list') {
+					if (sfield) sfield+=",";
+					sfield += field+":"+node[field];
+				}
+			}
 
-	DoublyLinkedList.prototype.toJSON = function() {
-		return this.items();
+			if (s) s+=", ";
+			s +="{"+sfield+"}"
+		});
+		return "["+s+"]";
 	}
+	
+	
+	// return the first item of the list:
+//	DoublyLinkedList.prototype.begin = function() {
+//		return this.sentinel.next;
+//	}
+//	
+//	DoublyLinkedList.prototype.end = function() {
+//		return this.sentinel;
+//	}
+//	
+//
+//	DoublyLinkedList.prototype.toJSON = function() {
+//		return this.items();
+//	}
 
 	
 	
@@ -104,7 +120,7 @@ var DoublyLinkedList = require('listish').DoublyLinkedList;
 	}
 	
 	Segment.prototype.addVisibleCorner = function(corner)	 {	
-		this.projectionList.append(corner);
+		this.projectionList.push(corner);
 	}
 
 	Segment.prototype.isVertical = function()	 {	return jsts.isVertical(this.direction);	}
@@ -193,7 +209,7 @@ var DoublyLinkedList = require('listish').DoublyLinkedList;
 		var totalTurn = 0;
 		for (var i=0; i<corners.length-1; ++i) {
 			var segment = new Segment(corners[i], corners[i+1]);
-			segments.append(segment);
+			segments.push(segment);
 			if (previousSegment) {
 				corners[i].setSegments(previousSegment,segment);
 				totalTurn += corners[i].turn;
@@ -201,7 +217,7 @@ var DoublyLinkedList = require('listish').DoublyLinkedList;
 			previousSegment = segment;
 		}
 		this.segments = segments;
-		corners[0].setSegments(segments.last(), segments.first());
+		corners[0].setSegments(segments.last, segments.first);
 		corners[corners.length-1] = corners[0];
 		totalTurn += corners[0].turn;
 		this.turnDirection = jsts.turnDirection(totalTurn);
@@ -225,13 +241,12 @@ var DoublyLinkedList = require('listish').DoublyLinkedList;
 	jsts.geom.SimpleRectilinearPolygon.prototype.findClosestSegment = function(direction, point) {
 		var segments = this.segments;
 		var closestSoFar = null;
-		for (var s=segments.begin(); s!=segments.end(); s=s.next) {
-			var segment = s.data;
+		segments.forEach(function(segment) {
 			if (segment.isInDirectionOf(direction,point)) {
 				if (!closestSoFar || closestSoFar.isInDirectionOfSegment(direction,segment))
 					closestSoFar = segment;
 			}
-		}
+		});
 		return closestSoFar;
 	}
 
@@ -242,13 +257,12 @@ var DoublyLinkedList = require('listish').DoublyLinkedList;
 	 */
 	jsts.geom.SimpleRectilinearPolygon.prototype.contains = function(point) {
 		var intersections = 0;
-		for (var s=this.segments.begin(); s!=this.segments.end(); s=s.next) {
-			var segment = s.data;
+		this.segments.forEach(function(segment) {
 			if (segment.contains(point))
 				return false; // point is on the boundary.
 			if (segment.isVerticalEastOf(point))
 				intersections++;
-		}
+		});
 		return (intersections%2==1); // odd = internal; even = external
 	}
 
