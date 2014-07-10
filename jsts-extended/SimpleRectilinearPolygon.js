@@ -118,7 +118,14 @@ var ListNode = LinkedList.Node;
 			c0.x>c1.x? jsts.Side.West:
 			error("cannot decide the direction: "+JSON.stringify(c0)+", "+JSON.stringify(c1))
 		);
-		this.projectionList = new DoublyLinkedList();	 // all vertices visible to this segment
+		
+		this.projectionList = new DoublyLinkedList();	 // All vertices visible to this segment; filled during initialization of polygon
+		
+		this.coveringSquares = new DoublyLinkedList();	 // All squares s selected for the cover and having the following properties:
+			// a. s intersects the segment. (Note: every intersection of a square with the segment is on an original concave point???)
+			// b. The two edges of s which are orthogonal to the segment are exposed.
+			// c. There is a point in the polygon which is covered only by s (and not by any other square selected so far).
+			// The squares for each segment are kept sorted by their appearance order.
 	}
 	
 	Segment.prototype.addVisibleCorner = function(corner)	 {	
@@ -188,6 +195,10 @@ var ListNode = LinkedList.Node;
 				nearestSoFar = distance;
 		}, this);
 		return nearestSoFar;
+	}
+	
+	Segment.prototype.isKnob = function() {
+		return this.c0.isConvex && this.c1.isConvex;
 	}
 
 	
@@ -293,6 +304,17 @@ var ListNode = LinkedList.Node;
 	}
 
 
+	jsts.geom.SimpleRectilinearPolygon.prototype.getAllContinuators = function() {
+		continuators = [];
+		this.segments.forEach(function(segment) {
+			if (!segment.isKnob()) return;
+			
+			// check if knob is continuator
+			
+			continuators.push(segment);
+		});
+	}
+	
 
 	/**
 	 * Creates and returns a full copy of this {@link Polygon} object. (including
