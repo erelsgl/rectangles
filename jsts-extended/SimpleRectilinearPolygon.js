@@ -32,7 +32,9 @@ var ListNode = LinkedList.Node;
 		return values;
 	}
 	
-	
+	DoublyLinkedList.prototype.isEmpty = function() {
+		return this.first.next = this.first; 
+	}
 	
 
 	/**
@@ -184,7 +186,7 @@ var ListNode = LinkedList.Node;
 				Math.abs(corner.y-this.c0.y));
 	}
 
-	Segment.prototype.distanceToNearestCorner = function() {
+	Segment.prototype.distanceToNearestConcaveCorner = function() {
 		var nearestSoFar = Infinity;
 		this.projectionList.forEach(function(node) {
 			var corner = node.data;
@@ -199,9 +201,51 @@ var ListNode = LinkedList.Node;
 		return this.c0.isConvex && this.c1.isConvex;
 	}
 
+	Segment.prototype.distanceToNearestBorder = function() {
+		return Math.min(
+			this.distanceToNearestConcaveCorner(),
+			Math.min(
+				this.c0.distanceToNearestSegment(jsts.inverseSide(this.prev.direction)),
+				this.c1.distanceToNearestSegment(this.next.direction)
+			)
+		);
+	}
 	
+	Segment.prototype.hasContinuator = function() {
+		if (!this.isKnob())
+			return false;
+		if (this.distanceToNearestBorder < this.length)
+			return false;
+	}
 	
+	Segment.prototype.signOfPolygonInterior = function() {
+		if (this.isVertical()) 
+			return this.next.direction==jsts.Side.East? 1: -1;
+		else
+			return this.next.direction==jsts.Side.North? 1: -1;
+	}
 	
+	Segment.prototype.continuator = function() {
+		if (this.isVertical()) {
+			var x0 = this.c0.x;
+			var x1 = x0 + this.signOfPolygonInterior() * this.length;
+			var y0 = this.c0.y;
+			var y1 = this.c1.y;
+		} else {
+			var x0 = this.c0.x;
+			var x1 = this.c1.x;
+			var y0 = this.c0.y;
+			var x1 = y0 + this.signOfPolygonInterior() * this.length;
+		}
+		return {
+			minx: Math.min(x0,x1),
+			maxx: Math.max(x0,x1),
+			miny: Math.min(y0,y1),
+			maxy: Math.max(y0,y1),
+		}
+	}
+	
+
 	
 	/**
 	 * Construct a corner structure for a given vertex
@@ -304,9 +348,16 @@ var ListNode = LinkedList.Node;
 				var negativeVisibilitySegment = this.findClosestSegment(jsts.inverseSide(corner.s1.direction), corner);
 				corner.setVisibilityInfo(positiveVisibilitySegment,negativeVisibilitySegment);
 			}
-		}, this)
+		}, this);
 	}
 	
+	jsts.geom.SimpleRectilinearPolygon.prototype.isEmpty = function() {
+		return this.corners.isEmpty();
+	}
+	
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeRectangle = function(knob,width) {
+		
+	}
 
 	jsts.geom.SimpleRectilinearPolygon.prototype.findClosestSegment = function(direction, point) {
 		var segments = this.segments;
@@ -339,18 +390,132 @@ var ListNode = LinkedList.Node;
 		else return (intersections%2==1); // odd = internal; even = external
 	}
 
-
-	jsts.geom.SimpleRectilinearPolygon.prototype.getAllContinuators = function() {
-		continuators = [];
+	
+	/**
+	 * @return the first knob in a continuator.
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.findContinuatorSegment = function() {
+		var continuatorSegment = null;
 		this.segments.forEach(function(segment) {
-			if (!segment.isKnob()) return;
-			
-			// check if knob is continuator
-			
-			continuators.push(segment);
+			if (!continuatorSegment && segment.hasContinuator()) {
+				continuatorSegment = segment;
+				// should break here, but it is not possible in JS...
+			}
 		});
+		var knobCount = 1;
+		while (continuatorSegment.prev.length == continuatorSegment.length && knobCount<4) {
+			continuatorSegment = continuatorSegment.prev;
+			knobCount++;
+		}
+		var firstKnob = continuatorSegment;
+		if (knobCount<3) {
+			knobCount = 1;
+			while (continuatorSegment.next.length == continuatorSegment.length) {
+				continuatorSegment = continuatorSegment.next;
+				knobCount++
+			}
+		}
+		firstKnob.knobCount = knobCount;
+		return firstKnob;
 	}
 	
+	/**
+	 *  remove the given segments and their c0 corners:
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeSegments = function(segments) {
+		for (var i=0; i<segments.length; ++i) {
+			var segment = segments[i];
+			this.segments.remove(segment);
+			this.corners.remove(segment.c0);
+		}
+	}
+	
+	
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeErasableRegion = function(knob) {
+		var exposedDistance0 = knob.prev.length;
+		var exposedDistance1 = knob.next.length;
+		var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
+		var coveredDistance = knob.length; // TODO: calculate the actual covering distance
+		var securityDistance = knob.distanceToNearestConcaveCorner() - knob.length;
+		var nonExposedDistance = Math.min(coveredDistance,securityDistance);
+
+		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
+			if (knob.isVertical()) 
+				knob.c0.x = knob.c1.x = knob.c1.x + this.signOfPolygonInterior()*nonExposedDistance;
+			else 
+				knob.c0.y = knob.c1.y = knob.c1.y + this.signOfPolygonInterior()*nonExposedDistance;
+		} else {  // some corners should be removed
+			if (exposedDistance0<exposedDistance1) {
+				if (knob.isVertical()) 
+					knob.next.c0.x=knob.prev.c0.x;
+				else 
+					knob.next.c0.y=knob.prev.c0.y;
+				this.removeSegments([knob.prev, knob])
+			} else if (exposedDistance1<exposedDistance0) {
+				if (knob.isVertical()) 
+					knob.prev.c1.x=knob.next.c1.x;
+				else 
+					knob.prev.c1.y=knob.next.c1.y;
+				this.removeSegments([knob, knob.next])
+			} else {
+				if (knob.isVertical()) 
+					knob.prev.prev.c1.y=knob.next.next.c1.y;
+				else 
+					knob.prev.prev.c1.x=knob.next.next.c1.x;
+				this.removeSegments([knob.prev, knob, knob.next, knob.next.next]);
+			}
+		}
+	}
+
+
+	jsts.geom.SimpleRectilinearPolygon.prototype.findMinimalCovering = function() {
+		var P = this.clone();  // P is the residual polygon.
+		var C = [];             // C is the current covering.
+		while (!P.isEmpty()) {
+			var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
+			var continuator = knob.continuator();
+			
+			var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered!
+			if (!balconyOfContinuatorIsCovered)
+				C.push(continuator); 
+
+			// Take action based on the continuator type - there are 7 options in the paper:
+			switch (knob.knobCount) {
+			case 1:
+				if (knob.prev.length > knob.length && knob.next.length > knob.length) { // 1-knob, type right 
+					
+				} else if (knob.prev.length > knob.length && knob.next.length < knob.length) { // 1-knob, type middle
+					
+				} else if (knob.prev.length < knob.length && knob.next.length > knob.length) { // 1-knob, type middle
+					
+				} else if (knob.prev.length < knob.length && knob.next.length < knob.length) { // 1-knob, type left
+					
+				}
+				break;
+			case 2:
+				if (knob.prev.length < knob.length && knob.next.next.length < knob.length) { // 2-knob, type right
+					
+				} else if (knob.prev.length > knob.length && knob.next.next.length < knob.length) { // 2-knob, type middle
+					
+				} else if (knob.prev.length < knob.length && knob.next.next.length > knob.length) { // 2-knob, type middle
+					
+				}
+				break;
+			case 3:
+				break;
+			case 4:
+				break;
+			default: 
+				console.dir(knob);
+				throw new Error("illegal knobCount");
+			}
+			
+			
+			// Remove the erasable region of a 1-knob continuator:
+			P.removeErasableRegion(knob);
+		}
+	}
+
 
 	/**
 	 * Creates and returns a full copy of this {@link Polygon} object. (including
@@ -372,8 +537,6 @@ var ListNode = LinkedList.Node;
  
 	jsts.geom.SimpleRectilinearPolygon.prototype.CLASS_NAME = 'jsts.geom.SimpleRectilinearPolygon';
 
-	
-
 	function coord(x,y)	{	return new jsts.geom.Coordinate(x,y); }
 
 	/**
@@ -383,9 +546,8 @@ var ListNode = LinkedList.Node;
 	 * or with a single parameter with 4 fields (minx,miny, maxx,maxy).
 	 */
 	jsts.geom.GeometryFactory.prototype.createSimpleRectilinearPolygon = function(xy) {
-	return new jsts.geom.SimpleRectilinearPolygon(xy, this);
+		return new jsts.geom.SimpleRectilinearPolygon(xy, this);
 	};
-	
-	
+
 })();
 

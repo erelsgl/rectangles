@@ -68,35 +68,68 @@ describe('SimpleRectilinearPolygon', function() {
 	
 	it('finds distance fromo segments to nearest corners', function() {
 		var segment = srp2.segments.first;	
-		                       segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(10);
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(10);
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(10);
+						       segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(10);
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(10);
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(10);
 
 		var segment = srp3.segments.first;	
-		                       segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(Infinity); // no concave corner visible
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(30);
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(10);
-		segment=segment.next;  segment.distanceToNearestCorner().should.equal(10);
+						       segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(Infinity); // no concave corner visible
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(30);
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(10);
+		segment=segment.next;  segment.distanceToNearestConcaveCorner().should.equal(10);
 	});
 
 	it('finds distance from corners to nearest segments', function() {
 		var corner = srp3.corners.first;	
-                            corner.distanceToNearestSegment(North).should.equal(20);
-        corner=corner.next; corner.distanceToNearestSegment(North).should.equal(20);   corner.distanceToNearestSegment(West).should.equal(10);
-        corner=corner.next; corner.distanceToNearestSegment(North).should.equal(10);   corner.distanceToNearestSegment(West).should.equal(10);
-        corner=corner.next; corner.distanceToNearestSegment(North).should.equal(10);   corner.distanceToNearestSegment(East).should.equal(30); 
-        corner=corner.next; corner.distanceToNearestSegment(North).should.equal(20); 
-        corner=corner.next; corner.distanceToNearestSegment(North).should.equal(20);   corner.distanceToNearestSegment(West).should.equal(30); 
-        corner=corner.next; corner.distanceToNearestSegment(South).should.equal(20);   corner.distanceToNearestSegment(West).should.equal(50); 
-        corner=corner.next; corner.distanceToNearestSegment(South).should.equal(20);   corner.distanceToNearestSegment(East).should.equal(50); 
+		                    corner.distanceToNearestSegment(North).should.equal(20);
+		corner=corner.next; corner.distanceToNearestSegment(North).should.equal(20);   corner.distanceToNearestSegment(West).should.equal(10);
+		corner=corner.next; corner.distanceToNearestSegment(North).should.equal(10);   corner.distanceToNearestSegment(West).should.equal(10);
+		corner=corner.next; corner.distanceToNearestSegment(North).should.equal(10);   corner.distanceToNearestSegment(East).should.equal(30); 
+		corner=corner.next; corner.distanceToNearestSegment(North).should.equal(20); 
+		corner=corner.next; corner.distanceToNearestSegment(North).should.equal(20);   corner.distanceToNearestSegment(West).should.equal(30); 
+		corner=corner.next; corner.distanceToNearestSegment(South).should.equal(20);   corner.distanceToNearestSegment(West).should.equal(50); 
+		corner=corner.next; corner.distanceToNearestSegment(South).should.equal(20);   corner.distanceToNearestSegment(East).should.equal(50); 
 	})
+
+	it('finds distance from segments to nearest borders', function() {
+		var segment = srp3.segments.first;	
+		                       segment.distanceToNearestBorder().should.equal(20);
+		segment=segment.next;  
+		segment=segment.next;  
+		segment=segment.next;  
+		segment=segment.next;  segment.distanceToNearestBorder().should.equal(20);
+		segment=segment.next;  segment.distanceToNearestBorder().should.equal(30);
+		segment=segment.next;  segment.distanceToNearestBorder().should.equal(10);
+		segment=segment.next;  segment.distanceToNearestBorder().should.equal(10);
+	})
+	
+
+	it('finds continuators', function() {
+		var segment = srp3.segments.first;	
+		                       segment.continuator().should.eql({minx:-10,maxx:0,miny:0,maxy:10});
+		segment=segment.next;  
+		segment=segment.next;  
+		segment=segment.next;  
+		segment=segment.next;  
+		segment=segment.next;  segment.continuator().should.eql({minx:20,maxx:40,miny:0,maxy:20});
+		segment=segment.next;  
+		segment=segment.next;  
+	});
+
+	it.only('removes erasable regions', function() {
+		var srp3c = srp3.clone();
+		console.log("BEFORE:\n"+srp3c.corners.toString());
+		var segment = srp3c.segments.first;	
+		srp3c.removeErasableRegion(segment);
+		console.log("AFTER:\n"+srp3c.corners.toString());
+	});
 })
