@@ -23,22 +23,15 @@ var ListNode = LinkedList.Node;
 		});
 		return "["+s+"]";
 	}
-	
-	
-	// return the first item of the list:
-//	DoublyLinkedList.prototype.begin = function() {
-//		return this.sentinel.next;
-//	}
-//	
-//	DoublyLinkedList.prototype.end = function() {
-//		return this.sentinel;
-//	}
-//	
-//
-//	DoublyLinkedList.prototype.toJSON = function() {
-//		return this.items();
-//	}
 
+	DoublyLinkedList.prototype.pluck = function(field) {
+		var values = [];
+		this.forEach(function(node) {
+			values.push(node[field]);
+		})
+		return values;
+	}
+	
 	
 	
 
@@ -118,6 +111,7 @@ var ListNode = LinkedList.Node;
 			c0.x>c1.x? jsts.Side.West:
 			error("cannot decide the direction: "+JSON.stringify(c0)+", "+JSON.stringify(c1))
 		);
+		this.length = Math.abs(this.c0.x-this.c1.x)+Math.abs(this.c0.y-this.c1.y);
 		
 		this.projectionList = new DoublyLinkedList();	 // All vertices visible to this segment; filled during initialization of polygon
 		
@@ -184,23 +178,29 @@ var ListNode = LinkedList.Node;
 		}
 	}
 	
-	Segment.prototype.distanceToNearestVisibleCorner = function() {
+	Segment.prototype.distanceToCorner = function(corner) {
+		return (this.isVertical()? 	
+				Math.abs(corner.x-this.c0.x):
+				Math.abs(corner.y-this.c0.y));
+	}
+
+	Segment.prototype.distanceToNearestCorner = function() {
 		var nearestSoFar = Infinity;
 		this.projectionList.forEach(function(node) {
 			var corner = node.data;
-			var distance = (this.isVertical()? 	
-				Math.abs(corner.x-this.c0.x):
-				Math.abs(corner.y-this.c0.y));
+			var distance = this.distanceToCorner(corner);
 			if (distance<nearestSoFar)
 				nearestSoFar = distance;
 		}, this);
 		return nearestSoFar;
 	}
-	
+
 	Segment.prototype.isKnob = function() {
 		return this.c0.isConvex && this.c1.isConvex;
 	}
 
+	
+	
 	
 	
 	/**
@@ -215,63 +215,96 @@ var ListNode = LinkedList.Node;
 	 * Set the two segments that meet at the corner, and calculate the turn direction
 	 */
 	Corner.prototype.setSegments = function(s0,s1) {
-		this.s0 = s0;
-		this.s1 = s1;
+		this.s0 = s0;  // incoming segment
+		this.s1 = s1;  // outgoing segment
 		this.turn = jsts.turn(s0.direction, s1.direction);
 		this.isConvex = "?"; // will be calculated later
+	}
+	
+	Corner.prototype.distanceToSegment = function(segment) {
+		return segment.distanceToCorner(this);
 	}
 	
 	/**
 	 * Set the two segments that see this (concave) corner, and remember our location in their projection lists.
 	 */
 	Corner.prototype.setVisibilityInfo = function(positiveVisibilitySegment,negativeVisibilitySegment) {
-		this.positiveVisibilitySegment = positiveVisibilitySegment;
+		if (this.isConvex)
+			throw new Error("setVisibilityInfo should be called only for concave corners")
+		this.positiveVisibilitySegment = positiveVisibilitySegment; // in the direction of the incoming segment, s0
 		this.positiveVisibilityNode = positiveVisibilitySegment.addVisibleCorner(this);
-		this.negativeVisibilitySegment = negativeVisibilitySegment;
+		this.negativeVisibilitySegment = negativeVisibilitySegment; // in the opposite direction to the outgoing segment, s1
 		this.negativeVisibilityNode = negativeVisibilitySegment.addVisibleCorner(this);
+	}
+	
+	Corner.prototype.distanceToNearestSegment = function(direction) {
+		if (this.isConvex) {
+			if (direction==jsts.inverseSide(this.s0.direction)) {
+				var segmentLength = this.s0.length;
+				var nextCorner = this.s0.c0;
+			} else if (direction==this.s1.direction) {
+				var segmentLength = this.s1.length;
+				var nextCorner = this.s1.c1;
+			} else {
+				return 0;
+			}
+			return segmentLength + 
+				(nextCorner.isConvex? 0: nextCorner.distanceToNearestSegment(direction));
+		} else {  // concave corner - use the visibility information:
+			if (direction==this.s0.direction) {
+				if (!this.positiveVisibilitySegment) throw new Error("missing positive visibility information");
+				return this.distanceToSegment(this.positiveVisibilitySegment);
+			}
+			if (direction==jsts.inverseSide(this.s1.direction)) {
+				if (!this.negativeVisibilitySegment) throw new Error("missing negative visibility information");
+				return this.distanceToSegment(this.negativeVisibilitySegment);
+			}
+			return 0;
+		}
 	}
 	
 	Corner.prototype.toString = function() {
 		return "("+this.x+","+this.y+"; "+this.turn+","+(this.isConvex?"convex":"concave")+")";
 	}
+	
 
+	
+	
 	jsts.geom.SimpleRectilinearPolygon.prototype.createDataStructuresForSquareCovering = function() {
 		/* Clone the sequence of corners in order to add more information: */
 		var points = this.points;
-		var corners = [];
+		var corners = new DoublyLinkedList();
 		for (var i=0; i<points.length-1; ++i) 
 			corners.push(new Corner(points[i]));
-		corners.push(corners[0]);
 		this.corners = corners;
 		
 		/* Calculate the sequence of segments and the turn directions of the corners: */
 		var segments = new DoublyLinkedList();
 		var previousSegment = null;
 		var totalTurn = 0;
-		for (var i=0; i<corners.length-1; ++i) {
-			var segment = new Segment(corners[i], corners[i+1]);
+		corners.forEach(function(corner) {
+			var segment = new Segment(corner, corner.next);
 			segments.push(segment);
 			if (previousSegment) {
-				corners[i].setSegments(previousSegment,segment);
-				totalTurn += corners[i].turn;
+				corner.setSegments(previousSegment,segment);
+				totalTurn += corner.turn;
 			}
 			previousSegment = segment;
-		}
+		}, this);
 		this.segments = segments;
-		corners[0].setSegments(segments.last, segments.first);
-		totalTurn += corners[0].turn;
+		corners.first.setSegments(segments.last, segments.first);
+		totalTurn += corners.first.turn;
 		this.turnDirection = jsts.turnDirection(totalTurn);
 
 		/* Decide whether the corners are convex or concave, and calculate visibility information: */
-		for (var i=0; i<corners.length; ++i) {
-			var corner = corners[i];
+		corners.forEach(function(corner) {
 			var isConvex = corner.isConvex = (corner.turn==this.turnDirection);
 			if (!isConvex) {   // concave corner - calculate visibility information:
 				var positiveVisibilitySegment = this.findClosestSegment(corner.s0.direction, corner);
 				var negativeVisibilitySegment = this.findClosestSegment(jsts.inverseSide(corner.s1.direction), corner);
 				corner.setVisibilityInfo(positiveVisibilitySegment,negativeVisibilitySegment);
 			}
-		}
+		}, this)
 	}
 	
 
@@ -294,13 +327,16 @@ var ListNode = LinkedList.Node;
 	 */
 	jsts.geom.SimpleRectilinearPolygon.prototype.contains = function(point) {
 		var intersections = 0;
+		var onBoundary = false;
 		this.segments.forEach(function(segment) {
+			//console.dir(segment.c0+" - "+segment.c1);
 			if (segment.contains(point))
-				return false; // point is on the boundary.
-			if (segment.isVerticalEastOf(point))
+				onBoundary = true; // point is on the boundary.
+			else if (segment.isVerticalEastOf(point))
 				intersections++;
 		});
-		return (intersections%2==1); // odd = internal; even = external
+		if (onBoundary) return false;
+		else return (intersections%2==1); // odd = internal; even = external
 	}
 
 
