@@ -125,11 +125,41 @@ describe('SimpleRectilinearPolygon', function() {
 		segment=segment.next;  
 	});
 
-	it.only('removes erasable regions', function() {
-		var srp3c = srp3.clone();
-		console.log("BEFORE:\n"+srp3c.corners.toString());
-		var segment = srp3c.segments.first;	
-		srp3c.removeErasableRegion(segment);
-		console.log("AFTER:\n"+srp3c.corners.toString());
+	it('removes erasable regions in rectangles', function() {
+		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,35]);
+//				console.log("0: "+srp)
+		srp.corners.pluck("x").should.eql([0,10,10, 0]);
+		srp.corners.pluck("y").should.eql([0, 0,35,35]);
+		srp.removeErasableRegion(srp.segments.first);
+//				console.log("1: "+srp)
+		srp.corners.pluck("x").should.eql([ 0,10,10, 0]);
+		srp.corners.pluck("y").should.eql([10,10,35,35]);
+		srp.removeErasableRegion(srp.segments.first);
+//				console.log("2: "+srp)
+		srp.corners.pluck("x").should.eql([ 0,10,10, 0]);
+		srp.corners.pluck("y").should.eql([20,20,35,35]);
+		srp.removeErasableRegion(srp.segments.first);
+//				console.log("3: "+srp)
+		srp.corners.pluck("x").should.eql([ 0,10,10, 0]);
+		srp.corners.pluck("y").should.eql([25,25,35,35]);
 	});
-})
+
+	it.only('removes erasable regions in hexagons', function() {
+		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,25, 20,35]);
+				console.log("0: "+srp)
+		srp.corners.pluck("x").should.eql([0,10,10,20,20, 0]);
+		srp.corners.pluck("y").should.eql([0, 0,25,25,35,35]);
+		srp.removeErasableRegion(srp.segments.first);
+				console.log("1: "+srp)
+		srp.corners.pluck("x").should.eql([ 0,10,10,20,20, 0]);
+		srp.corners.pluck("y").should.eql([10,10,25,25,35,35]);
+		srp.removeErasableRegion(srp.segments.first);
+				console.log("2: "+srp)
+		srp.corners.pluck("x").should.eql([ 0,10,10,20,20, 0]);
+		srp.corners.pluck("y").should.eql([20,20,25,25,35,35]);
+		srp.removeErasableRegion(srp.segments.first);
+				console.log("3: "+srp)
+		srp.corners.pluck("x").should.eql([ 0,20,20, 0]);
+		srp.corners.pluck("y").should.eql([25,25,35,35]);
+	});
+});

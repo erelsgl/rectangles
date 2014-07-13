@@ -113,7 +113,6 @@ var ListNode = LinkedList.Node;
 			c0.x>c1.x? jsts.Side.West:
 			error("cannot decide the direction: "+JSON.stringify(c0)+", "+JSON.stringify(c1))
 		);
-		this.length = Math.abs(this.c0.x-this.c1.x)+Math.abs(this.c0.y-this.c1.y);
 		
 		this.projectionList = new DoublyLinkedList();	 // All vertices visible to this segment; filled during initialization of polygon
 		
@@ -122,6 +121,11 @@ var ListNode = LinkedList.Node;
 			// b. The two edges of s which are orthogonal to the segment are exposed.
 			// c. There is a point in the polygon which is covered only by s (and not by any other square selected so far).
 			// The squares for each segment are kept sorted by their appearance order.
+	}
+	
+	// this is a function because the corners change!
+	Segment.prototype.length = function() {
+		return Math.abs(this.c0.x-this.c1.x)+Math.abs(this.c0.y-this.c1.y);
 	}
 	
 	Segment.prototype.addVisibleCorner = function(corner)	 {	
@@ -214,7 +218,7 @@ var ListNode = LinkedList.Node;
 	Segment.prototype.hasContinuator = function() {
 		if (!this.isKnob())
 			return false;
-		if (this.distanceToNearestBorder < this.length)
+		if (this.distanceToNearestBorder < this.length())
 			return false;
 	}
 	
@@ -228,14 +232,14 @@ var ListNode = LinkedList.Node;
 	Segment.prototype.continuator = function() {
 		if (this.isVertical()) {
 			var x0 = this.c0.x;
-			var x1 = x0 + this.signOfPolygonInterior() * this.length;
+			var x1 = x0 + this.signOfPolygonInterior() * this.length();
 			var y0 = this.c0.y;
 			var y1 = this.c1.y;
 		} else {
 			var x0 = this.c0.x;
 			var x1 = this.c1.x;
 			var y0 = this.c0.y;
-			var x1 = y0 + this.signOfPolygonInterior() * this.length;
+			var x1 = y0 + this.signOfPolygonInterior() * this.length();
 		}
 		return {
 			minx: Math.min(x0,x1),
@@ -243,6 +247,10 @@ var ListNode = LinkedList.Node;
 			miny: Math.min(y0,y1),
 			maxy: Math.max(y0,y1),
 		}
+	}
+
+	Segment.prototype.toString = function() {
+		return "["+this.c0+" - "+this.c1+" , dir="+this.direction+"]";
 	}
 	
 
@@ -284,10 +292,10 @@ var ListNode = LinkedList.Node;
 	Corner.prototype.distanceToNearestSegment = function(direction) {
 		if (this.isConvex) {
 			if (direction==jsts.inverseSide(this.s0.direction)) {
-				var segmentLength = this.s0.length;
+				var segmentLength = this.s0.length();
 				var nextCorner = this.s0.c0;
 			} else if (direction==this.s1.direction) {
-				var segmentLength = this.s1.length;
+				var segmentLength = this.s1.length();
 				var nextCorner = this.s1.c1;
 			} else {
 				return 0;
@@ -403,14 +411,14 @@ var ListNode = LinkedList.Node;
 			}
 		});
 		var knobCount = 1;
-		while (continuatorSegment.prev.length == continuatorSegment.length && knobCount<4) {
+		while (continuatorSegment.prev.length() == continuatorSegment.length() && knobCount<4) {
 			continuatorSegment = continuatorSegment.prev;
 			knobCount++;
 		}
 		var firstKnob = continuatorSegment;
 		if (knobCount<3) {
 			knobCount = 1;
-			while (continuatorSegment.next.length == continuatorSegment.length) {
+			while (continuatorSegment.next.length() == continuatorSegment.length()) {
 				continuatorSegment = continuatorSegment.next;
 				knobCount++
 			}
@@ -432,18 +440,25 @@ var ListNode = LinkedList.Node;
 	
 	
 	jsts.geom.SimpleRectilinearPolygon.prototype.removeErasableRegion = function(knob) {
-		var exposedDistance0 = knob.prev.length;
-		var exposedDistance1 = knob.next.length;
+		if (!knob.isKnob()) {
+			console.dir(knob);
+			throw new Error("non-knob disguised as a knob!")
+		}
+		var exposedDistance0 = knob.prev.length();
+		var exposedDistance1 = knob.next.length();
 		var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
-		var coveredDistance = knob.length; // TODO: calculate the actual covering distance
-		var securityDistance = knob.distanceToNearestConcaveCorner() - knob.length;
+		var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
+		var securityDistance = knob.distanceToNearestBorder() - knob.length();
 		var nonExposedDistance = Math.min(coveredDistance,securityDistance);
+		console.log("nonExposedDistance="+nonExposedDistance+" exposedDistance="+exposedDistance);
 
 		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
-			if (knob.isVertical()) 
-				knob.c0.x = knob.c1.x = knob.c1.x + this.signOfPolygonInterior()*nonExposedDistance;
+			console.log("knob before: "+knob);
+			if (knob.isVertical())
+				knob.c0.x = knob.c1.x = knob.c1.x + knob.signOfPolygonInterior()*nonExposedDistance;
 			else 
-				knob.c0.y = knob.c1.y = knob.c1.y + this.signOfPolygonInterior()*nonExposedDistance;
+				knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
+			console.log("knob after: "+knob);
 		} else {  // some corners should be removed
 			if (exposedDistance0<exposedDistance1) {
 				if (knob.isVertical()) 
@@ -482,22 +497,22 @@ var ListNode = LinkedList.Node;
 			// Take action based on the continuator type - there are 7 options in the paper:
 			switch (knob.knobCount) {
 			case 1:
-				if (knob.prev.length > knob.length && knob.next.length > knob.length) { // 1-knob, type right 
+				if (knob.prev.length() > knob.length && knob.next.length() > knob.length()) { // 1-knob, type right 
 					
-				} else if (knob.prev.length > knob.length && knob.next.length < knob.length) { // 1-knob, type middle
+				} else if (knob.prev.length() > knob.length() && knob.next.length() < knob.length()) { // 1-knob, type middle
 					
-				} else if (knob.prev.length < knob.length && knob.next.length > knob.length) { // 1-knob, type middle
+				} else if (knob.prev.length() < knob.length() && knob.next.length() > knob.length()) { // 1-knob, type middle
 					
-				} else if (knob.prev.length < knob.length && knob.next.length < knob.length) { // 1-knob, type left
+				} else if (knob.prev.length() < knob.length() && knob.next.length() < knob.length()) { // 1-knob, type left
 					
 				}
 				break;
 			case 2:
-				if (knob.prev.length < knob.length && knob.next.next.length < knob.length) { // 2-knob, type right
+				if (knob.prev.length() < knob.length() && knob.next.next.length() < knob.length()) { // 2-knob, type right
 					
-				} else if (knob.prev.length > knob.length && knob.next.next.length < knob.length) { // 2-knob, type middle
+				} else if (knob.prev.length() > knob.length() && knob.next.next.length() < knob.length()) { // 2-knob, type middle
 					
-				} else if (knob.prev.length < knob.length && knob.next.next.length > knob.length) { // 2-knob, type middle
+				} else if (knob.prev.length() < knob.length() && knob.next.next.length() > knob.length()) { // 2-knob, type middle
 					
 				}
 				break;
@@ -532,7 +547,7 @@ var ListNode = LinkedList.Node;
 	 * @return {String} String representation of Polygon type.
 	 */
 	jsts.geom.SimpleRectilinearPolygon.prototype.toString = function() {
-		return 'SimpleRectilinearPolygon('+this.points+")";
+		return 'SimpleRectilinearPolygon(\n'+this.corners+"\n)";
 	};
  
 	jsts.geom.SimpleRectilinearPolygon.prototype.CLASS_NAME = 'jsts.geom.SimpleRectilinearPolygon';
