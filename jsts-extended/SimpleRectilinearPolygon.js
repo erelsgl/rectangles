@@ -88,7 +88,9 @@ var ListNode = LinkedList.Node;
 		this.createDataStructuresForSquareCovering();
 		
 		if (this.isEmpty())
-			throw new Error("Polygon is empty after initialization")
+			throw new Error("Polygon is empty after initialization");
+		
+		this.checkValid();
 	};
 
 	
@@ -211,7 +213,7 @@ var ListNode = LinkedList.Node;
 		return this.c0.isConvex && this.c1.isConvex;
 	}
 
-	Segment.prototype.distanceToNearestBorder = function() {
+	Segment.prototype.distanceToNearestBorder = function() { // relevant mainly for knobs
 		return Math.min(
 			this.distanceToNearestConcaveCorner(),
 			Math.min(
@@ -256,17 +258,26 @@ var ListNode = LinkedList.Node;
 			maxy: Math.max(y0,y1),
 		}
 	}
-
-	Segment.prototype.toString = function() {
-		return "["+
-			this.c0+" - "+this.c1+
-			" , dir="+this.direction+
-			(this.knobCount? ", knobCount="+this.knobCount: "") +
-			"]";
-	}
 	
 	Segment.prototype.isAxisParallel = function() {
 		return (this.c0.x==this.c1.x || this.c0.y==this.c1.y);
+	}
+
+	Segment.prototype.toString = function() {
+		if (this.prev==null) {
+			console.dir(this);
+			throw new Error("this.prev is null!")
+		}
+		if (this.next==null) {
+			console.dir(this);
+			throw new Error("this.next is null!")
+		}
+		return "["+
+			this.c0+" - "+this.c1+
+			" , dir="+this.direction+
+			" , toborder="+this.distanceToNearestBorder()+
+			(this.knobCount? ", knobCount="+this.knobCount: "") +
+			"]";
 	}
 	
 
@@ -303,6 +314,15 @@ var ListNode = LinkedList.Node;
 		this.positiveVisibilityNode = positiveVisibilitySegment.addVisibleCorner(this);
 		this.negativeVisibilitySegment = negativeVisibilitySegment; // in the opposite direction to the outgoing segment, s1
 		this.negativeVisibilityNode = negativeVisibilitySegment.addVisibleCorner(this);
+	}
+	
+	// remove this corner from ALL lists it participates in:
+	Corner.prototype.remove = function() {
+		this.list.remove(this);
+		if (this.positiveVisibilityNode)
+			this.positiveVisibilityNode.list.remove(this.positiveVisibilityNode);
+		if (this.negativeVisibilityNode)
+			this.negativeVisibilityNode.list.remove(this.negativeVisibilityNode);
 	}
 	
 	Corner.prototype.distanceToNearestSegment = function(direction) {
@@ -378,10 +398,6 @@ var ListNode = LinkedList.Node;
 	jsts.geom.SimpleRectilinearPolygon.prototype.isEmpty = function() {
 		return this.corners.isEmpty();
 	}
-	
-	jsts.geom.SimpleRectilinearPolygon.prototype.removeRectangle = function(knob,width) {
-		
-	}
 
 	jsts.geom.SimpleRectilinearPolygon.prototype.findClosestSegment = function(direction, point) {
 		var segments = this.segments;
@@ -455,18 +471,17 @@ var ListNode = LinkedList.Node;
 		var prev = segments[0].prev;
 		var next = segments[segments.length-1].next;
 		for (var i=0; i<segments.length; ++i) {
-			var segment = segments[i];
-			this.segments.remove(segment);
-			this.corners.remove(
-					removeCornersBeforeSegments?
-							segment.c0: segment.c1);
+			var segmentToRemove = segments[i];
+			this.segments.remove(segmentToRemove);
+			var cornerToRemove = removeCornersBeforeSegments? segmentToRemove.c0: segmentToRemove.c1;
+			cornerToRemove.remove();
 		}
+		if (removeCornersBeforeSegments)  // prev.c1 is before segments[0] and hence removed:
+			prev.c1 = next.c0;
+		else                              // next.c0 is after segments.last and hence removed:
+			next.c0 = prev.c1;
 		prev.c1.s1 = next;
 		next.c0.s0 = prev;
-//		if (removeCornersBeforeSegments)
-//			prev.c1 = next.c0;
-//		else 
-//			next.c0 = prev.c1;
 	}
 	
 	
@@ -481,7 +496,7 @@ var ListNode = LinkedList.Node;
 		var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
 		var securityDistance = knob.distanceToNearestBorder() - knob.length();
 		var nonExposedDistance = Math.min(coveredDistance,securityDistance);
-		console.log("nonExposedDistance="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
+		console.log("nonExposedDistance=min("+coveredDistance+","+securityDistance+")="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
 
 		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
 			//console.log("knob before: "+knob);
@@ -497,7 +512,7 @@ var ListNode = LinkedList.Node;
 					knob.next.c0.x=knob.prev.c0.x;
 				else 
 					knob.next.c0.y=knob.prev.c0.y;
-				knob.prev.prev.c1 = knob.next.c0;
+//				knob.prev.prev.c1 = knob.next.c0;
 				this.removeSegments([knob.prev,knob], /*removeCornersBeforeSegments=*/true);
 			} else if (exposedDistance1<exposedDistance0) {
 				// shorten the previous segment:
@@ -505,14 +520,14 @@ var ListNode = LinkedList.Node;
 					knob.prev.c1.x=knob.next.c1.x;
 				 else 
 					knob.prev.c1.y=knob.next.c1.y;
-				knob.next.next.c0 = knob.prev.c1;
+//				knob.next.next.c0 = knob.prev.c1;
 				this.removeSegments([knob, knob.next], /*removeCornersBeforeSegments=*/false);
 			} else {
 				if (knob.isVertical()) 
 					knob.prev.prev.c1.y=knob.next.next.c1.y;
 				else 
 					knob.prev.prev.c1.x=knob.next.next.c1.x;
-				knob.next.next.next.c0 = knob.prev.prev.c1;
+//				knob.next.next.next.c0 = knob.prev.prev.c1;
 				this.removeSegments([knob.prev, knob, knob.next, knob.next.next], /*removeCornersBeforeSegments=*/true);
 			}
 		}
@@ -526,9 +541,14 @@ var ListNode = LinkedList.Node;
 
 	jsts.geom.SimpleRectilinearPolygon.prototype.checkValid = function() {
 		this.segments.forEach(function(segment){
-			if (!segment.isAxisParallel()) {
+			if (!segment.isAxisParallel())
 				throw new Error("Invalid polygon: "+this.toString()+"\n\tOne of the segments is not axis parallel: "+segment.toString());
-			}
+			if (segment.isKnob() && segment.distanceToNearestBorder()==0)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tOne of the segments is adjacent to the border: "+segment.toString());
+			if (segment.prev===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tsegment.prev is null: "+segment.toString());
+			if (segment.next===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tsegment.next is null: "+segment.toString());
 		},this)
 
 		this.corners.forEach(function(corner){
@@ -536,6 +556,10 @@ var ListNode = LinkedList.Node;
 				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment before corner "+corner.toString()+" is not axis parallel: "+corner.s0);
 			if (!corner.s1.isAxisParallel()) 
 				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment after corner "+corner.toString()+" is not axis parallel: "+corner.s1);
+			if (corner.s0.prev===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment before corner "+corner.toString()+" has null prev: "+corner.s0);
+			if (corner.s1.prev===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment after corner "+corner.toString()+" has null prev: "+corner.s1);
 		},this)
 	}
 
