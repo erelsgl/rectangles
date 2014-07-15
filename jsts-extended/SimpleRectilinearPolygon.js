@@ -264,18 +264,14 @@ var ListNode = LinkedList.Node;
 	}
 
 	Segment.prototype.toString = function() {
-		if (this.prev==null) {
-			console.dir(this);
-			throw new Error("this.prev is null!")
-		}
-		if (this.next==null) {
-			console.dir(this);
-			throw new Error("this.next is null!")
-		}
+		if (this.prev==null) 
+			console.warn("this.prev is null!");
+		if (this.next==null) 
+			console.warn("this.next is null!");
 		return "["+
 			this.c0+" - "+this.c1+
 			" , dir="+this.direction+
-			" , toborder="+this.distanceToNearestBorder()+
+			(this.prev && this.next? " , toborder="+this.distanceToNearestBorder(): "")+
 			(this.knobCount? ", knobCount="+this.knobCount: "") +
 			"]";
 	}
@@ -485,11 +481,59 @@ var ListNode = LinkedList.Node;
 	}
 	
 	
-	jsts.geom.SimpleRectilinearPolygon.prototype.removeErasableRegion = function(knob) {
+	/**
+	 * @param knob a segment in this.segments.
+	 * @param knobCount a number between 1 and 4 describing the number of adjacent knobs (starting from knob)
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeErasableRegion = function(knob, knobCount) {
 		if (!knob.isKnob()) {
 			console.dir(knob);
 			throw new Error("non-knob disguised as a knob!")
 		}
+
+		if (!knobCount) knobCount = 1;
+		if (knobCount<1 || 4<knobCount) {
+			console.dir(knob);
+			throw new Error("illegal knobCount "+knobCount);
+		}
+
+		if (knobCount==4) {
+			this.removeAll();
+			return;
+		}
+		
+		if (knobCount==3) {  // a room with a door; remove the "balcony" of the room.
+			var knob1=knob, knob2=knob.next, knob3=knob.next.next;
+//			console.log("*** 3 knobs - remove balcony ***");
+//			console.log("knob1="+knob1.toString()+"\nknob2="+knob2.toString()+"\nknob3="+knob3.toString());
+			if (knob1.isVertical()) {
+				var doorWidth = Math.abs(knob1.prev.c0.x - knob3.next.c1.x);
+				knob1.c0.x = knob1.c1.x = knob1.prev.c0.x;
+				knob1.c1.y = knob1.c0.y + (knob1.c1.y>knob1.c0.y?1:-1)*doorWidth;
+				knob1.c0.y = knob1.prev.prev.c0.y;
+				knob3.c1.x = knob3.c0.x = knob3.next.c1.x;
+				knob3.c0.y = knob3.c1.y + (knob3.c0.y>knob3.c1.y?1:-1)*doorWidth;
+				knob3.c1.y = knob3.next.next.c1.y;
+			} else {
+				var doorWidth = Math.abs(knob1.prev.c0.y - knob3.next.c1.y);
+				knob1.c0.y = knob1.c1.y = knob1.prev.c0.y;
+				knob1.c1.x = knob1.c0.x + (knob1.c1.x>knob1.c0.x?1:-1)*doorWidth;
+				knob1.c0.x = knob1.prev.prev.c0.x;
+				knob3.c1.y = knob3.c0.y = knob3.next.c1.y;
+				knob3.c0.x = knob3.c1.x + (knob3.c0.x>knob3.c1.x?1:-1)*doorWidth;
+				knob3.c1.x = knob3.next.next.c1.x;
+			}
+//			console.log("doorWidth="+doorWidth);
+//			console.log("knob1="+knob1.toString()+"\nknob2="+knob2.toString()+"\nknob3="+knob3.toString());
+			this.removeSegments([knob1.prev.prev,knob1.prev], /*removeCornersBeforeSegments=*/true);
+			this.removeSegments([knob3.next,knob3.next.next], /*removeCornersBeforeSegments=*/false);
+			
+			knob = knob2;  // this is a 1-knob continuator
+			this.checkValid();
+		}
+		
+		console.log(this.toString()+"\n");
+
 		var exposedDistance0 = knob.prev.length();
 		var exposedDistance1 = knob.next.length();
 		var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
@@ -499,12 +543,10 @@ var ListNode = LinkedList.Node;
 		console.log("nonExposedDistance=min("+coveredDistance+","+securityDistance+")="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
 
 		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
-			//console.log("knob before: "+knob);
 			if (knob.isVertical())
 				knob.c0.x = knob.c1.x = knob.c1.x + knob.signOfPolygonInterior()*nonExposedDistance;
 			else 
 				knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
-			//console.log("knob after: "+knob);
 		} else {  // nonExposedDistance >= exposedDistance: some corners should be removed
 			if (exposedDistance0<exposedDistance1) {
 				// shorten the next segment:
@@ -512,7 +554,6 @@ var ListNode = LinkedList.Node;
 					knob.next.c0.x=knob.prev.c0.x;
 				else 
 					knob.next.c0.y=knob.prev.c0.y;
-//				knob.prev.prev.c1 = knob.next.c0;
 				this.removeSegments([knob.prev,knob], /*removeCornersBeforeSegments=*/true);
 			} else if (exposedDistance1<exposedDistance0) {
 				// shorten the previous segment:
@@ -520,14 +561,12 @@ var ListNode = LinkedList.Node;
 					knob.prev.c1.x=knob.next.c1.x;
 				 else 
 					knob.prev.c1.y=knob.next.c1.y;
-//				knob.next.next.c0 = knob.prev.c1;
 				this.removeSegments([knob, knob.next], /*removeCornersBeforeSegments=*/false);
 			} else {
 				if (knob.isVertical()) 
 					knob.prev.prev.c1.y=knob.next.next.c1.y;
 				else 
 					knob.prev.prev.c1.x=knob.next.next.c1.x;
-//				knob.next.next.next.c0 = knob.prev.prev.c1;
 				this.removeSegments([knob.prev, knob, knob.next, knob.next.next], /*removeCornersBeforeSegments=*/true);
 			}
 		}
@@ -576,40 +615,7 @@ var ListNode = LinkedList.Node;
 			if (!balconyOfContinuatorIsCovered)
 				covering.push(continuator); 
 
-			// Take action based on the continuator type - there are 7 options in the paper:
-			switch (knob.knobCount) {
-			case 1:
-//				if (knob.prev.length() > knob.length && knob.next.length() > knob.length()) { // 1-knob, type right 
-//					
-//				} else if (knob.prev.length() > knob.length() && knob.next.length() < knob.length()) { // 1-knob, type middle
-//					
-//				} else if (knob.prev.length() < knob.length() && knob.next.length() > knob.length()) { // 1-knob, type middle
-//					
-//				} else if (knob.prev.length() < knob.length() && knob.next.length() < knob.length()) { // 1-knob, type left
-//					
-//				}
-				P.removeErasableRegion(knob);
-				break;
-			case 2:
-				if (knob.prev.length() < knob.length() && knob.next.next.length() < knob.length()) { // 2-knob, type right
-					
-				} else if (knob.prev.length() > knob.length() && knob.next.next.length() < knob.length()) { // 2-knob, type middle
-					
-				} else if (knob.prev.length() < knob.length() && knob.next.next.length() > knob.length()) { // 2-knob, type middle
-					
-				}
-//				P.removeErasableRegion(knob);
-				break;
-			case 3:
-//				P.removeErasableRegion(knob);
-				break;
-			case 4:
-				P.removeAll();
-				break;
-			default: 
-				console.dir(knob);
-				throw new Error("illegal knobCount");
-			}
+			P.removeErasableRegion(knob, knob.knobCount);
 		}
 		
 		return covering;
@@ -631,7 +637,7 @@ var ListNode = LinkedList.Node;
 	 * @return {String} String representation of Polygon type.
 	 */
 	jsts.geom.SimpleRectilinearPolygon.prototype.toString = function() {
-		return 'SimpleRectilinearPolygon(\n'+this.corners+"\n)";
+		return 'SimpleRectilinearPolygon with '+this.corners.length+' corners:\n'+this.corners+"\n)";
 	};
  
 	jsts.geom.SimpleRectilinearPolygon.prototype.CLASS_NAME = 'jsts.geom.SimpleRectilinearPolygon';
