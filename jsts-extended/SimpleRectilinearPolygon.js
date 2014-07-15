@@ -224,7 +224,7 @@ var ListNode = LinkedList.Node;
 	Segment.prototype.hasContinuator = function() {
 		if (!this.isKnob())
 			return false;
-		if (this.distanceToNearestBorder < this.length())
+		if (this.distanceToNearestBorder() < this.length())
 			return false;
 		return true;
 	}
@@ -263,6 +263,10 @@ var ListNode = LinkedList.Node;
 			" , dir="+this.direction+
 			(this.knobCount? ", knobCount="+this.knobCount: "") +
 			"]";
+	}
+	
+	Segment.prototype.isAxisParallel = function() {
+		return (this.c0.x==this.c1.x || this.c0.y==this.c1.y);
 	}
 	
 
@@ -444,9 +448,12 @@ var ListNode = LinkedList.Node;
 	}
 	
 	/**
-	 *  remove the given segments and their c0 corners:
+	 *  remove the given segments and their c0/c1 corners.
+	 *  Segments must be in increasing order.
 	 */
 	jsts.geom.SimpleRectilinearPolygon.prototype.removeSegments = function(segments, removeCornersBeforeSegments) {
+		var prev = segments[0].prev;
+		var next = segments[segments.length-1].next;
 		for (var i=0; i<segments.length; ++i) {
 			var segment = segments[i];
 			this.segments.remove(segment);
@@ -454,6 +461,12 @@ var ListNode = LinkedList.Node;
 					removeCornersBeforeSegments?
 							segment.c0: segment.c1);
 		}
+		prev.c1.s1 = next;
+		next.c0.s0 = prev;
+//		if (removeCornersBeforeSegments)
+//			prev.c1 = next.c0;
+//		else 
+//			next.c0 = prev.c1;
 	}
 	
 	
@@ -468,7 +481,7 @@ var ListNode = LinkedList.Node;
 		var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
 		var securityDistance = knob.distanceToNearestBorder() - knob.length();
 		var nonExposedDistance = Math.min(coveredDistance,securityDistance);
-		console.log("nonExposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+nonExposedDistance+" exposedDistance="+exposedDistance);
+		console.log("nonExposedDistance="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
 
 		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
 			//console.log("knob before: "+knob);
@@ -477,46 +490,62 @@ var ListNode = LinkedList.Node;
 			else 
 				knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
 			//console.log("knob after: "+knob);
-		} else {  // nonExposedDistance >= exposedDistance some corners should be removed
+		} else {  // nonExposedDistance >= exposedDistance: some corners should be removed
 			if (exposedDistance0<exposedDistance1) {
 				// shorten the next segment:
 				if (knob.isVertical()) 
 					knob.next.c0.x=knob.prev.c0.x;
 				else 
 					knob.next.c0.y=knob.prev.c0.y;
+				knob.prev.prev.c1 = knob.next.c0;
 				this.removeSegments([knob.prev,knob], /*removeCornersBeforeSegments=*/true);
 			} else if (exposedDistance1<exposedDistance0) {
 				// shorten the previous segment:
 				if (knob.isVertical()) 
 					knob.prev.c1.x=knob.next.c1.x;
-				else 
+				 else 
 					knob.prev.c1.y=knob.next.c1.y;
+				knob.next.next.c0 = knob.prev.c1;
 				this.removeSegments([knob, knob.next], /*removeCornersBeforeSegments=*/false);
 			} else {
 				if (knob.isVertical()) 
 					knob.prev.prev.c1.y=knob.next.next.c1.y;
 				else 
 					knob.prev.prev.c1.x=knob.next.next.c1.x;
+				knob.next.next.next.c0 = knob.prev.prev.c1;
 				this.removeSegments([knob.prev, knob, knob.next, knob.next.next], /*removeCornersBeforeSegments=*/true);
 			}
 		}
+		this.checkValid();
 	}
-	
+
 	jsts.geom.SimpleRectilinearPolygon.prototype.removeAll = function() {
 		this.segments.initialize();
 		this.corners.initialize();
 	}
 
+	jsts.geom.SimpleRectilinearPolygon.prototype.checkValid = function() {
+		this.segments.forEach(function(segment){
+			if (!segment.isAxisParallel()) {
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tOne of the segments is not axis parallel: "+segment.toString());
+			}
+		},this)
+
+		this.corners.forEach(function(corner){
+			if (!corner.s0.isAxisParallel()) 
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment before corner "+corner.toString()+" is not axis parallel: "+corner.s0);
+			if (!corner.s1.isAxisParallel()) 
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment after corner "+corner.toString()+" is not axis parallel: "+corner.s1);
+		},this)
+	}
 
 	jsts.geom.SimpleRectilinearPolygon.prototype.findMinimalCovering = function() {
 		var P = this.clone();   // P is the residual polygon.
-		if (P.isEmpty())
-			throw new Error("cloned P is empty");
 		var covering = [];       // C is the current covering.
 		while (!P.isEmpty()) {
 			var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
 			var continuator = knob.continuator();
-			console.log("P="+P.corners.toString())
+			console.log("\nP="+P.corners.toString())
 			console.log("\tprocessing knob "+knob.toString()+" with continuator "+JSON.stringify(continuator))
 			
 			var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered, to avoid redundant squares.!

@@ -114,7 +114,7 @@ describe('SimpleRectilinearPolygon', function() {
 		segment=segment.next;  segment.distanceToNearestBorder().should.equal(10);
 	})
 
-	it.only('removes erasable regions in rectangles', function () {
+	it('removes erasable regions in rectangles', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,35]);
 		srp.corners.pluck("x").should.eql([00,10,10,00]);
 		srp.corners.pluck("y").should.eql([00,00,35,35]);
@@ -238,7 +238,7 @@ describe('SimpleRectilinearPolygon', function() {
 	});
 
 	it('finds minimal covering of L-shapes', function () {
-//		new jsts.geom.SimpleRectilinearPolygon([0,0, 10,10, 20,20]).findMinimalCovering().should.eql([ { minx: 0, maxx: 10, miny: 0, maxy: 10 }, { minx: 10, maxx: 20, miny: 10, maxy: 20 }, { minx: -10, maxx: 0, miny: 10, maxy: 20 } ]);
+		new jsts.geom.SimpleRectilinearPolygon([0,0, 10,10, 20,20]).findMinimalCovering().should.eql([ { minx: 0, maxx: 10, miny: 0, maxy: 10 }, { minx: 10, maxx: 20, miny: 10, maxy: 20 }, { minx: 0, maxx: 10, miny: 10, maxy: 20 } ]);
 		new jsts.geom.SimpleRectilinearPolygon([0,0, 15,5, 20,20]).findMinimalCovering().should.eql([ { minx: 0, maxx: 15, miny: 0, maxy: 15 }, { minx: 5, maxx: 20, miny: 5, maxy: 20 }, { minx: 0, maxx: 15, miny: 5, maxy: 20 } ]);
 	});
 });
