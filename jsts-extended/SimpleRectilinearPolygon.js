@@ -33,8 +33,9 @@ var ListNode = LinkedList.Node;
 	}
 	
 	DoublyLinkedList.prototype.isEmpty = function() {
-		return this.first.next = this.first; 
+		return this.length == 0; 
 	}
+
 	
 
 	/**
@@ -66,10 +67,11 @@ var ListNode = LinkedList.Node;
 			throw new Error("xy is empty: "+JSON.stringify(xy));
 
 		var points;
-		if (xy[0].x) {
+		var first = xy[0];
+		if ((typeof first === 'object') && ('x' in first)) {
 			points = xy;	// xy is already an array of points
 			if (points.length%2==0)
-				throw new Error("odd number of points: "+JSON.stringify(points));
+				throw new Error("even number of points: "+JSON.stringify(points));
 		} else {
 			if (xy.length%2==1)
 				throw new Error("odd number of xy values: "+JSON.stringify(xy));
@@ -80,9 +82,13 @@ var ListNode = LinkedList.Node;
 			}
 			point = {x:xy[0], y:xy[1]};	points.push(point);	// last point is identical to first point
 		}
+		
 		jsts.geom.LinearRing.apply(this, [points, factory]);
 		
 		this.createDataStructuresForSquareCovering();
+		
+		if (this.isEmpty())
+			throw new Error("Polygon is empty after initialization")
 	};
 
 	
@@ -220,6 +226,7 @@ var ListNode = LinkedList.Node;
 			return false;
 		if (this.distanceToNearestBorder < this.length())
 			return false;
+		return true;
 	}
 	
 	Segment.prototype.signOfPolygonInterior = function() {
@@ -251,7 +258,11 @@ var ListNode = LinkedList.Node;
 	}
 
 	Segment.prototype.toString = function() {
-		return "["+this.c0+" - "+this.c1+" , dir="+this.direction+"]";
+		return "["+
+			this.c0+" - "+this.c1+
+			" , dir="+this.direction+
+			(this.knobCount? ", knobCount="+this.knobCount: "") +
+			"]";
 	}
 	
 
@@ -411,15 +422,19 @@ var ListNode = LinkedList.Node;
 				// should break here, but it is not possible in JS...
 			}
 		});
+		if (!continuatorSegment)
+			throw new Error("No continuator found - this is impossible!");
 		var knobCount = 1;
-		while (continuatorSegment.prev.length() == continuatorSegment.length() && knobCount<4) {
+		var continuatorLength = continuatorSegment.length();
+		while (continuatorSegment.prev.length()==continuatorLength && continuatorSegment.prev.isKnob() && knobCount<4) {
 			continuatorSegment = continuatorSegment.prev;
 			knobCount++;
 		}
 		var firstKnob = continuatorSegment;
+		//console.log(firstKnob.toString())
 		if (knobCount<3) {
 			knobCount = 1;
-			while (continuatorSegment.next.length() == continuatorSegment.length()) {
+			while (continuatorSegment.next.length() == continuatorLength && continuatorSegment.next.isKnob()) {
 				continuatorSegment = continuatorSegment.next;
 				knobCount++
 			}
@@ -456,12 +471,12 @@ var ListNode = LinkedList.Node;
 		console.log("nonExposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+nonExposedDistance+" exposedDistance="+exposedDistance);
 
 		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
-			console.log("knob before: "+knob);
+			//console.log("knob before: "+knob);
 			if (knob.isVertical())
 				knob.c0.x = knob.c1.x = knob.c1.x + knob.signOfPolygonInterior()*nonExposedDistance;
 			else 
 				knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
-			console.log("knob after: "+knob);
+			//console.log("knob after: "+knob);
 		} else {  // nonExposedDistance >= exposedDistance some corners should be removed
 			if (exposedDistance0<exposedDistance1) {
 				// shorten the next segment:
@@ -486,31 +501,41 @@ var ListNode = LinkedList.Node;
 			}
 		}
 	}
+	
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeAll = function() {
+		this.segments.initialize();
+		this.corners.initialize();
+	}
 
 
 	jsts.geom.SimpleRectilinearPolygon.prototype.findMinimalCovering = function() {
-		var P = this.clone();  // P is the residual polygon.
-		var C = [];             // C is the current covering.
+		var P = this.clone();   // P is the residual polygon.
+		if (P.isEmpty())
+			throw new Error("cloned P is empty");
+		var covering = [];       // C is the current covering.
 		while (!P.isEmpty()) {
 			var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
 			var continuator = knob.continuator();
+			console.log("P="+P.corners.toString())
+			console.log("\tprocessing knob "+knob.toString()+" with continuator "+JSON.stringify(continuator))
 			
 			var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered, to avoid redundant squares.!
 			if (!balconyOfContinuatorIsCovered)
-				C.push(continuator); 
+				covering.push(continuator); 
 
 			// Take action based on the continuator type - there are 7 options in the paper:
 			switch (knob.knobCount) {
 			case 1:
-				if (knob.prev.length() > knob.length && knob.next.length() > knob.length()) { // 1-knob, type right 
-					
-				} else if (knob.prev.length() > knob.length() && knob.next.length() < knob.length()) { // 1-knob, type middle
-					
-				} else if (knob.prev.length() < knob.length() && knob.next.length() > knob.length()) { // 1-knob, type middle
-					
-				} else if (knob.prev.length() < knob.length() && knob.next.length() < knob.length()) { // 1-knob, type left
-					
-				}
+//				if (knob.prev.length() > knob.length && knob.next.length() > knob.length()) { // 1-knob, type right 
+//					
+//				} else if (knob.prev.length() > knob.length() && knob.next.length() < knob.length()) { // 1-knob, type middle
+//					
+//				} else if (knob.prev.length() < knob.length() && knob.next.length() > knob.length()) { // 1-knob, type middle
+//					
+//				} else if (knob.prev.length() < knob.length() && knob.next.length() < knob.length()) { // 1-knob, type left
+//					
+//				}
+				P.removeErasableRegion(knob);
 				break;
 			case 2:
 				if (knob.prev.length() < knob.length() && knob.next.next.length() < knob.length()) { // 2-knob, type right
@@ -520,20 +545,21 @@ var ListNode = LinkedList.Node;
 				} else if (knob.prev.length() < knob.length() && knob.next.next.length() > knob.length()) { // 2-knob, type middle
 					
 				}
+//				P.removeErasableRegion(knob);
 				break;
 			case 3:
+//				P.removeErasableRegion(knob);
 				break;
 			case 4:
+				P.removeAll();
 				break;
 			default: 
 				console.dir(knob);
 				throw new Error("illegal knobCount");
 			}
-			
-			
-			// Remove the erasable region of a 1-knob continuator:
-			P.removeErasableRegion(knob);
 		}
+		
+		return covering;
 	}
 
 

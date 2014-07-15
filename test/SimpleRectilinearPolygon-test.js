@@ -18,9 +18,11 @@ var Right = jsts.Turn.Right;
 var Left = jsts.Turn.Left;
 
 describe('SimpleRectilinearPolygon', function() {
+	var srp0 = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,10]);  // square
 	var srp1 = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,20]);  // rectangle
 	var srp2 = new jsts.geom.SimpleRectilinearPolygon([-10,0, 0,10, 10,0, 20,20]); // ח shape
 	var srp3 = new jsts.geom.SimpleRectilinearPolygon([-10,0, 0,10, 10,0, 40,20]); // elongated ח shape
+	var srp4 = new jsts.geom.SimpleRectilinearPolygon([0,0,10,10,20,20]); // L-shape
 	it('initializes from minimal set of xy values', function() {
 		srp1.getCoordinates().should.eql(
 			[ { x: 0, y: 0}, { x: 10, y: 0}, { x: 10, y: 20}, { x: 0, y: 20},  { x: 0, y: 0} ]);
@@ -111,40 +113,44 @@ describe('SimpleRectilinearPolygon', function() {
 		segment=segment.next;  segment.distanceToNearestBorder().should.equal(10);
 		segment=segment.next;  segment.distanceToNearestBorder().should.equal(10);
 	})
-	
 
-	it('finds continuators', function() {
-		var segment = srp3.segments.first;	
-		                       segment.continuator().should.eql({minx:-10,maxx:0,miny:0,maxy:10});
-		segment=segment.next;  
-		segment=segment.next;  
-		segment=segment.next;  
-		segment=segment.next;  
-		segment=segment.next;  segment.continuator().should.eql({minx:20,maxx:40,miny:0,maxy:20});
-		segment=segment.next;  
-		segment=segment.next;  
-	});
-
-	it('removes erasable regions in rectangles', function removeErasableRegionRectangles() {
+	it.only('removes erasable regions in rectangles', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,35]);
-//				console.log("0: "+srp)
-		srp.corners.pluck("x").should.eql([0,10,10, 0]);
-		srp.corners.pluck("y").should.eql([0, 0,35,35]);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
+		srp.corners.pluck("y").should.eql([00,00,35,35]);
 		srp.removeErasableRegion(srp.segments.first);
-//				console.log("1: "+srp)
-		srp.corners.pluck("x").should.eql([ 0,10,10, 0]);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
 		srp.corners.pluck("y").should.eql([10,10,35,35]);
 		srp.removeErasableRegion(srp.segments.first);
-//				console.log("2: "+srp)
-		srp.corners.pluck("x").should.eql([ 0,10,10, 0]);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
 		srp.corners.pluck("y").should.eql([20,20,35,35]);
 		srp.removeErasableRegion(srp.segments.first);
-//				console.log("3: "+srp)
-		srp.corners.pluck("x").should.eql([ 0,10,10, 0]);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
 		srp.corners.pluck("y").should.eql([25,25,35,35]);
+		
+		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,35]);
+		srp.removeErasableRegion(srp.segments.first.next.next);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
+		srp.corners.pluck("y").should.eql([00,00,25,25]);
+		srp.removeErasableRegion(srp.segments.first.next.next);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
+		srp.corners.pluck("y").should.eql([00,00,15,15]);
+		srp.removeErasableRegion(srp.segments.first.next.next);
+		srp.corners.pluck("x").should.eql([00,10,10,00]);
+		srp.corners.pluck("y").should.eql([00,00,10,10]);
+		
+		var srp = new jsts.geom.SimpleRectilinearPolygon([0,5, 20,20]);
+		srp.corners.pluck("x").should.eql([00,20,20,00]);
+		srp.corners.pluck("y").should.eql([05,05,20,20]);
+		console.log("0: "+srp)
+		srp.removeErasableRegion(srp.segments.first.next);
+		console.log("1: "+srp)
+		srp.corners.pluck("x").should.eql([00,15,15,00]);
+		srp.corners.pluck("y").should.eql([05,05,20,20]);
+		
 	});
 
-	it('removes erasable regions in hexagons', function () {
+	it('removes erasable regions in L-shapes', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,25, 20,35]);
 //				console.log("0: "+srp)
 		srp.corners.pluck("x").should.eql([0,10,10,20,20, 0]);
@@ -180,7 +186,7 @@ describe('SimpleRectilinearPolygon', function() {
 		srp.corners.pluck("y").should.eql([25,35,35,25]);
 	});
 
-	it('removes erasable regions in octagons', function () {
+	it('removes erasable regions in T-shapes', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,10, 25,0, 35,30, 25,20]);
 				console.log("0: "+srp)
 		srp.corners.pluck("x").should.eql([00,25,25,35,35,25,25,00]);
@@ -197,5 +203,42 @@ describe('SimpleRectilinearPolygon', function() {
 				console.log("3: "+srp)
 		srp.corners.pluck("x").should.eql([25,35,35,25]);
 		srp.corners.pluck("y").should.eql([00,00,30,30]);
+	});
+
+	
+	
+	
+
+	it('finds continuator segments', function() {
+		srp0.findContinuatorSegment().knobCount.should.equal(4);
+		srp1.findContinuatorSegment().knobCount.should.equal(1);
+		srp4.findContinuatorSegment().knobCount.should.equal(1);
+	})
+
+
+	it('finds continuators', function() {
+		var segment;
+		
+		segment = srp0.segments.first; segment.continuator().should.eql({minx:0,maxx:10,miny:0,maxy:10}); 
+		segment = segment.next;	       segment.continuator().should.eql({minx:0,maxx:10,miny:0,maxy:10}); 
+		segment = segment.next;	       segment.continuator().should.eql({minx:0,maxx:10,miny:0,maxy:10}); 
+		segment = segment.next;	       segment.continuator().should.eql({minx:0,maxx:10,miny:0,maxy:10}); 
+		
+		segment = srp1.segments.first; segment.continuator().should.eql({minx:0,maxx:10,miny:0,maxy:10}); 
+		segment = segment.next.next;   segment.continuator().should.eql({minx:0,maxx:10,miny:10,maxy:20}); 
+		
+		segment = srp3.segments.first;	           segment.continuator().should.eql({minx:-10,maxx:0,miny:0,maxy:10});
+		segment=segment.next.next.next.next.next;  segment.continuator().should.eql({minx:20,maxx:40,miny:0,maxy:20});
+	});
+
+	it('finds minimal covering of rectangles', function () {
+		new jsts.geom.SimpleRectilinearPolygon([0,0, 10,10]).findMinimalCovering().should.eql([ { minx: 0, maxx: 10, miny: 0, maxy: 10 }]);
+		new jsts.geom.SimpleRectilinearPolygon([0,0, 10,20]).findMinimalCovering().should.eql([ { minx: 0, maxx: 10, miny: 0, maxy: 10 },  { minx: 0, maxx: 10, miny: 10, maxy: 20 }]);
+		new jsts.geom.SimpleRectilinearPolygon([0,0, 10,35]).findMinimalCovering().should.eql([ { minx: 0, maxx: 10, miny: 0, maxy: 10 },  { minx: 0, maxx: 10, miny: 10, maxy: 20 },  { minx: 0, maxx: 10, miny: 20, maxy: 30 },  { minx: 0, maxx: 10, miny: 25, maxy: 35 } ]);
+	});
+
+	it('finds minimal covering of L-shapes', function () {
+//		new jsts.geom.SimpleRectilinearPolygon([0,0, 10,10, 20,20]).findMinimalCovering().should.eql([ { minx: 0, maxx: 10, miny: 0, maxy: 10 }, { minx: 10, maxx: 20, miny: 10, maxy: 20 }, { minx: -10, maxx: 0, miny: 10, maxy: 20 } ]);
+		new jsts.geom.SimpleRectilinearPolygon([0,0, 15,5, 20,20]).findMinimalCovering().should.eql([ { minx: 0, maxx: 15, miny: 0, maxy: 15 }, { minx: 5, maxx: 20, miny: 5, maxy: 20 }, { minx: 0, maxx: 15, miny: 5, maxy: 20 } ]);
 	});
 });
