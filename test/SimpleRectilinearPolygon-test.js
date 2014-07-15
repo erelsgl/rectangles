@@ -179,4 +179,23 @@ describe('SimpleRectilinearPolygon', function() {
 		srp.corners.pluck("x").should.eql([20,20, 0, 0]);
 		srp.corners.pluck("y").should.eql([25,35,35,25]);
 	});
+
+	it.only('removes erasable regions in octagons', function () {
+		var srp = new jsts.geom.SimpleRectilinearPolygon([0,10, 25,0, 35,30, 25,20]);
+				console.log("0: "+srp)
+		srp.corners.pluck("x").should.eql([00,25,25,35,35,25,25,00]);
+		srp.corners.pluck("y").should.eql([10,10,00,00,30,30,20,20]);
+		srp.removeErasableRegion(srp.segments.last);
+				console.log("1: "+srp)
+		srp.corners.pluck("x").should.eql([10,25,25,35,35,25,25,10]);
+		srp.corners.pluck("y").should.eql([10,10,00,00,30,30,20,20]);
+		srp.removeErasableRegion(srp.segments.last);
+				console.log("2: "+srp)
+		srp.corners.pluck("x").should.eql([20,25,25,35,35,25,25,20]);
+		srp.corners.pluck("y").should.eql([10,10,00,00,30,30,20,20]);
+		srp.removeErasableRegion(srp.segments.last);
+				console.log("3: "+srp)
+		srp.corners.pluck("x").should.eql([25,35,35,25]);
+		srp.corners.pluck("y").should.eql([00,00,30,30]);
+	});
 });
