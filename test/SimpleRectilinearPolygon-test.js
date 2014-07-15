@@ -144,7 +144,7 @@ describe('SimpleRectilinearPolygon', function() {
 		srp.corners.pluck("y").should.eql([25,25,35,35]);
 	});
 
-	it.only('removes erasable regions in hexagons', function () {
+	it('removes erasable regions in hexagons', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,25, 20,35]);
 //				console.log("0: "+srp)
 		srp.corners.pluck("x").should.eql([0,10,10,20,20, 0]);
@@ -180,7 +180,7 @@ describe('SimpleRectilinearPolygon', function() {
 		srp.corners.pluck("y").should.eql([25,35,35,25]);
 	});
 
-	it.only('removes erasable regions in octagons', function () {
+	it('removes erasable regions in octagons', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,10, 25,0, 35,30, 25,20]);
 				console.log("0: "+srp)
 		srp.corners.pluck("x").should.eql([00,25,25,35,35,25,25,00]);

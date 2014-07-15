@@ -230,16 +230,17 @@ var ListNode = LinkedList.Node;
 	}
 	
 	Segment.prototype.continuator = function() {
+		var x0, x1, y0, y1;
 		if (this.isVertical()) {
-			var x0 = this.c0.x;
-			var x1 = x0 + this.signOfPolygonInterior() * this.length();
-			var y0 = this.c0.y;
-			var y1 = this.c1.y;
+			x0 = this.c0.x;
+			x1 = x0 + this.signOfPolygonInterior() * this.length();
+			y0 = this.c0.y;
+			y1 = this.c1.y;
 		} else {
-			var x0 = this.c0.x;
-			var x1 = this.c1.x;
-			var y0 = this.c0.y;
-			var x1 = y0 + this.signOfPolygonInterior() * this.length();
+			x0 = this.c0.x;
+			x1 = this.c1.x;
+			y0 = this.c0.y;
+			y1 = y0 + this.signOfPolygonInterior() * this.length();
 		}
 		return {
 			minx: Math.min(x0,x1),
@@ -494,7 +495,7 @@ var ListNode = LinkedList.Node;
 			var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
 			var continuator = knob.continuator();
 			
-			var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered!
+			var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered, to avoid redundant squares.!
 			if (!balconyOfContinuatorIsCovered)
 				C.push(continuator); 
 
