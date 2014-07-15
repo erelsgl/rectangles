@@ -125,7 +125,7 @@ describe('SimpleRectilinearPolygon', function() {
 		segment=segment.next;  
 	});
 
-	it('removes erasable regions in rectangles', function() {
+	it('removes erasable regions in rectangles', function removeErasableRegionRectangles() {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,35]);
 //				console.log("0: "+srp)
 		srp.corners.pluck("x").should.eql([0,10,10, 0]);
@@ -144,22 +144,39 @@ describe('SimpleRectilinearPolygon', function() {
 		srp.corners.pluck("y").should.eql([25,25,35,35]);
 	});
 
-	it.only('removes erasable regions in hexagons', function() {
+	it.only('removes erasable regions in hexagons', function () {
 		var srp = new jsts.geom.SimpleRectilinearPolygon([0,0, 10,25, 20,35]);
-				console.log("0: "+srp)
+//				console.log("0: "+srp)
 		srp.corners.pluck("x").should.eql([0,10,10,20,20, 0]);
 		srp.corners.pluck("y").should.eql([0, 0,25,25,35,35]);
 		srp.removeErasableRegion(srp.segments.first);
-				console.log("1: "+srp)
+//				console.log("1: "+srp)
 		srp.corners.pluck("x").should.eql([ 0,10,10,20,20, 0]);
 		srp.corners.pluck("y").should.eql([10,10,25,25,35,35]);
 		srp.removeErasableRegion(srp.segments.first);
-				console.log("2: "+srp)
+//				console.log("2: "+srp)
 		srp.corners.pluck("x").should.eql([ 0,10,10,20,20, 0]);
 		srp.corners.pluck("y").should.eql([20,20,25,25,35,35]);
 		srp.removeErasableRegion(srp.segments.first);
-				console.log("3: "+srp)
+//				console.log("3: "+srp)
 		srp.corners.pluck("x").should.eql([ 0,20,20, 0]);
 		srp.corners.pluck("y").should.eql([25,25,35,35]);
+
+		srp = new jsts.geom.SimpleRectilinearPolygon([10,0, 20,35, 0,25]);
+		//		console.log("0: "+srp)
+		srp.corners.pluck("x").should.eql([10,20,20, 0, 0,10]);
+		srp.corners.pluck("y").should.eql([ 0, 0,35,35,25,25]);
+		srp.removeErasableRegion(srp.segments.first);
+		//		console.log("1: "+srp)
+		srp.corners.pluck("x").should.eql([10,20,20, 0, 0,10]);
+		srp.corners.pluck("y").should.eql([10,10,35,35,25,25]);
+		srp.removeErasableRegion(srp.segments.first);
+		//		console.log("2: "+srp)
+		srp.corners.pluck("x").should.eql([10,20,20, 0, 0,10]);
+		srp.corners.pluck("y").should.eql([20,20,35,35,25,25]);
+		srp.removeErasableRegion(srp.segments.first);
+		//		console.log("3: "+srp)
+		srp.corners.pluck("x").should.eql([20,20, 0, 0]);
+		srp.corners.pluck("y").should.eql([25,35,35,25]);
 	});
 });

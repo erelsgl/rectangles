@@ -430,11 +430,13 @@ var ListNode = LinkedList.Node;
 	/**
 	 *  remove the given segments and their c0 corners:
 	 */
-	jsts.geom.SimpleRectilinearPolygon.prototype.removeSegments = function(segments) {
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeSegments = function(segments, removeCornersBeforeSegments) {
 		for (var i=0; i<segments.length; ++i) {
 			var segment = segments[i];
 			this.segments.remove(segment);
-			this.corners.remove(segment.c0);
+			this.corners.remove(
+					removeCornersBeforeSegments?
+							segment.c0: segment.c1);
 		}
 	}
 	
@@ -450,7 +452,7 @@ var ListNode = LinkedList.Node;
 		var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
 		var securityDistance = knob.distanceToNearestBorder() - knob.length();
 		var nonExposedDistance = Math.min(coveredDistance,securityDistance);
-		console.log("nonExposedDistance="+nonExposedDistance+" exposedDistance="+exposedDistance);
+		console.log("nonExposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+nonExposedDistance+" exposedDistance="+exposedDistance);
 
 		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
 			console.log("knob before: "+knob);
@@ -459,25 +461,27 @@ var ListNode = LinkedList.Node;
 			else 
 				knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
 			console.log("knob after: "+knob);
-		} else {  // some corners should be removed
+		} else {  // nonExposedDistance >= exposedDistance some corners should be removed
 			if (exposedDistance0<exposedDistance1) {
+				// shorten the next segment:
 				if (knob.isVertical()) 
 					knob.next.c0.x=knob.prev.c0.x;
 				else 
 					knob.next.c0.y=knob.prev.c0.y;
-				this.removeSegments([knob.prev, knob])
+				this.removeSegments([knob.prev,knob], /*removeCornersBeforeSegments=*/true);
 			} else if (exposedDistance1<exposedDistance0) {
+				// shorten the previous segment:
 				if (knob.isVertical()) 
 					knob.prev.c1.x=knob.next.c1.x;
 				else 
 					knob.prev.c1.y=knob.next.c1.y;
-				this.removeSegments([knob, knob.next])
+				this.removeSegments([knob, knob.next], /*removeCornersBeforeSegments=*/false);
 			} else {
 				if (knob.isVertical()) 
 					knob.prev.prev.c1.y=knob.next.next.c1.y;
 				else 
 					knob.prev.prev.c1.x=knob.next.next.c1.x;
-				this.removeSegments([knob.prev, knob, knob.next, knob.next.next]);
+				this.removeSegments([knob.prev, knob, knob.next, knob.next.next], /*removeCornersBeforeSegments=*/true);
 			}
 		}
 	}
