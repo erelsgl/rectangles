@@ -107,7 +107,7 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 	var openSides = jsts.algorithm.getOpenSides(envelope);
 //	TRACE(agentsValuePoints.length, "openSides="+openSides);
 	if (openSides.length==0) {
-		landplots = jsts.algorithm.halfProportionalDivision4Walls(agentsValuePoints, envelope, maxAspectRatio);
+		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio);
 	} else if (openSides.length==1) {
 		var openSide = openSides[0];
 		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSide);
@@ -115,6 +115,8 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 		var southernSide = openSidesToSouthernSide(openSides);
 		if (southernSide==null) {  
 			console.warn("Two opposite sides - treating as 3 walls "+JSON.stringify(envelope));
+			if (!isFinite(envelope.minx)) envelope.minx = 0;
+			if (!isFinite(envelope.miny)) envelope.miny = 0;
 			landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSides[0]);
 		} else {
 			landplots = jsts.algorithm.halfProportionalDivision2Walls(agentsValuePoints, envelope, maxAspectRatio, southernSide);
@@ -125,7 +127,7 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	} else {  // all sides are open
 		var closedSide = jsts.Side.South;  // arbitrary; TEMPORARY
-		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
+		landplots = jsts.algorithm.halfProportionalDivision0Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	}
 	landplots.forEach(roundFields3);
 	return landplots;
