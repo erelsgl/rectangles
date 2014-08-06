@@ -2046,10 +2046,11 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 		var southernSide = openSidesToSouthernSide(openSides);
 		if (southernSide==null) {  
 			console.warn("Two opposite sides - treating as 3 walls. envelope="+JSON.stringify(envelope));
-			if (!isFinite(envelope.minx)) envelope.minx = 0;
-			if (!isFinite(envelope.miny)) envelope.miny = 0;
+			var openSide;
+			if (!isFinite(envelope.minx)) { envelope.minx = 0; openSide = jsts.Side.East; }
+			if (!isFinite(envelope.miny)) { envelope.miny = 0; openSide = jsts.Side.North; }
 			console.warn("  New envelope="+JSON.stringify(envelope));
-			landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSides[0]);
+			landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSide);
 		} else {
 			landplots = jsts.algorithm.halfProportionalDivision2Walls(agentsValuePoints, envelope, maxAspectRatio, southernSide);
 		}
