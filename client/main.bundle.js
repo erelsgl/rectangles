@@ -182,7 +182,7 @@ $(".export").click(function() {
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":9,"underscore":26}],2:[function(require,module,exports){
+},{"../jsts-extended":9,"underscore":37}],2:[function(require,module,exports){
 (function() {
 
   /**
@@ -429,253 +429,666 @@ $(".export").click(function() {
 
 
 },{}],3:[function(require,module,exports){
+var jsts = require('jsts');
+
+var LinkedList = require('jsclass/src/linked_list').LinkedList;
+var DoublyLinkedList = LinkedList.Doubly.Circular;
+var ListNode = LinkedList.Node;
+
+
 (function() {
+	
+	DoublyLinkedList.prototype.toString = function() {
+		var s = "";
+		this.forEach(function(node, i) {
+			var sfield = "";
+			for (var field in node) {
+				if (node.hasOwnProperty(field) && field!='prev' && field !='next' && field !='list') {
+					if (sfield) sfield+=",";
+					sfield += field+":"+node[field];
+				}
+			}
 
-  /**
-   * Represents a hole-free simply-connected polygon.
-   * Contains special data structures for calculating the minimum square covering.
-   * Based on Bar-Yehuda, R. and Ben-Hanoch, E. (1996). A linear-time algorithm for covering simple polygons with similar rectangles. International Journal of Computational Geometry & Applications, 6.01:79-102.
-   * 	http://www.citeulike.org/user/erelsegal-halevi/article/12475038
-   * 
-   * @author Erel Segal-Halevi
-   * @since 2014-07
-   */
-
-
-  /**
-   * @requires jsts/geom/Geometry.js
-   */
-
-  /**
-   * @extends {jsts.geom.Geometry}
-   * @param xy an array of alternating x and y values. The corners of the polygon are:
-   * 	(xy[0],xy[1]),(xy[1],xy[2]),...,(xy[n],xy[0]).
-   * @constructor
-   */
-  jsts.geom.SimpleRectilinearPolygon = function(xy, factory) {
-	  var points = [];
-	  for (var i=0; i<xy.length-1; ++i) {
-		  var point = {x:xy[i], y:xy[i+1]};
-		  points.push(point);
-	  }
-	  point = {x:xy[i], y:xy[0]};  points.push(point);
-	  point = {x:xy[0], y:xy[1]};  points.push(point);
-	  
-	  jsts.geom.LinearRing.apply(this, [points, factory]);
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype = new jsts.geom.LinearRing();
-  jsts.geom.SimpleRectilinearPolygon.constructor = jsts.geom.SimpleRectilinearPolygon;
-
-
-  /**
-   * @return {boolean}
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.isEmpty = function() {
-    return (this.minx==this.maxx || this.miny==this.maxy);
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.getExteriorRing = function() {
-	  return this;
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.getInteriorRingN = function(n) {
-	  throw new Error("not implemented");
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.getNumInteriorRing = function() {
-    return 0;
-  };
-
-  /**
-   * Returns the area of this <code>Polygon</code>
-   *
-   * @return the area of the polygon.
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.getArea = function() {
-	  if (!this.area)  {
-		  this.area = (this.maxx-this.minx)*(this.maxy-this.miny);
-	  }
-	  return this.area;
-  };
-
-  /**
-   * Returns the perimeter of this <code>Polygon</code>
-   *
-   * @return the perimeter of the polygon.
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.getLength = function() {
-	  if (!this.length)  {
-		  this.length = 2*((maxx-minx)+(maxy-miny));
-	  }
-	  return this.length;
-  };
-
-  /**
-   * Computes the boundary of this geometry
-   *
-   * @return {Geometry} a linear geometry (which may be empty).
-   * @see Geometry#getBoundary
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.getBoundary = function() {
-	  return this;
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.computeEnvelopeInternal = function() {
-    return new jsts.geom.Envelope(this.minx, this.maxx, this.miny, this.maxy);
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.getDimension = function() {
-    return 2;
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.getBoundaryDimension = function() {
-    return 1;
-  };
-
-
-  /**
-   * @param {Geometry}
-   *          other
-   * @param {number}
-   *          tolerance
-   * @return {boolean}
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.equalsExact = function(other, tolerance) {
-    if (!this.isEquivalentClass(other)) {
-      return false;
-    }
-    if (this.isEmpty() && other.isEmpty()) {
-      return true;
-    }
-    if (this.isEmpty() !== other.isEmpty()) {
-      return false;
-    }
-    return this.minx==other.minx && this.maxx==other.maxx && this.miny==other.miny && this.maxy==other.maxy;
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.compareToSameClass = function(o) {
-	  return this.minx==other.minx && this.maxx==other.maxx && this.miny==other.miny && this.maxy==other.maxy;
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.apply = function(filter) {
-	  throw new "not implemented";
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.apply2 = function(filter) {
-	  throw new "not implemented";
-  };
-
-  /**
-   * Creates and returns a full copy of this {@link Polygon} object. (including
-   * all coordinates contained by it).
-   *
-   * @return a clone of this instance.
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.clone = function() {
-    return new jsts.geom.SimpleRectilinearPolygon(this.minx, this.miny, this.maxx, this.maxy, this.factory);
-  };
-
-  jsts.geom.SimpleRectilinearPolygon.prototype.normalize = function() {
-  };
-  
-  jsts.geom.SimpleRectilinearPolygon.prototype.intersects = function(other) {
-	  if (other instanceof jsts.geom.SimpleRectilinearPolygon) {
-		  return (
-				  this.maxx>=other.minx && other.maxx>=this.minx && 
-				  this.maxy>=other.miny && other.maxy>=this.miny
-				 )
-	  } else {
-		  throw new "not implemented for "+other;
-	  }
-  }
-
-  var Location = jsts.geom.Location;
-
-//  jsts.geom.SimpleRectilinearPolygon.prototype.relate2 = function(other) {
-//	var im = new jsts.geom.IntersectionMatrix();
-//	var II = (
-//			  this.maxx>other.minx && other.maxx>this.minx && 
-//			  this.maxy>other.miny && other.maxy>this.miny
-//			 );
-//    im.setAtLeast('FFFFFFFFF');
-//	im.set(Location.INTERIOR, Location.INTERIOR, II? "2": "F");
-//	return im;
-//  }
-  
-  jsts.geom.SimpleRectilinearPolygon.prototype.overlaps = function(other) {
-	  if (other instanceof jsts.geom.SimpleRectilinearPolygon) {
-		  return !this.interiorDisjoint(other) && !this.contains(other) && !other.contains(this);
-	  } else {
-		  throw new "not implemented for "+other;
-	  }
-  }
-  
-  jsts.geom.SimpleRectilinearPolygon.prototype.interiorDisjoint = function(other) {
-	  if (other instanceof jsts.geom.SimpleRectilinearPolygon) {
-		  return (
-				  this.maxx<=other.minx || other.maxx<=this.minx || 
-				  this.maxy<=other.miny || other.maxy<=this.miny
-				 );
-	  } else {
-		  throw new "not implemented for "+other;
-	  }
-  }
-  
-  jsts.geom.SimpleRectilinearPolygon.prototype.contains = function(other) {
-	  if (other.coordinate) {
-		  var x = other.coordinate.x;
-		  var y = other.coordinate.y;
-		  return (
-				  this.minx<x && x<this.maxx &&
-				  this.miny<y && y<this.maxy
-				 )
-	  } else {
-		  throw new "not implemented for "+other;
-	  }
-  }
-
-  /**
-   * @return {String} String representation of Polygon type.
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.getGeometryType = function() {
-    return 'Polygon';
-  };
-
-  /**
-   * @return {String} String representation of Polygon type.
-   */
-  jsts.geom.SimpleRectilinearPolygon.prototype.toString = function() {
-    return 'RECTANGLE(['+this.minx+","+this.maxx+"]x["+this.miny+","+this.maxy+"])";
-  };
-  
-  jsts.geom.SimpleRectilinearPolygon.prototype.CLASS_NAME = 'jsts.geom.SimpleRectilinearPolygon';
-
-  
-
-  function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
-
-  /**
-   * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
-   * 
-   * Can be called either with 4 parameters (minx,miny, maxx,maxy)
-   * or with a single parameter with 4 fields (minx,miny, maxx,maxy).
-   */
-  jsts.geom.GeometryFactory.prototype.createSimpleRectilinearPolygon = function(minx,miny, maxx,maxy) {
-	if (arguments.length==1) {
-		var envelope = minx;
-		return new jsts.geom.SimpleRectilinearPolygon(envelope.minx, envelope.miny, envelope.maxx, envelope.maxy, this);
-	} else if (arguments.length==4) {
-		return new jsts.geom.SimpleRectilinearPolygon(minx,miny, maxx,maxy, this);
-	} else {
-		throw new Error("createSimpleRectilinearPolygon expected 1 or 4 arguments, but found "+arguments.length)
+			if (s) s+=",\n ";
+			s +="{"+sfield+"}"
+		});
+		return "["+s+"]";
 	}
-  };
+
+	DoublyLinkedList.prototype.pluck = function(field) {
+		var values = [];
+		this.forEach(function(node) {
+			values.push(node[field]);
+		})
+		return values;
+	}
+	
+	DoublyLinkedList.prototype.isEmpty = function() {
+		return this.length == 0; 
+	}
+
+	
+
+	/**
+	 * Represents a hole-free simply-connected polygon.
+	 * Contains special data structures for calculating the minimum square covering.
+	 * Based on Bar-Yehuda, R. and Ben-Hanoch, E. (1996). A linear-time algorithm for covering simple polygons with similar rectangles. International Journal of Computational Geometry & Applications, 6.01:79-102.
+	 * 	http://www.citeulike.org/user/erelsegal-halevi/article/12475038
+	 * 
+	 * @author Erel Segal-Halevi
+	 * @since 2014-07
+	 */
+
+
+	/**
+	 * @requires jsts/geom/Geometry.js
+	 */
+
+	/**
+	 * @extends {jsts.geom.Geometry}
+	 * @param xy an array of alternating x and y values. 
+	 * The points of the polygon are: (xy[0],xy[1]), (xy[2],xy[1]), (xy[2],xy[3]), ...
+	 * @note the first side is always horizontal.
+	 * @constructor
+	 */
+	jsts.geom.SimpleRectilinearPolygon = function(xy, factory) {
+		if (!Array.isArray(xy))
+			throw new Error("xy should be an array but is "+JSON.stringify(xy));
+		if (xy.length==0)
+			throw new Error("xy is empty: "+JSON.stringify(xy));
+
+		var points;
+		var first = xy[0];
+		if ((typeof first === 'object') && ('x' in first)) {
+			points = xy;	// xy is already an array of points
+			if (points.length%2==0)
+				throw new Error("even number of points: "+JSON.stringify(points));
+		} else {
+			if (xy.length%2==1)
+				throw new Error("odd number of xy values: "+JSON.stringify(xy));
+			points = [];	// xy is an array of x-y-x-y-x-y-...
+			for (var i=0; i<xy.length; i+=2) {
+				points.push({x:xy[i], y:xy[i+1]});
+				points.push({x:xy[i+2<xy.length? i+2: 0], y:xy[i+1]});
+			}
+			point = {x:xy[0], y:xy[1]};	points.push(point);	// last point is identical to first point
+		}
+		
+		jsts.geom.LinearRing.apply(this, [points, factory]);
+		
+		this.createDataStructuresForSquareCovering();
+		
+		if (this.isEmpty())
+			throw new Error("Polygon is empty after initialization");
+		
+		this.checkValid();
+	};
+
+	
+	jsts.geom.SimpleRectilinearPolygon.prototype = new jsts.geom.LinearRing();
+	jsts.geom.SimpleRectilinearPolygon.constructor = jsts.geom.SimpleRectilinearPolygon;
+
+	
+	
+	
+	
+	/**	 DATA STRUCTURES FOR SQUARE COVERING
+	 * Based on chapter 4 of Bar-Yehuda, R. and Ben-Hanoch, E. (1996). A linear-time algorithm for covering simple polygons with similar rectangles. International Journal of Computational Geometry & Applications, 6.01:79-102.
+	 * 	http://www.citeulike.org/user/erelsegal-halevi/article/12475038
+	 */
+	
+	var error = function(msg) {throw new Error(msg);}
+	
+	/**
+	 * Construct a segment between two corners
+	 */
+	var Segment = function(c0, c1) {
+		this.c0 = c0;
+		this.c1 = c1;
+		this.direction = (
+			c0.y<c1.y? jsts.Side.North:
+			c0.y>c1.y? jsts.Side.South:
+			c0.x<c1.x? jsts.Side.East:
+			c0.x>c1.x? jsts.Side.West:
+			error("cannot decide the direction: "+JSON.stringify(c0)+", "+JSON.stringify(c1))
+		);
+		
+		this.projectionList = new DoublyLinkedList();	 // All vertices visible to this segment; filled during initialization of polygon
+		
+		this.coveringSquares = new DoublyLinkedList();	 // All squares s selected for the cover and having the following properties:
+			// a. s intersects the segment. (Note: every intersection of a square with the segment is on an original concave point???)
+			// b. The two edges of s which are orthogonal to the segment are exposed.
+			// c. There is a point in the polygon which is covered only by s (and not by any other square selected so far).
+			// The squares for each segment are kept sorted by their appearance order.
+	}
+	
+	// this is a function because the corners change!
+	Segment.prototype.length = function() {
+		return Math.abs(this.c0.x-this.c1.x)+Math.abs(this.c0.y-this.c1.y);
+	}
+	
+	Segment.prototype.addVisibleCorner = function(corner)	 {	
+		var node = new ListNode(corner);   // we need a node because the same corner participates in two different projection lists - positive and negative
+		this.projectionList.push(node);
+		return node;
+	}
+
+	Segment.prototype.isVertical = function()	 {	return jsts.isVertical(this.direction);	}
+	Segment.prototype.isHorizontal = function() {	return jsts.isHorizontal(this.direction);	}
+	
+	Segment.prototype.getX = function() { return  this.isVertical()? this.c0.x: "["+this.c0.x+","+this.c1.x+"]"; }
+	Segment.prototype.getY = function() { return  this.isHorizontal()? this.c0.y: "["+this.c0.y+","+this.c1.y+"]"; }
+
+	Segment.prototype.yContains = function(point) {
+		return 	(this.c0.y >= point.y && point.y >= this.c1.y) ||
+				(this.c0.y <= point.y && point.y <= this.c1.y);
+	}
+
+	Segment.prototype.xContains = function(point) {
+		return 	(this.c0.x >= point.x && point.x >= this.c1.x) ||
+				(this.c0.x <= point.x && point.x <= this.c1.x);
+	}
+	
+	Segment.prototype.contains = function(point) {
+		if (this.isVertical()) 
+			return this.c0.x == point.x && this.yContains(point);
+		else 
+			return this.c0.y == point.y && this.xContains(point);
+	}
+
+	Segment.prototype.isVerticalEastOf = function(point) {
+		return (this.c0.x==this.c1.x) && (this.c0.x > point.x) && this.yContains(point);	}
+	Segment.prototype.isVerticalWestOf = function(point) {
+		return (this.c0.x==this.c1.x) && (this.c0.x < point.x) && this.yContains(point);	}
+	Segment.prototype.isHorizontalNorthOf = function(point) {
+		return (this.c0.y==this.c1.y) && (this.c0.y > point.y) && this.xContains(point);	}
+	Segment.prototype.isHorizontalSouthOf = function(point) {
+		return (this.c0.y==this.c1.y) && (this.c0.y < point.y) && this.xContains(point);	}
+
+	Segment.prototype.isInDirectionOf = function(direction,point) {
+		switch (direction) {
+		case jsts.Side.East: return this.isVerticalEastOf(point);
+		case jsts.Side.West: return this.isVerticalWestOf(point);
+		case jsts.Side.South: return this.isHorizontalSouthOf(point);
+		case jsts.Side.North: return this.isHorizontalNorthOf(point);
+		}
+	}
+	
+	Segment.prototype.isInDirectionOfSegment = function(direction,segment) {
+		switch (direction) {
+		case jsts.Side.East: return this.c0.x>segment.c0.x;  // vertical
+		case jsts.Side.West: return this.c0.x<segment.c0.x;  // vertical
+		case jsts.Side.North: return this.c0.y>segment.c0.y;  // horizontal
+		case jsts.Side.South: return this.c0.y<segment.c0.y;  // horizontal
+		}
+	}
+	
+	Segment.prototype.distanceToCorner = function(corner) {
+		return (this.isVertical()? 	
+				Math.abs(corner.x-this.c0.x):
+				Math.abs(corner.y-this.c0.y));
+	}
+
+	Segment.prototype.distanceToNearestConcaveCorner = function() {
+		var nearestSoFar = Infinity;
+		this.projectionList.forEach(function(node) {
+			var corner = node.data;
+			var distance = this.distanceToCorner(corner);
+			if (distance<nearestSoFar)
+				nearestSoFar = distance;
+		}, this);
+		return nearestSoFar;
+	}
+
+	Segment.prototype.isKnob = function() {
+		return this.c0.isConvex && this.c1.isConvex;
+	}
+
+	Segment.prototype.distanceToNearestBorder = function() { // relevant mainly for knobs
+		return Math.min(
+			this.distanceToNearestConcaveCorner(),
+			Math.min(
+				this.c0.distanceToNearestSegment(jsts.inverseSide(this.prev.direction)),
+				this.c1.distanceToNearestSegment(this.next.direction)
+			)
+		);
+	}
+	
+	Segment.prototype.hasContinuator = function() {
+		if (!this.isKnob())
+			return false;
+		if (this.distanceToNearestBorder() < this.length())
+			return false;
+		return true;
+	}
+	
+	Segment.prototype.signOfPolygonInterior = function() {
+		if (this.isVertical()) 
+			return this.next.direction==jsts.Side.East? 1: -1;
+		else
+			return this.next.direction==jsts.Side.North? 1: -1;
+	}
+	
+	Segment.prototype.continuator = function() {
+		var x0, x1, y0, y1;
+		if (this.isVertical()) {
+			x0 = this.c0.x;
+			x1 = x0 + this.signOfPolygonInterior() * this.length();
+			y0 = this.c0.y;
+			y1 = this.c1.y;
+		} else {
+			x0 = this.c0.x;
+			x1 = this.c1.x;
+			y0 = this.c0.y;
+			y1 = y0 + this.signOfPolygonInterior() * this.length();
+		}
+		return {
+			minx: Math.min(x0,x1),
+			maxx: Math.max(x0,x1),
+			miny: Math.min(y0,y1),
+			maxy: Math.max(y0,y1),
+		}
+	}
+	
+	Segment.prototype.isAxisParallel = function() {
+		return (this.c0.x==this.c1.x || this.c0.y==this.c1.y);
+	}
+
+	Segment.prototype.toString = function() {
+		if (this.prev==null) 
+			console.warn("this.prev is null!");
+		if (this.next==null) 
+			console.warn("this.next is null!");
+		return "["+
+			this.c0+" - "+this.c1+
+			" , dir="+this.direction+
+			(this.prev && this.next? " , toborder="+this.distanceToNearestBorder(): "")+
+			(this.knobCount? ", knobCount="+this.knobCount: "") +
+			"]";
+	}
+	
+
+	
+	/**
+	 * Construct a corner structure for a given vertex
+	 */
+	var Corner = function(point) {
+		this.x = point.x;
+		this.y = point.y;
+	}
+	
+	/**
+	 * Set the two segments that meet at the corner, and calculate the turn direction
+	 */
+	Corner.prototype.setSegments = function(s0,s1) {
+		this.s0 = s0;  // incoming segment
+		this.s1 = s1;  // outgoing segment
+		this.turn = jsts.turn(s0.direction, s1.direction);
+		this.isConvex = "?"; // will be calculated later
+	}
+	
+	Corner.prototype.distanceToSegment = function(segment) {
+		return segment.distanceToCorner(this);
+	}
+	
+	/**
+	 * Set the two segments that see this (concave) corner, and remember our location in their projection lists.
+	 */
+	Corner.prototype.setVisibilityInfo = function(positiveVisibilitySegment,negativeVisibilitySegment) {
+		if (this.isConvex)
+			throw new Error("setVisibilityInfo should be called only for concave corners")
+		this.positiveVisibilitySegment = positiveVisibilitySegment; // in the direction of the incoming segment, s0
+		this.positiveVisibilityNode = positiveVisibilitySegment.addVisibleCorner(this);
+		this.negativeVisibilitySegment = negativeVisibilitySegment; // in the opposite direction to the outgoing segment, s1
+		this.negativeVisibilityNode = negativeVisibilitySegment.addVisibleCorner(this);
+	}
+	
+	// remove this corner from ALL lists it participates in:
+	Corner.prototype.remove = function() {
+		this.list.remove(this);
+		if (this.positiveVisibilityNode)
+			this.positiveVisibilityNode.list.remove(this.positiveVisibilityNode);
+		if (this.negativeVisibilityNode)
+			this.negativeVisibilityNode.list.remove(this.negativeVisibilityNode);
+	}
+	
+	Corner.prototype.distanceToNearestSegment = function(direction) {
+		if (this.isConvex) {
+			if (direction==jsts.inverseSide(this.s0.direction)) {
+				var segmentLength = this.s0.length();
+				var nextCorner = this.s0.c0;
+			} else if (direction==this.s1.direction) {
+				var segmentLength = this.s1.length();
+				var nextCorner = this.s1.c1;
+			} else {
+				return 0;
+			}
+			return segmentLength + 
+				(nextCorner.isConvex? 0: nextCorner.distanceToNearestSegment(direction));
+		} else {  // concave corner - use the visibility information:
+			if (direction==this.s0.direction) {
+				if (!this.positiveVisibilitySegment) throw new Error("missing positive visibility information");
+				return this.distanceToSegment(this.positiveVisibilitySegment);
+			}
+			if (direction==jsts.inverseSide(this.s1.direction)) {
+				if (!this.negativeVisibilitySegment) throw new Error("missing negative visibility information");
+				return this.distanceToSegment(this.negativeVisibilitySegment);
+			}
+			return 0;
+		}
+	}
+	
+	Corner.prototype.toString = function() {
+		return "("+this.x+","+this.y+"; "+this.turn+","+(this.isConvex?"convex":"concave")+")";
+	}
+	
+
+	
+	
+	jsts.geom.SimpleRectilinearPolygon.prototype.createDataStructuresForSquareCovering = function() {
+		/* Clone the sequence of corners in order to add more information: */
+		var points = this.points;
+		var corners = new DoublyLinkedList();
+		for (var i=0; i<points.length-1; ++i) 
+			corners.push(new Corner(points[i]));
+		this.corners = corners;
+		
+		/* Calculate the sequence of segments and the turn directions of the corners: */
+		var segments = new DoublyLinkedList();
+		var previousSegment = null;
+		var totalTurn = 0;
+		corners.forEach(function(corner) {
+			var segment = new Segment(corner, corner.next);
+			segments.push(segment);
+			if (previousSegment) {
+				corner.setSegments(previousSegment,segment);
+				totalTurn += corner.turn;
+			}
+			previousSegment = segment;
+		}, this);
+		this.segments = segments;
+		corners.first.setSegments(segments.last, segments.first);
+		totalTurn += corners.first.turn;
+		this.turnDirection = jsts.turnDirection(totalTurn);
+
+		/* Decide whether the corners are convex or concave, and calculate visibility information: */
+		corners.forEach(function(corner) {
+			var isConvex = corner.isConvex = (corner.turn==this.turnDirection);
+			if (!isConvex) {   // concave corner - calculate visibility information:
+				var positiveVisibilitySegment = this.findClosestSegment(corner.s0.direction, corner);
+				var negativeVisibilitySegment = this.findClosestSegment(jsts.inverseSide(corner.s1.direction), corner);
+				corner.setVisibilityInfo(positiveVisibilitySegment,negativeVisibilitySegment);
+			}
+		}, this);
+	}
+	
+	jsts.geom.SimpleRectilinearPolygon.prototype.isEmpty = function() {
+		return this.corners.isEmpty();
+	}
+
+	jsts.geom.SimpleRectilinearPolygon.prototype.findClosestSegment = function(direction, point) {
+		var segments = this.segments;
+		var closestSoFar = null;
+		segments.forEach(function(segment) {
+			if (segment.isInDirectionOf(direction,point)) {
+				if (!closestSoFar || closestSoFar.isInDirectionOfSegment(direction,segment))
+					closestSoFar = segment;
+			}
+		});
+		return closestSoFar;
+	}
+
+	/**
+	 * @param point {x,y}
+	 * @return true if the point is in the interior of the polygon.
+	 * Uses the "even-odd rule" algorithm: https://en.wikipedia.org/wiki/Point_in_polygon
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.contains = function(point) {
+		var intersections = 0;
+		var onBoundary = false;
+		this.segments.forEach(function(segment) {
+			//console.dir(segment.c0+" - "+segment.c1);
+			if (segment.contains(point))
+				onBoundary = true; // point is on the boundary.
+			else if (segment.isVerticalEastOf(point))
+				intersections++;
+		});
+		if (onBoundary) return false;
+		else return (intersections%2==1); // odd = internal; even = external
+	}
+
+	
+	/**
+	 * @return the first knob in a continuator.
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.findContinuatorSegment = function() {
+		var continuatorSegment = null;
+		this.segments.forEach(function(segment) {
+			if (!continuatorSegment && segment.hasContinuator()) {
+				continuatorSegment = segment;
+				// should break here, but it is not possible in JS...
+			}
+		});
+		if (!continuatorSegment)
+			throw new Error("No continuator found - this is impossible!");
+		var knobCount = 1;
+		var continuatorLength = continuatorSegment.length();
+		while (continuatorSegment.prev.length()==continuatorLength && continuatorSegment.prev.isKnob() && knobCount<4) {
+			continuatorSegment = continuatorSegment.prev;
+			knobCount++;
+		}
+		var firstKnob = continuatorSegment;
+		//console.log(firstKnob.toString())
+		if (knobCount<3) {
+			knobCount = 1;
+			while (continuatorSegment.next.length() == continuatorLength && continuatorSegment.next.isKnob()) {
+				continuatorSegment = continuatorSegment.next;
+				knobCount++
+			}
+		}
+		firstKnob.knobCount = knobCount;
+		return firstKnob;
+	}
+	
+	/**
+	 *  remove the given segments and their c0/c1 corners.
+	 *  Segments must be in increasing order.
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeSegments = function(segments, removeCornersBeforeSegments) {
+		var prev = segments[0].prev;
+		var next = segments[segments.length-1].next;
+		for (var i=0; i<segments.length; ++i) {
+			var segmentToRemove = segments[i];
+			this.segments.remove(segmentToRemove);
+			var cornerToRemove = removeCornersBeforeSegments? segmentToRemove.c0: segmentToRemove.c1;
+			cornerToRemove.remove();
+		}
+		if (removeCornersBeforeSegments)  // prev.c1 is before segments[0] and hence removed:
+			prev.c1 = next.c0;
+		else                              // next.c0 is after segments.last and hence removed:
+			next.c0 = prev.c1;
+		prev.c1.s1 = next;
+		next.c0.s0 = prev;
+	}
+	
+	
+	/**
+	 * @param knob a segment in this.segments.
+	 * @param knobCount a number between 1 and 4 describing the number of adjacent knobs (starting from knob)
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeErasableRegion = function(knob, knobCount) {
+		if (!knob.isKnob()) {
+			console.dir(knob);
+			throw new Error("non-knob disguised as a knob!")
+		}
+
+		if (!knobCount) knobCount = 1;
+		if (knobCount<1 || 4<knobCount) {
+			console.dir(knob);
+			throw new Error("illegal knobCount "+knobCount);
+		}
+
+		if (knobCount==4) {
+			this.removeAll();
+			return;
+		}
+		
+		if (knobCount==3) {  // a room with a door; remove the "balcony" of the room.
+			var knob1=knob, knob2=knob.next, knob3=knob.next.next;
+//			console.log("*** 3 knobs - remove balcony ***");
+//			console.log("knob1="+knob1.toString()+"\nknob2="+knob2.toString()+"\nknob3="+knob3.toString());
+			if (knob1.isVertical()) {
+				var doorWidth = Math.abs(knob1.prev.c0.x - knob3.next.c1.x);
+				knob1.c0.x = knob1.c1.x = knob1.prev.c0.x;
+				knob1.c1.y = knob1.c0.y + (knob1.c1.y>knob1.c0.y?1:-1)*doorWidth;
+				knob1.c0.y = knob1.prev.prev.c0.y;
+				knob3.c1.x = knob3.c0.x = knob3.next.c1.x;
+				knob3.c0.y = knob3.c1.y + (knob3.c0.y>knob3.c1.y?1:-1)*doorWidth;
+				knob3.c1.y = knob3.next.next.c1.y;
+			} else {
+				var doorWidth = Math.abs(knob1.prev.c0.y - knob3.next.c1.y);
+				knob1.c0.y = knob1.c1.y = knob1.prev.c0.y;
+				knob1.c1.x = knob1.c0.x + (knob1.c1.x>knob1.c0.x?1:-1)*doorWidth;
+				knob1.c0.x = knob1.prev.prev.c0.x;
+				knob3.c1.y = knob3.c0.y = knob3.next.c1.y;
+				knob3.c0.x = knob3.c1.x + (knob3.c0.x>knob3.c1.x?1:-1)*doorWidth;
+				knob3.c1.x = knob3.next.next.c1.x;
+			}
+//			console.log("doorWidth="+doorWidth);
+//			console.log("knob1="+knob1.toString()+"\nknob2="+knob2.toString()+"\nknob3="+knob3.toString());
+			this.removeSegments([knob1.prev.prev,knob1.prev], /*removeCornersBeforeSegments=*/true);
+			this.removeSegments([knob3.next,knob3.next.next], /*removeCornersBeforeSegments=*/false);
+			
+			knob = knob2;  // this is a 1-knob continuator
+			this.checkValid();
+		}
+		
+		console.log(this.toString()+"\n");
+
+		var exposedDistance0 = knob.prev.length();
+		var exposedDistance1 = knob.next.length();
+		var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
+		var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
+		var securityDistance = knob.distanceToNearestBorder() - knob.length();
+		var nonExposedDistance = Math.min(coveredDistance,securityDistance);
+		console.log("nonExposedDistance=min("+coveredDistance+","+securityDistance+")="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
+
+		if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
+			if (knob.isVertical())
+				knob.c0.x = knob.c1.x = knob.c1.x + knob.signOfPolygonInterior()*nonExposedDistance;
+			else 
+				knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
+		} else {  // nonExposedDistance >= exposedDistance: some corners should be removed
+			if (exposedDistance0<exposedDistance1) {
+				// shorten the next segment:
+				if (knob.isVertical()) 
+					knob.next.c0.x=knob.prev.c0.x;
+				else 
+					knob.next.c0.y=knob.prev.c0.y;
+				this.removeSegments([knob.prev,knob], /*removeCornersBeforeSegments=*/true);
+			} else if (exposedDistance1<exposedDistance0) {
+				// shorten the previous segment:
+				if (knob.isVertical()) 
+					knob.prev.c1.x=knob.next.c1.x;
+				 else 
+					knob.prev.c1.y=knob.next.c1.y;
+				this.removeSegments([knob, knob.next], /*removeCornersBeforeSegments=*/false);
+			} else {
+				if (knob.isVertical()) 
+					knob.prev.prev.c1.y=knob.next.next.c1.y;
+				else 
+					knob.prev.prev.c1.x=knob.next.next.c1.x;
+				this.removeSegments([knob.prev, knob, knob.next, knob.next.next], /*removeCornersBeforeSegments=*/true);
+			}
+		}
+		this.checkValid();
+	}
+
+	jsts.geom.SimpleRectilinearPolygon.prototype.removeAll = function() {
+		this.segments.initialize();
+		this.corners.initialize();
+	}
+
+	jsts.geom.SimpleRectilinearPolygon.prototype.checkValid = function() {
+		this.segments.forEach(function(segment){
+			if (!segment.isAxisParallel())
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tOne of the segments is not axis parallel: "+segment.toString());
+			if (segment.isKnob() && segment.distanceToNearestBorder()==0)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tOne of the segments is adjacent to the border: "+segment.toString());
+			if (segment.prev===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tsegment.prev is null: "+segment.toString());
+			if (segment.next===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tsegment.next is null: "+segment.toString());
+		},this)
+
+		this.corners.forEach(function(corner){
+			if (!corner.s0.isAxisParallel()) 
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment before corner "+corner.toString()+" is not axis parallel: "+corner.s0);
+			if (!corner.s1.isAxisParallel()) 
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment after corner "+corner.toString()+" is not axis parallel: "+corner.s1);
+			if (corner.s0.prev===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment before corner "+corner.toString()+" has null prev: "+corner.s0);
+			if (corner.s1.prev===null)
+				throw new Error("Invalid polygon: "+this.toString()+"\n\tSegment after corner "+corner.toString()+" has null prev: "+corner.s1);
+		},this)
+	}
+
+	jsts.geom.SimpleRectilinearPolygon.prototype.findMinimalCovering = function() {
+		var P = this.clone();   // P is the residual polygon.
+		var covering = [];       // C is the current covering.
+		while (!P.isEmpty()) {
+			var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
+			var continuator = knob.continuator();
+			console.log("\nP="+P.corners.toString())
+			console.log("\tprocessing knob "+knob.toString()+" with continuator "+JSON.stringify(continuator))
+			
+			var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered, to avoid redundant squares.!
+			if (!balconyOfContinuatorIsCovered)
+				covering.push(continuator); 
+
+			P.removeErasableRegion(knob, knob.knobCount);
+		}
+		
+		return covering;
+	}
+
+
+	/**
+	 * Creates and returns a full copy of this {@link Polygon} object. (including
+	 * all coordinates contained by it).
+	 *
+	 * @return a clone of this instance.
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.clone = function() {
+		return new jsts.geom.SimpleRectilinearPolygon(this.points, this.factory);
+	};
+
+
+	/**
+	 * @return {String} String representation of Polygon type.
+	 */
+	jsts.geom.SimpleRectilinearPolygon.prototype.toString = function() {
+		return 'SimpleRectilinearPolygon with '+this.corners.length+' corners:\n'+this.corners+"\n)";
+	};
+ 
+	jsts.geom.SimpleRectilinearPolygon.prototype.CLASS_NAME = 'jsts.geom.SimpleRectilinearPolygon';
+
+	function coord(x,y)	{	return new jsts.geom.Coordinate(x,y); }
+
+	/**
+	 * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
+	 * 
+	 * Can be called either with 4 parameters (minx,miny, maxx,maxy)
+	 * or with a single parameter with 4 fields (minx,miny, maxx,maxy).
+	 */
+	jsts.geom.GeometryFactory.prototype.createSimpleRectilinearPolygon = function(xy) {
+		return new jsts.geom.SimpleRectilinearPolygon(xy, this);
+	};
+
 })();
 
 
-
-},{}],4:[function(require,module,exports){
+},{"jsclass/src/linked_list":29,"jsts":33}],4:[function(require,module,exports){
 var _ = require("underscore");
 
 /**
@@ -810,7 +1223,7 @@ ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot
 
 module.exports = ValueFunction;
 
-},{"underscore":26}],5:[function(require,module,exports){
+},{"underscore":37}],5:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -1374,7 +1787,7 @@ jsts.algorithm.updatedBorder = function(border, landplot) {
 
 
 
-},{"argminmax":20,"jsts":23,"underscore":26}],6:[function(require,module,exports){
+},{"argminmax":21,"jsts":33,"underscore":37}],6:[function(require,module,exports){
 /**
  * Adds to jsts.geom some simple utility functions related to rectangles.
  * @author Erel Segal-Halevi
@@ -1515,7 +1928,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"./AxisParallelRectangle":2,"./factory-utils":6,"./numeric-utils":13,"./square-with-max-points":18,"jsts":23,"underscore":26}],8:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":6,"./numeric-utils":13,"./square-with-max-points":19,"jsts":33,"underscore":37}],8:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -1530,6 +1943,8 @@ require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
 require("./corners");
+require("./side");
+
 var numutils = require("./numeric-utils")
 
 var _ = require("underscore");
@@ -1545,11 +1960,11 @@ function logValueFunctions(valueFunctions) {
 }
 
 function TRACE (numOfAgents, s) {
-//	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
+	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
 };
 
 function TRACE_NO_LANDPLOT(valueFunctions) {
-//	logValueFunctions(valueFunctions);
+	logValueFunctions(valueFunctions);
 }
 
 
@@ -1559,13 +1974,6 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 
 var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
 var round2 = function(x) { 	return Math.round(x*100)/100; }
-
-jsts.Side = {
-	South: 0,
-	West: 1,
-	North: 2,
-	East: 3
-};
 
 var mapOpenSidesStringToSouthernSide = {
 		"01": jsts.Side.North,
@@ -1630,7 +2038,7 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 	var openSides = jsts.algorithm.getOpenSides(envelope);
 //	TRACE(agentsValuePoints.length, "openSides="+openSides);
 	if (openSides.length==0) {
-		landplots = jsts.algorithm.halfProportionalDivision4Walls(agentsValuePoints, envelope, maxAspectRatio);
+		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio);
 	} else if (openSides.length==1) {
 		var openSide = openSides[0];
 		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSide);
@@ -1638,6 +2046,8 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 		var southernSide = openSidesToSouthernSide(openSides);
 		if (southernSide==null) {  
 			console.warn("Two opposite sides - treating as 3 walls "+JSON.stringify(envelope));
+			if (!isFinite(envelope.minx)) envelope.minx = 0;
+			if (!isFinite(envelope.miny)) envelope.miny = 0;
 			landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSides[0]);
 		} else {
 			landplots = jsts.algorithm.halfProportionalDivision2Walls(agentsValuePoints, envelope, maxAspectRatio, southernSide);
@@ -1648,7 +2058,7 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	} else {  // all sides are open
 		var closedSide = jsts.Side.South;  // arbitrary; TEMPORARY
-		landplots = jsts.algorithm.halfProportionalDivision1Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
+		landplots = jsts.algorithm.halfProportionalDivision0Walls(agentsValuePoints, envelope, maxAspectRatio, /*southernSide=*/closedSide);
 	}
 	landplots.forEach(roundFields3);
 	return landplots;
@@ -1869,7 +2279,7 @@ var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(norm
 		var landplots = [];
 		
 		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
-			TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
+			if (jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE) TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
 			landplots = normalizedDivisionFunction(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
 			if (landplots.length==valueFunctions.length) {
 				if (!landplots.minValuePerAgent)
@@ -2142,7 +2552,7 @@ var staircase3walls_cornerSquares = function(valueFunctions, levels, requiredLan
 		}
 	}
 
-	// Bid for squares in all other levels (non-knobs);
+	// Bid for corner squares in all other levels (non-knobs);
 	for (var iLevel=0; iLevel<levels.length; ++iLevel) {
 		var level = levels[iLevel];
 		if (level.squares) 
@@ -2595,7 +3005,7 @@ jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[2] = (norm2Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[3] = (norm1Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[4] = (norm0Walls);
 
-},{"./AxisParallelRectangle":2,"./ValueFunction":4,"./corners":5,"./factory-utils":6,"./numeric-utils":13,"./point-utils":15,"./square-with-max-points":18,"./transformations":19,"argminmax":20,"jsts":23,"underscore":26,"util":30}],9:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./ValueFunction":4,"./corners":5,"./factory-utils":6,"./numeric-utils":13,"./point-utils":15,"./side":18,"./square-with-max-points":19,"./transformations":20,"argminmax":21,"jsts":33,"underscore":37,"util":43}],9:[function(require,module,exports){
 var jsts = require("jsts");
 require("./intersection-cache");
 require("./factory-utils");
@@ -2621,7 +3031,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./SimpleRectilinearPolygon":3,"./corners":5,"./factory-utils":6,"./fair-division-of-points":7,"./half-proportional-division-staircase":8,"./intersection-cache":10,"./maximum-disjoint-set-async":11,"./maximum-disjoint-set-sync":12,"./point-utils":15,"./representative-disjoint-set-sync":16,"./shapes-touching-points":17,"./square-with-max-points":18,"./transformations":19,"jsts":23}],10:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./SimpleRectilinearPolygon":3,"./corners":5,"./factory-utils":6,"./fair-division-of-points":7,"./half-proportional-division-staircase":8,"./intersection-cache":10,"./maximum-disjoint-set-async":11,"./maximum-disjoint-set-sync":12,"./point-utils":15,"./representative-disjoint-set-sync":16,"./shapes-touching-points":17,"./square-with-max-points":19,"./transformations":20,"jsts":33}],10:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -2868,7 +3278,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-cache":10,"./partition-utils":14,"async":21,"js-combinatorics":22,"jsts":23,"underscore":26}],12:[function(require,module,exports){
+},{"./intersection-cache":10,"./partition-utils":14,"async":22,"js-combinatorics":23,"jsts":33,"underscore":37}],12:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -2984,7 +3394,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-cache":10,"./partition-utils":14,"js-combinatorics":22,"jsts":23,"underscore":26}],13:[function(require,module,exports){
+},{"./intersection-cache":10,"./partition-utils":14,"js-combinatorics":23,"jsts":33,"underscore":37}],13:[function(require,module,exports){
 /**
  * Some utils for structs of numbers.
  * 
@@ -3176,7 +3586,7 @@ function partitionDescription(partition) {
 }
 
 
-},{"./numeric-utils":13,"underscore":26}],15:[function(require,module,exports){
+},{"./numeric-utils":13,"underscore":37}],15:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to collections of points.
  * 
@@ -3237,7 +3647,7 @@ jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
 }
 
 
-},{"underscore":26}],16:[function(require,module,exports){
+},{"underscore":37}],16:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
  * 
@@ -3307,7 +3717,7 @@ function representativeDisjointSetSub(candidateSets) {
 
 
 
-},{"./intersection-cache":10,"./partition-utils":14,"js-combinatorics":22,"jsts":23,"underscore":26}],17:[function(require,module,exports){
+},{"./intersection-cache":10,"./partition-utils":14,"js-combinatorics":23,"jsts":33,"underscore":37}],17:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -3520,7 +3930,47 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-},{"./AxisParallelRectangle":2,"./factory-utils":6,"jsts":23}],18:[function(require,module,exports){
+},{"./AxisParallelRectangle":2,"./factory-utils":6,"jsts":33}],18:[function(require,module,exports){
+/**
+ * Enums related to sides
+ */
+
+var jsts = require('jsts');
+
+/**
+ * angle relative to x axis: 90*(3-Side)
+ */
+jsts.Side = {
+	South: 0,
+	West: 1,
+	North: 2,
+	East: 3
+};
+
+jsts.inverseSide = function(side) {
+	return (side+2)%4;
+}
+
+jsts.Turn = {
+	Left: -1,
+	Right: 1
+};
+
+jsts.isVertical = function(side) { return side%2==0; }
+jsts.isHorizontal = function(side) { return side%2==1; }
+
+jsts.turn = function(side1, side2) {
+	var t = side2-side1;
+	if (t>1) t-=4;
+	if (t<-1) t+=4;
+	return t;
+}
+
+jsts.turnDirection = function(turn) {
+	return turn>0? 1: -1;
+}
+
+},{"jsts":33}],19:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -3599,7 +4049,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"./numeric-utils":13,"./point-utils":15,"jsts":23,"underscore":26}],19:[function(require,module,exports){
+},{"./numeric-utils":13,"./point-utils":15,"jsts":33,"underscore":37}],20:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to affine transformations.
  * 
@@ -3749,7 +4199,7 @@ jsts.algorithm.roundFields = function(significantFigures, object) {
 			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var _ = require("underscore");
 
   // Internal function: creates a callback bound to its context if supplied
@@ -3824,7 +4274,7 @@ module.exports = {
 
 
 
-},{"underscore":26}],21:[function(require,module,exports){
+},{"underscore":37}],22:[function(require,module,exports){
 var process=require("__browserify_process");/*!
  * async
  * https://github.com/caolan/async
@@ -4658,6 +5108,71 @@ var process=require("__browserify_process");/*!
         };
         return q;
     };
+    
+    async.priorityQueue = function (worker, concurrency) {
+        
+        function _compareTasks(a, b){
+          return a.priority - b.priority;
+        };
+        
+        function _binarySearch(sequence, item, compare) {
+          var beg = -1,
+              end = sequence.length - 1;
+          while (beg < end) {
+            var mid = beg + ((end - beg + 1) >>> 1);
+            if (compare(item, sequence[mid]) >= 0) {
+              beg = mid;
+            } else {
+              end = mid - 1;
+            }
+          }
+          return beg;
+        }
+        
+        function _insert(q, data, priority, callback) {
+          if (!q.started){
+            q.started = true;
+          }
+          if (!_isArray(data)) {
+              data = [data];
+          }
+          if(data.length == 0) {
+             // call drain immediately if there are no tasks
+             return async.setImmediate(function() {
+                 if (q.drain) {
+                     q.drain();
+                 }
+             });
+          }
+          _each(data, function(task) {
+              var item = {
+                  data: task,
+                  priority: priority,
+                  callback: typeof callback === 'function' ? callback : null
+              };
+              
+              q.tasks.splice(_binarySearch(q.tasks, item, _compareTasks) + 1, 0, item);
+
+              if (q.saturated && q.tasks.length === q.concurrency) {
+                  q.saturated();
+              }
+              async.setImmediate(q.process);
+          });
+        }
+        
+        // Start with a normal queue
+        var q = async.queue(worker, concurrency);
+        
+        // Override push to accept second parameter representing priority
+        q.push = function (data, priority, callback) {
+          _insert(q, data, priority, callback);
+        };
+        
+        // Remove unshift function
+        delete q.unshift;
+
+        return q;
+    };
 
     async.cargo = function (worker, payload) {
         var working     = false,
@@ -4884,7 +5399,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":28}],22:[function(require,module,exports){
+},{"__browserify_process":39}],23:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -4899,6 +5414,7 @@ var process=require("__browserify_process");/*!
 (function(global) {
     'use strict';
     if (global.Combinatorics) return;
+    var version = "0.3.0";
     /* combinatory arithmetics */
     var P = function(m, n) {
         var t, p = 1;
@@ -5102,6 +5618,65 @@ var process=require("__browserify_process");/*!
         that.init();
         return (typeof (fun) === 'function') ? that.map(fun) : that;
     };
+
+    var PC = function(m) {
+        var total = 0;
+        for (var n = 1; n <= m; n++) {
+            var p = P(m,n);
+            total += p;
+        };
+        return total;
+    };
+
+    // which is really a permutation of combination
+    var permutationCombination = function(ary, fun) {
+        // if (!nelem) nelem = ary.length;
+        // if (nelem < 1) throw new RangeError;
+        // if (nelem > ary.length) throw new RangeError;
+        var size = PC(ary.length),
+            sizeOf = function() {
+                return size;
+            },
+            that = Object.create(ary.slice(), {
+                length: {
+                    get: sizeOf
+                }
+            });
+        hideProperty(that, 'cmb');
+        hideProperty(that, 'per');
+        hideProperty(that, 'nelem');
+        addProperties(that, {
+            valueOf: function() {
+                return size;
+            },
+            init: function() {
+                this.nelem = 1;
+                // console.log("Starting nelem: " + this.nelem);
+                this.cmb = combination(ary, this.nelem);
+                this.per = _permutation(this.cmb.next());
+            },
+            next: function() {
+                var result = this.per.next();
+                if (!result) {
+                    var cmb = this.cmb.next();
+                    if (!cmb) {
+                        this.nelem++;
+                        // console.log("increment nelem: " + this.nelem + " vs " + ary.length);
+                        if (this.nelem > ary.length) return;
+                        this.cmb = combination(ary, this.nelem);
+                        cmb = this.cmb.next();
+                        if (!cmb) return;
+                    }
+                    this.per = _permutation(cmb);
+                    return this.next();
+                }
+                return result;
+            }
+        });
+        addProperties(that, common);
+        that.init();
+        return (typeof (fun) === 'function') ? that.map(fun) : that;
+    };
     /* Cartesian Product */
     var arraySlice = Array.prototype.slice;
     var cartesianProduct = function() {
@@ -5170,18 +5745,3647 @@ var process=require("__browserify_process");/*!
         cartesianProduct: cartesianProduct,
         combination: combination,
         permutation: permutation,
-        power: power
+        permutationCombination: permutationCombination,
+        power: power,
+        VERSION: version
     });
 })(this);
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
+(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS;
+
+  if (E) exports.JS = exports;
+  factory(js, E ? exports : js);
+
+})(function(JS, exports) {
+'use strict';
+
+var Comparable = new JS.Module('Comparable', {
+  extend: {
+    ClassMethods: new JS.Module({
+      compare: function(one, another) {
+        return one.compareTo(another);
+      }
+    }),
+
+    included: function(base) {
+      base.extend(this.ClassMethods);
+    }
+  },
+
+  lt: function(other) {
+    return this.compareTo(other) < 0;
+  },
+
+  lte: function(other) {
+    return this.compareTo(other) < 1;
+  },
+
+  gt: function(other) {
+    return this.compareTo(other) > 0;
+  },
+
+  gte: function(other) {
+    return this.compareTo(other) > -1;
+  },
+
+  eq: function(other) {
+    return this.compareTo(other) === 0;
+  },
+
+  between: function(a, b) {
+    return this.gte(a) && this.lte(b);
+  }
+});
+
+exports.Comparable = Comparable;
+});
+},{"./core":26}],25:[function(require,module,exports){
+var process=require("__browserify_process");(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS,
+
+      Enumerable = js.Enumerable || require('./enumerable').Enumerable;
+
+  if (E) exports.JS = exports;
+  factory(js, Enumerable, E ? exports : js);
+
+})(function(JS, Enumerable, exports) {
+'use strict';
+
+var Console = new JS.Module('Console', {
+  extend: {
+    nameOf: function(object, root) {
+      var results = [], i, n, field, l;
+
+      if (JS.isType(object, Array)) {
+        for (i = 0, n = object.length; i < n; i++)
+          results.push(this.nameOf(object[i]));
+        return results;
+      }
+
+      if (object.displayName) return object.displayName;
+
+      field = [{name: null, o: root || JS.ENV}];
+      l = 0;
+      while (typeof field === 'object' && l < this.MAX_DEPTH) {
+        l += 1;
+        field = this.descend(field, object);
+      }
+      if (typeof field == 'string') {
+        field = field.replace(/\.prototype\./g, '#');
+        object.displayName = field;
+        if (object.__meta__) object.__meta__.displayName = field + '.__meta__';
+      }
+      return object.displayName;
+    },
+
+    descend: function(list, needle) {
+      var results = [],
+          n       = list.length,
+          i       = n,
+          key, item, name;
+
+      while (i--) {
+        item = list[i];
+        if (JS.isType(item.o, Array)) continue;
+        name = item.name ? item.name + '.' : '';
+        for (key in item.o) {
+          if (needle && item.o[key] === needle) return name + key;
+          results.push({name: name + key, o: item.o[key]});
+        }
+      }
+      return results;
+    },
+
+    convert: function(object, stack) {
+      if (object === null || object === undefined) return String(object);
+      var E = Enumerable, stack = stack || [], items;
+
+      if (JS.indexOf(stack, object) >= 0) return '#circular';
+
+      if (object instanceof Error) {
+        return (typeof object.message === 'string' && !object.message)
+             ? object.name
+             : object.name + (object.message ? ': ' + object.message : '');
+      }
+
+      if (object instanceof Array) {
+        stack.push(object);
+        items = new E.Collection(object).map(function(item) {
+            return this.convert(item, stack);
+          }, this).join(', ');
+        stack.pop();
+        return items ? '[ ' + items + ' ]' : '[]';
+      }
+
+      if (object instanceof String || typeof object === 'string')
+        return '"' + object + '"';
+
+      if (object instanceof Function)
+        return object.displayName ||
+               object.name ||
+              (object.toString().match(/^\s*function ([^\(]+)\(/) || [])[1] ||
+               '#function';
+
+      if (object instanceof Date)
+        return object.toGMTString();
+
+      if (object.toString &&
+          object.toString !== Object.prototype.toString &&
+          !object.toString.__traced__)
+        return object.toString();
+
+      if (object.nodeType !== undefined) return object.toString();
+
+      stack.push(object);
+      items = new E.Collection(E.objectKeys(object, false).sort()).map(function(key) {
+          return this.convert(key, stack) + ': ' + this.convert(object[key], stack);
+        }, this).join(', ');
+      stack.pop();
+      return items ? '{ ' + items + ' }' : '{}';
+    },
+
+    filterBacktrace: function(stack) {
+      if (!stack) return stack;
+      stack = stack.replace(/^\S.*\n?/gm, '');
+      var filter = this.adapter.backtraceFilter();
+
+      return filter
+           ? stack.replace(filter, '')
+           : stack;
+    },
+
+    ANSI_CSI:       '\u001B[',
+    DEFAULT_WIDTH:  78,
+    DEFAULT_HEIGHT: 24,
+    MAX_DEPTH:      4,
+    NO_COLOR:       'NO_COLOR',
+
+    ESCAPE_CODES: {
+      cursor: {
+        cursorUp:           '%1A',
+        cursorDown:         '%1B',
+        cursorForward:      '%1C',
+        cursorBack:         '%1D',
+        cursorNextLine:     '%1E',
+        cursorPrevLine:     '%1F',
+        cursorColumn:       '%1G',
+        cursorPosition:     '%1;%2H',
+        cursorHide:         '?25l',
+        cursorShow:         '?25h'
+      },
+
+      screen: {
+        eraseScreenForward: '0J',
+        eraseScreenBack:    '1J',
+        eraseScreen:        '2J',
+        eraseLineForward:   '0K',
+        eraseLineBack:      '1K',
+        eraseLine:          '2K'
+      },
+
+      reset: {
+        reset:      '0m'
+      },
+
+      weight: {
+        bold:       '1m',   normal:     '22m'
+      },
+
+      style: {
+        italic:     '',     noitalic:   ''
+      },
+
+      underline: {
+        underline:  '4m',   noline:     '24m'
+      },
+
+      blink: {
+        blink:      '5m',   noblink:    '25m'
+      },
+
+      color: {
+        black:      '30m',
+        red:        '31m',
+        green:      '32m',
+        yellow:     '33m',
+        blue:       '34m',
+        magenta:    '35m',
+        cyan:       '36m',
+        white:      '37m',
+        nocolor:    '39m',
+        grey:       '90m'
+      },
+
+      background: {
+        bgblack:    '40m',
+        bgred:      '41m',
+        bggreen:    '42m',
+        bgyellow:   '43m',
+        bgblue:     '44m',
+        bgmagenta:  '45m',
+        bgcyan:     '46m',
+        bgwhite:    '47m',
+        bgnocolor:  '49m'
+      }
+    },
+
+    coloring: function() {
+      return this.adapter.coloring();
+    },
+
+    envvar: function(name) {
+      return this.adapter.envvar(name);
+    },
+
+    escape: function(string) {
+      return Console.ANSI_CSI + string;
+    },
+
+    exit: function(status) {
+      this.adapter.exit(status);
+    },
+
+    getDimensions: function() {
+      return this.adapter.getDimensions();
+    }
+  },
+
+  consoleFormat: function() {
+    this.reset();
+    var i = arguments.length;
+    while (i--) this[arguments[i]]();
+  },
+
+  print: function(string) {
+    string = (string === undefined ? '' : string).toString();
+    Console.adapter.print(string);
+  },
+
+  puts: function(string) {
+    string = (string === undefined ? '' : string).toString();
+    Console.adapter.puts(string);
+  }
+});
+
+Console.extend({
+  Base: new JS.Class({
+    __buffer__: '',
+    __format__: '',
+
+    backtraceFilter: function() {
+      if (typeof version === 'function' && version() > 100) {
+        return /.*/;
+      } else {
+        return null;
+      }
+    },
+
+    coloring: function() {
+      return !this.envvar(Console.NO_COLOR);
+    },
+
+    echo: function(string) {
+      if (typeof console !== 'undefined') return console.log(string);
+      if (typeof print === 'function')    return print(string);
+    },
+
+    envvar: function(name) {
+      return null;
+    },
+
+    exit: function(status) {
+      if (typeof system === 'object' && system.exit) system.exit(status);
+      if (typeof quit === 'function')                quit(status);
+    },
+
+    format: function(type, name, args) {
+      if (!this.coloring()) return;
+      var escape = Console.ESCAPE_CODES[type][name];
+
+      for (var i = 0, n = args.length; i < n; i++)
+        escape = escape.replace('%' + (i+1), args[i]);
+
+      this.__format__ += Console.escape(escape);
+    },
+
+    flushFormat: function() {
+      var format = this.__format__;
+      this.__format__ = '';
+      return format;
+    },
+
+    getDimensions: function() {
+      var width  = this.envvar('COLUMNS') || Console.DEFAULT_WIDTH,
+          height = this.envvar('ROWS')    || Console.DEFAULT_HEIGHT;
+
+      return [parseInt(width, 10), parseInt(height, 10)];
+    },
+
+    print: function(string) {
+      var coloring = this.coloring(),
+          width    = this.getDimensions()[0],
+          esc      = Console.escape,
+          length, prefix, line;
+
+      while (string.length > 0) {
+        length = this.__buffer__.length;
+        prefix = (length > 0 && coloring) ? esc('1F') + esc((length + 1) + 'G') : '';
+        line   = string.substr(0, width - length);
+
+        this.__buffer__ += line;
+
+        if (coloring) this.echo(prefix + this.flushFormat() + line);
+
+        if (this.__buffer__.length === width) {
+          if (!coloring) this.echo(this.__buffer__);
+          this.__buffer__ = '';
+        }
+        string = string.substr(width - length);
+      }
+    },
+
+    puts: function(string) {
+      var coloring = this.coloring(),
+          esc      = Console.escape,
+          length   = this.__buffer__.length,
+          prefix   = (length > 0 && coloring) ? esc('1F') + esc((length + 1) + 'G') : this.__buffer__;
+
+      this.echo(prefix + this.flushFormat() + string);
+      this.__buffer__ = '';
+    }
+  })
+});
+
+Console.extend({
+  Browser: new JS.Class(Console.Base, {
+    backtraceFilter: function() {
+      return new RegExp(window.location.href.replace(/(\/[^\/]+)/g, '($1)?') + '/?', 'g');
+    },
+
+    coloring: function() {
+      if (this.envvar(Console.NO_COLOR)) return false;
+      return Console.AIR;
+    },
+
+    echo: function(string) {
+      if (window.runtime) return window.runtime.trace(string);
+      if (window.console) return console.log(string);
+      alert(string);
+    },
+
+    envvar: function(name) {
+      return window[name] || null;
+    },
+
+    getDimensions: function() {
+      if (Console.AIR) return this.callSuper();
+      return [1024, 1];
+    }
+  })
+});
+
+Console.extend({
+  BrowserColor: new JS.Class(Console.Browser, {
+    COLORS: {
+      green: 'limegreen'
+    },
+
+    __queue__: [],
+    __state__: null,
+
+    format: function(type, name) {
+      name = name.replace(/^bg/, '');
+
+      var state = JS.extend({}, this.__state__ || {}),
+          color = this.COLORS[name] || name,
+          no    = /^no/.test(name);
+
+      if (type === 'reset')
+        state = null;
+      else if (no)
+        delete state[type];
+      else if (type === 'weight')
+        state.weight = 'font-weight: ' + name;
+      else if (type === 'style')
+        state.style = 'font-style: ' + name;
+      else if (type === 'underline')
+        state.underline = 'text-decoration: underline';
+      else if (type === 'color')
+        state.color = 'color: ' + color;
+      else if (type === 'background')
+        state.background = 'background-color: ' + color;
+      else
+        state = undefined;
+
+      if (state !== undefined) {
+        this.__state__ = state;
+        this.__queue__.push(state);
+      }
+    },
+
+    print: function(string) {
+      this.__queue__.push(string)
+    },
+
+    puts: function(string) {
+      this.print(string);
+      var buffer = '', formats = [], item;
+      while ((item = this.__queue__.shift()) !== undefined) {
+        if (typeof item === 'string') {
+          if (this.__state__) {
+            buffer += '%c' + item;
+            formats.push(this._serialize(this.__state__));
+          } else {
+            buffer += item;
+          }
+        } else {
+          this.__state__ = item;
+        }
+      }
+      console.log.apply(console, [buffer].concat(formats));
+    },
+
+    _serialize: function(state) {
+      var rules = [];
+      for (var key in state) rules.push(state[key]);
+      return rules.join('; ');
+    }
+  })
+});
+
+Console.extend({
+  Node: new JS.Class(Console.Base, {
+    backtraceFilter: function() {
+      return new RegExp(process.cwd() + '/', 'g');
+    },
+
+    coloring: function() {
+      return !this.envvar(Console.NO_COLOR) && require('tty').isatty(1);
+    },
+
+    envvar: function(name) {
+      return process.env[name] || null;
+    },
+
+    exit: function(status) {
+      process.exit(status);
+    },
+
+    getDimensions: function() {
+      var width, height, dims;
+      if (process.stdout.getWindowSize) {
+        dims   = process.stdout.getWindowSize();
+        width  = dims[0];
+        height = dims[1];
+      } else {
+        dims   = process.binding('stdio').getWindowSize();
+        width  = dims[1];
+        height = dims[0];
+      }
+      return [width, height];
+    },
+
+    print: function(string) {
+      process.stdout.write(this.flushFormat() + string);
+    },
+
+    puts: function(string) {
+      console.log(this.flushFormat() + string);
+    }
+  })
+});
+
+Console.extend({
+  Phantom: new JS.Class(Console.Base, {
+    echo: function(string) {
+      console.log(string);
+    },
+
+    envvar: function(name) {
+      return require('system').env[name] || null;
+    },
+
+    exit: function(status) {
+      phantom.exit(status);
+    }
+  })
+});
+
+Console.extend({
+  Rhino: new JS.Class(Console.Base, {
+    backtraceFilter: function() {
+      return new RegExp(java.lang.System.getProperty('user.dir') + '/', 'g');
+    },
+
+    envvar: function(name) {
+      var env = java.lang.System.getenv();
+      return env.get(name) || null;
+    },
+
+    getDimensions: function() {
+      var proc = java.lang.Runtime.getRuntime().exec(['sh', '-c', 'stty -a < /dev/tty']),
+          is   = proc.getInputStream(),
+          bite = 0,
+          out  = '',
+          width, height;
+
+      while (bite >= 0) {
+        bite = is.read();
+        if (bite >= 0) out += String.fromCharCode(bite);
+      }
+
+      var match = out.match(/rows\s+(\d+);\s+columns\s+(\d+)/);
+      if (!match) return this._dimCache || this.callSuper();
+
+      return this._dimCache = [parseInt(match[2], 10), parseInt(match[1], 10)];
+    },
+
+    print: function(string) {
+      java.lang.System.out.print(this.flushFormat() + string);
+    },
+
+    puts: function(string) {
+      java.lang.System.out.println(this.flushFormat() + string);
+    }
+  })
+});
+
+Console.extend({
+  Windows: new JS.Class(Console.Base, {
+    coloring: function() {
+      return false;
+    },
+
+    echo: function(string) {
+      WScript.Echo(string);
+    },
+
+    exit: function(status) {
+      WScript.Quit(status);
+    }
+  })
+});
+
+Console.BROWSER = (typeof window !== 'undefined');
+Console.NODE    = (typeof process === 'object') && !Console.BROWSER;
+Console.PHANTOM = (typeof phantom !== 'undefined');
+Console.AIR     = (Console.BROWSER && typeof runtime !== 'undefined');
+Console.RHINO   = (typeof java !== 'undefined' && typeof java.lang !== 'undefined');
+Console.WSH     = (typeof WScript !== 'undefined');
+
+var useColor = false, ua;
+if (Console.BROWSER) {
+  ua = navigator.userAgent;
+  if (window.console && /Chrome/.test(ua))
+    useColor = true;
+}
+
+if (Console.PHANTOM)      Console.adapter = new Console.Phantom();
+else if (useColor)        Console.adapter = new Console.BrowserColor();
+else if (Console.BROWSER) Console.adapter = new Console.Browser();
+else if (Console.NODE)    Console.adapter = new Console.Node();
+else if (Console.RHINO)   Console.adapter = new Console.Rhino();
+else if (Console.WSH)     Console.adapter = new Console.Windows();
+else                      Console.adapter = new Console.Base();
+
+for (var type in Console.ESCAPE_CODES) {
+  for (var key in Console.ESCAPE_CODES[type]) (function(type, key) {
+    Console.define(key, function() {
+      Console.adapter.format(type, key, arguments);
+    });
+  })(type, key);
+}
+
+Console.extend(Console);
+
+exports.Console = Console;
+});
+},{"./core":26,"./enumerable":27,"__browserify_process":39,"system":36,"tty":41}],26:[function(require,module,exports){
+var JS = (typeof this.JS === 'undefined') ? {} : this.JS;
+
+(function(factory) {
+  var $ = (typeof this.global === 'object') ? this.global : this,
+      E = (typeof exports === 'object');
+
+  if (E) {
+    exports.JS = exports;
+    JS = exports;
+  } else {
+    $.JS = JS;
+  }
+  factory($, JS);
+
+})(function(global, exports) {
+'use strict';
+
+var JS = {ENV: global};
+
+JS.END_WITHOUT_DOT = /([^\.])$/;
+
+JS.array = function(enumerable) {
+  var array = [], i = enumerable.length;
+  while (i--) array[i] = enumerable[i];
+  return array;
+};
+
+JS.bind = function(method, object) {
+  return function() {
+    return method.apply(object, arguments);
+  };
+};
+
+JS.Date = JS.ENV.Date;
+
+JS.extend = function(destination, source, overwrite) {
+  if (!destination || !source) return destination;
+  for (var field in source) {
+    if (destination[field] === source[field]) continue;
+    if (overwrite === false && destination.hasOwnProperty(field)) continue;
+    destination[field] = source[field];
+  }
+  return destination;
+};
+
+JS.indexOf = function(list, item) {
+  if (list.indexOf) return list.indexOf(item);
+  var i = list.length;
+  while (i--) {
+    if (list[i] === item) return i;
+  }
+  return -1;
+};
+
+JS.isType = function(object, type) {
+  if (typeof type === 'string')
+    return typeof object === type;
+
+  if (object === null || object === undefined)
+    return false;
+
+  return (typeof type === 'function' && object instanceof type) ||
+         (object.isA && object.isA(type)) ||
+         object.constructor === type;
+};
+
+JS.makeBridge = function(parent) {
+  var bridge = function() {};
+  bridge.prototype = parent.prototype;
+  return new bridge();
+};
+
+JS.makeClass = function(parent) {
+  parent = parent || Object;
+
+  var constructor = function() {
+    return this.initialize
+         ? this.initialize.apply(this, arguments) || this
+         : this;
+  };
+  constructor.prototype = JS.makeBridge(parent);
+
+  constructor.superclass = parent;
+
+  constructor.subclasses = [];
+  if (parent.subclasses) parent.subclasses.push(constructor);
+
+  return constructor;
+};
+
+JS.match = function(category, object) {
+  if (object === undefined) return false;
+  return typeof category.test === 'function'
+       ? category.test(object)
+       : category.match(object);
+};
+
+JS.Method = JS.makeClass();
+
+JS.extend(JS.Method.prototype, {
+  initialize: function(module, name, callable) {
+    this.module   = module;
+    this.name     = name;
+    this.callable = callable;
+
+    this._words = {};
+    if (typeof callable !== 'function') return;
+
+    this.arity  = callable.length;
+
+    var matches = callable.toString().match(/\b[a-z\_\$][a-z0-9\_\$]*\b/ig),
+        i       = matches.length;
+
+    while (i--) this._words[matches[i]] = true;
+  },
+
+  setName: function(name) {
+    this.callable.displayName =
+    this.displayName = name;
+  },
+
+  contains: function(word) {
+    return this._words.hasOwnProperty(word);
+  },
+
+  call: function() {
+    return this.callable.call.apply(this.callable, arguments);
+  },
+
+  apply: function(receiver, args) {
+    return this.callable.apply(receiver, args);
+  },
+
+  compile: function(environment) {
+    var method     = this,
+        trace      = method.module.__trace__ || environment.__trace__,
+        callable   = method.callable,
+        words      = method._words,
+        allWords   = JS.Method._keywords,
+        i          = allWords.length,
+        keywords   = [],
+        keyword;
+
+    while  (i--) {
+      keyword = allWords[i];
+      if (words[keyword.name]) keywords.push(keyword);
+    }
+    if (keywords.length === 0 && !trace) return callable;
+
+    var compiled = function() {
+      var N = keywords.length, j = N, previous = {}, keyword, existing, kwd;
+
+      while (j--) {
+        keyword  = keywords[j];
+        existing = this[keyword.name];
+
+        if (existing && !existing.__kwd__) continue;
+
+        previous[keyword.name] = {
+          _value: existing,
+          _own:   this.hasOwnProperty(keyword.name)
+        };
+        kwd = keyword.filter(method, environment, this, arguments);
+        if (kwd) kwd.__kwd__ = true;
+        this[keyword.name] = kwd;
+      }
+      var returnValue = callable.apply(this, arguments),
+          j = N;
+
+      while (j--) {
+        keyword = keywords[j];
+        if (!previous[keyword.name]) continue;
+        if (previous[keyword.name]._own)
+          this[keyword.name] = previous[keyword.name]._value;
+        else
+          delete this[keyword.name];
+      }
+      return returnValue;
+    };
+
+    var StackTrace = trace && (exports.StackTrace || require('./stack_trace').StackTrace);
+    if (trace) return StackTrace.wrap(compiled, method, environment);
+    return compiled;
+  },
+
+  toString: function() {
+    var name = this.displayName || (this.module.toString() + '#' + this.name);
+    return '#<Method:' + name + '>';
+  }
+});
+
+JS.Method.create = function(module, name, callable) {
+  if (callable && callable.__inc__ && callable.__fns__)
+    return callable;
+
+  var method = (typeof callable !== 'function')
+             ? callable
+             : new this(module, name, callable);
+
+  this.notify(method);
+  return method;
+};
+
+JS.Method.compile = function(method, environment) {
+  return (method instanceof this)
+      ? method.compile(environment)
+      : method;
+};
+
+JS.Method.__listeners__ = [];
+
+JS.Method.added = function(block, context) {
+  this.__listeners__.push([block, context]);
+};
+
+JS.Method.notify = function(method) {
+  var listeners = this.__listeners__,
+      i = listeners.length,
+      listener;
+
+  while (i--) {
+    listener = listeners[i];
+    listener[0].call(listener[1], method);
+  }
+};
+
+JS.Method._keywords = [];
+
+JS.Method.keyword = function(name, filter) {
+  this._keywords.push({name: name, filter: filter});
+};
+
+JS.Method.tracing = function(classes, block, context) {
+  var pkg = exports.require ? exports : require('./loader');
+  pkg.require('JS.StackTrace', function(StackTrace) {
+    var logger = StackTrace.logger,
+        active = logger.active;
+
+    classes = [].concat(classes);
+    this.trace(classes);
+    logger.active = true;
+    block.call(context);
+
+    this.untrace(classes);
+    logger.active = active;
+  }, this);
+};
+
+JS.Method.trace = function(classes) {
+  var i = classes.length;
+  while (i--) {
+    classes[i].__trace__ = true;
+    classes[i].resolve();
+  }
+};
+
+JS.Method.untrace = function(classes) {
+  var i = classes.length;
+  while (i--) {
+    classes[i].__trace__ = false;
+    classes[i].resolve();
+  }
+};
+
+JS.Module = JS.makeClass();
+JS.Module.__queue__ = [];
+
+JS.extend(JS.Module.prototype, {
+  initialize: function(name, methods, options) {
+    if (typeof name !== 'string') {
+      options = arguments[1];
+      methods = arguments[0];
+      name    = undefined;
+    }
+    options = options || {};
+
+    this.__inc__ = [];
+    this.__dep__ = [];
+    this.__fns__ = {};
+    this.__tgt__ = options._target;
+    this.__anc__ = null;
+    this.__mct__ = {};
+
+    this.setName(name);
+    this.include(methods, {_resolve: false});
+
+    if (JS.Module.__queue__)
+      JS.Module.__queue__.push(this);
+  },
+
+  setName: function(name) {
+    this.displayName = name || '';
+
+    for (var field in this.__fns__)
+      this.__name__(field);
+
+    if (name && this.__meta__)
+      this.__meta__.setName(name + '.');
+  },
+
+  __name__: function(name) {
+    if (!this.displayName) return;
+
+    var object = this.__fns__[name];
+    if (!object) return;
+
+    name = this.displayName.replace(JS.END_WITHOUT_DOT, '$1#') + name;
+    if (typeof object.setName === 'function') return object.setName(name);
+    if (typeof object === 'function') object.displayName = name;
+  },
+
+  define: function(name, callable, options) {
+    var method  = JS.Method.create(this, name, callable),
+        resolve = (options || {})._resolve;
+
+    this.__fns__[name] = method;
+    this.__name__(name);
+    if (resolve !== false) this.resolve();
+  },
+
+  include: function(module, options) {
+    if (!module) return this;
+
+    var options = options || {},
+        resolve = options._resolve !== false,
+        extend  = module.extend,
+        include = module.include,
+        extended, field, value, mixins, i, n;
+
+    if (module.__fns__ && module.__inc__) {
+      this.__inc__.push(module);
+      if ((module.__dep__ || {}).push) module.__dep__.push(this);
+
+      if (extended = options._extended) {
+        if (typeof module.extended === 'function')
+          module.extended(extended);
+      }
+      else {
+        if (typeof module.included === 'function')
+          module.included(this);
+      }
+    }
+    else {
+      if (this.shouldIgnore('extend', extend)) {
+        mixins = [].concat(extend);
+        for (i = 0, n = mixins.length; i < n; i++)
+          this.extend(mixins[i]);
+      }
+      if (this.shouldIgnore('include', include)) {
+        mixins = [].concat(include);
+        for (i = 0, n = mixins.length; i < n; i++)
+          this.include(mixins[i], {_resolve: false});
+      }
+      for (field in module) {
+        if (!module.hasOwnProperty(field)) continue;
+        value = module[field];
+        if (this.shouldIgnore(field, value)) continue;
+        this.define(field, value, {_resolve: false});
+      }
+      if (module.hasOwnProperty('toString'))
+        this.define('toString', module.toString, {_resolve: false});
+    }
+
+    if (resolve) this.resolve();
+    return this;
+  },
+
+  alias: function(aliases) {
+    for (var method in aliases) {
+      if (!aliases.hasOwnProperty(method)) continue;
+      this.define(method, this.instanceMethod(aliases[method]), {_resolve: false});
+    }
+    this.resolve();
+  },
+
+  resolve: function(host) {
+    var host   = host || this,
+        target = host.__tgt__,
+        inc    = this.__inc__,
+        fns    = this.__fns__,
+        i, n, key, compiled;
+
+    if (host === this) {
+      this.__anc__ = null;
+      this.__mct__ = {};
+      i = this.__dep__.length;
+      while (i--) this.__dep__[i].resolve();
+    }
+
+    if (!target) return;
+
+    for (i = 0, n = inc.length; i < n; i++)
+      inc[i].resolve(host);
+
+    for (key in fns) {
+      compiled = JS.Method.compile(fns[key], host);
+      if (target[key] !== compiled) target[key] = compiled;
+    }
+    if (fns.hasOwnProperty('toString'))
+      target.toString = JS.Method.compile(fns.toString, host);
+  },
+
+  shouldIgnore: function(field, value) {
+    return (field === 'extend' || field === 'include') &&
+           (typeof value !== 'function' ||
+             (value.__fns__ && value.__inc__));
+  },
+
+  ancestors: function(list) {
+    var cachable = !list,
+        list     = list || [],
+        inc      = this.__inc__;
+
+    if (cachable && this.__anc__) return this.__anc__.slice();
+
+    for (var i = 0, n = inc.length; i < n; i++)
+      inc[i].ancestors(list);
+
+    if (JS.indexOf(list, this) < 0)
+      list.push(this);
+
+    if (cachable) this.__anc__ = list.slice();
+    return list;
+  },
+
+  lookup: function(name) {
+    var cached = this.__mct__[name];
+    if (cached && cached.slice) return cached.slice();
+
+    var ancestors = this.ancestors(),
+        methods   = [],
+        fns;
+
+    for (var i = 0, n = ancestors.length; i < n; i++) {
+      fns = ancestors[i].__fns__;
+      if (fns.hasOwnProperty(name)) methods.push(fns[name]);
+    }
+    this.__mct__[name] = methods.slice();
+    return methods;
+  },
+
+  includes: function(module) {
+    if (module === this) return true;
+
+    var inc  = this.__inc__;
+
+    for (var i = 0, n = inc.length; i < n; i++) {
+      if (inc[i].includes(module))
+        return true;
+    }
+    return false;
+  },
+
+  instanceMethod: function(name) {
+    return this.lookup(name).pop();
+  },
+
+  instanceMethods: function(recursive, list) {
+    var methods = list || [],
+        fns     = this.__fns__,
+        field;
+
+    for (field in fns) {
+      if (!JS.isType(this.__fns__[field], JS.Method)) continue;
+      if (JS.indexOf(methods, field) >= 0) continue;
+      methods.push(field);
+    }
+
+    if (recursive !== false) {
+      var ancestors = this.ancestors(), i = ancestors.length;
+      while (i--) ancestors[i].instanceMethods(false, methods);
+    }
+    return methods;
+  },
+
+  match: function(object) {
+    return object && object.isA && object.isA(this);
+  },
+
+  toString: function() {
+    return this.displayName;
+  }
+});
+
+JS.Kernel = new JS.Module('Kernel', {
+  __eigen__: function() {
+    if (this.__meta__) return this.__meta__;
+    var name = this.toString() + '.';
+    this.__meta__ = new JS.Module(name, null, {_target: this});
+    return this.__meta__.include(this.klass, {_resolve: false});
+  },
+
+  equals: function(other) {
+    return this === other;
+  },
+
+  extend: function(module, options) {
+    var resolve = (options || {})._resolve;
+    this.__eigen__().include(module, {_extended: this, _resolve: resolve});
+    return this;
+  },
+
+  hash: function() {
+    return JS.Kernel.hashFor(this);
+  },
+
+  isA: function(module) {
+    return (typeof module === 'function' && this instanceof module) ||
+           this.__eigen__().includes(module);
+  },
+
+  method: function(name) {
+    var cache = this.__mct__ = this.__mct__ || {},
+        value = cache[name],
+        field = this[name];
+
+    if (typeof field !== 'function') return field;
+    if (value && field === value._value) return value._bound;
+
+    var bound = JS.bind(field, this);
+    cache[name] = {_value: field, _bound: bound};
+    return bound;
+  },
+
+  methods: function() {
+    return this.__eigen__().instanceMethods();
+  },
+
+  tap: function(block, context) {
+    block.call(context, this);
+    return this;
+  },
+
+  toString: function() {
+    if (this.displayName) return this.displayName;
+    var name = this.klass.displayName || this.klass.toString();
+    return '#<' + name + ':' + this.hash() + '>';
+  }
+});
+
+(function() {
+  var id = 1;
+
+  JS.Kernel.hashFor = function(object) {
+    if (object.__hash__ !== undefined) return object.__hash__;
+    object.__hash__ = (new JS.Date().getTime() + id).toString(16);
+    id += 1;
+    return object.__hash__;
+  };
+})();
+
+JS.Class = JS.makeClass(JS.Module);
+
+JS.extend(JS.Class.prototype, {
+  initialize: function(name, parent, methods, options) {
+    if (typeof name !== 'string') {
+      options = arguments[2];
+      methods = arguments[1];
+      parent  = arguments[0];
+      name    = undefined;
+    }
+    if (typeof parent !== 'function') {
+      options = methods;
+      methods = parent;
+      parent  = Object;
+    }
+    JS.Module.prototype.initialize.call(this, name);
+    options = options || {};
+
+    var klass = JS.makeClass(parent);
+    JS.extend(klass, this);
+
+    klass.prototype.constructor =
+    klass.prototype.klass = klass;
+
+    klass.__eigen__().include(parent.__meta__, {_resolve: options._resolve});
+    klass.setName(name);
+
+    klass.__tgt__ = klass.prototype;
+
+    var parentModule = (parent === Object)
+                     ? {}
+                     : (parent.__fns__ ? parent : new JS.Module(parent.prototype, {_resolve: false}));
+
+    klass.include(JS.Kernel,    {_resolve: false})
+         .include(parentModule, {_resolve: false})
+         .include(methods,      {_resolve: false});
+
+    if (options._resolve !== false) klass.resolve();
+
+    if (typeof parent.inherited === 'function')
+      parent.inherited(klass);
+
+    return klass;
+  }
+});
+
+(function() {
+  var methodsFromPrototype = function(klass) {
+    var methods = {},
+        proto   = klass.prototype;
+
+    for (var field in proto) {
+      if (!proto.hasOwnProperty(field)) continue;
+      methods[field] = JS.Method.create(klass, field, proto[field]);
+    }
+    return methods;
+  };
+
+  var classify = function(name, parentName) {
+    var klass  = JS[name],
+        parent = JS[parentName];
+
+    klass.__inc__ = [];
+    klass.__dep__ = [];
+    klass.__fns__ = methodsFromPrototype(klass);
+    klass.__tgt__ = klass.prototype;
+
+    klass.prototype.constructor =
+    klass.prototype.klass = klass;
+
+    JS.extend(klass, JS.Class.prototype);
+    klass.include(parent || JS.Kernel);
+    klass.setName(name);
+
+    klass.constructor = klass.klass = JS.Class;
+  };
+
+  classify('Method');
+  classify('Module');
+  classify('Class', 'Module');
+
+  var eigen = JS.Kernel.instanceMethod('__eigen__');
+
+  eigen.call(JS.Method).resolve();
+  eigen.call(JS.Module).resolve();
+  eigen.call(JS.Class).include(JS.Module.__meta__);
+})();
+
+JS.NotImplementedError = new JS.Class('NotImplementedError', Error);
+
+JS.Method.keyword('callSuper', function(method, env, receiver, args) {
+  var methods    = env.lookup(method.name),
+      stackIndex = methods.length - 1,
+      params     = JS.array(args);
+
+  if (stackIndex === 0) return undefined;
+
+  var _super = function() {
+    var i = arguments.length;
+    while (i--) params[i] = arguments[i];
+
+    stackIndex -= 1;
+    if (stackIndex === 0) delete receiver.callSuper;
+    var returnValue = methods[stackIndex].apply(receiver, params);
+    receiver.callSuper = _super;
+    stackIndex += 1;
+
+    return returnValue;
+  };
+
+  return _super;
+});
+
+JS.Method.keyword('blockGiven', function(method, env, receiver, args) {
+  var block = Array.prototype.slice.call(args, method.arity),
+      hasBlock = (typeof block[0] === 'function');
+
+  return function() { return hasBlock };
+});
+
+JS.Method.keyword('yieldWith', function(method, env, receiver, args) {
+  var block = Array.prototype.slice.call(args, method.arity);
+
+  return function() {
+    if (typeof block[0] !== 'function') return;
+    return block[0].apply(block[1] || null, arguments);
+  };
+});
+
+JS.Interface = new JS.Class('Interface', {
+  initialize: function(methods) {
+    this.test = function(object, returnName) {
+      var n = methods.length;
+      while (n--) {
+        if (typeof object[methods[n]] !== 'function')
+          return returnName ? methods[n] : false;
+      }
+      return true;
+    };
+  },
+
+  extend: {
+    ensure: function() {
+      var args = JS.array(arguments), object = args.shift(), face, result;
+      while (face = args.shift()) {
+        result = face.test(object, true);
+        if (result !== true) throw new Error('object does not implement ' + result + '()');
+      }
+    }
+  }
+});
+
+JS.Singleton = new JS.Class('Singleton', {
+  initialize: function(name, parent, methods) {
+    return new (new JS.Class(name, parent, methods));
+  }
+});
+
+JS.extend(exports, JS);
+if (global.JS) JS.extend(global.JS, JS);
+});
+},{"./loader":30,"./stack_trace":32}],27:[function(require,module,exports){
+(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS;
+
+  if (E) exports.JS = exports;
+  factory(js, E ? exports : js);
+
+})(function(JS, exports) {
+'use strict';
+
+var Enumerable = new JS.Module('Enumerable', {
+  extend: {
+    ALL_EQUAL: {},
+
+    forEach: function(block, context) {
+      if (!block) return new Enumerator(this, 'forEach');
+      for (var i = 0; i < this.length; i++)
+        block.call(context, this[i]);
+      return this;
+    },
+
+    isComparable: function(list) {
+      return list.all(function(item) { return typeof item.compareTo === 'function' });
+    },
+
+    areEqual: function(expected, actual) {
+      var result;
+
+      if (expected === actual)
+        return true;
+
+      if (expected && typeof expected.equals === 'function')
+        return expected.equals(actual);
+
+      if (expected instanceof Function)
+        return expected === actual;
+
+      if (expected instanceof Array) {
+        if (!(actual instanceof Array)) return false;
+        for (var i = 0, n = expected.length; i < n; i++) {
+          result = this.areEqual(expected[i], actual[i]);
+          if (result === this.ALL_EQUAL) return true;
+          if (!result) return false;
+        }
+        if (expected.length !== actual.length) return false;
+        return true;
+      }
+
+      if (expected instanceof Date) {
+        if (!(actual instanceof Date)) return false;
+        if (expected.getTime() !== actual.getTime()) return false;
+        return true;
+      }
+
+      if (expected instanceof Object) {
+        if (!(actual instanceof Object)) return false;
+        if (this.objectSize(expected) !== this.objectSize(actual)) return false;
+        for (var key in expected) {
+          if (!this.areEqual(expected[key], actual[key]))
+            return false;
+        }
+        return true;
+      }
+
+      return false;
+    },
+
+    objectKeys: function(object, includeProto) {
+      var keys = [];
+      for (var key in object) {
+        if (object.hasOwnProperty(key) || includeProto !== false)
+          keys.push(key);
+      }
+      return keys;
+    },
+
+    objectSize: function(object) {
+      return this.objectKeys(object).length;
+    },
+
+    Collection: new JS.Class({
+      initialize: function(array) {
+        this.length = 0;
+        if (array) Enumerable.forEach.call(array, this.push, this);
+      },
+
+      push: function(item) {
+        Array.prototype.push.call(this, item);
+      },
+
+      clear: function() {
+        var i = this.length;
+        while (i--) delete this[i];
+        this.length = 0;
+      }
+    })
+  },
+
+  all: function(block, context) {
+    block = Enumerable.toFn(block);
+    var truth = true;
+    this.forEach(function(item) {
+      truth = truth && (block ? block.apply(context, arguments) : item);
+    });
+    return !!truth;
+  },
+
+  any: function(block, context) {
+    block = Enumerable.toFn(block);
+    var truth = false;
+    this.forEach(function(item) {
+      truth = truth || (block ? block.apply(context, arguments) : item);
+    });
+    return !!truth;
+  },
+
+  chunk: function(block, context) {
+    if (!block) return this.enumFor('chunk');
+
+    var result  = [],
+        value   = null,
+        started = false;
+
+    this.forEach(function(item) {
+      var v = block.apply(context, arguments);
+      if (started) {
+        if (Enumerable.areEqual(value, v))
+          result[result.length - 1][1].push(item);
+        else
+          result.push([v, [item]]);
+      } else {
+        result.push([v, [item]]);
+        started = true;
+      }
+      value = v;
+    });
+    return result;
+  },
+
+  count: function(block, context) {
+    if (typeof this.size === 'function') return this.size();
+    var count = 0, object = block;
+
+    if (block && typeof block !== 'function')
+      block = function(x) { return Enumerable.areEqual(x, object) };
+
+    this.forEach(function() {
+      if (!block || block.apply(context, arguments))
+        count += 1;
+    });
+    return count;
+  },
+
+  cycle: function(n, block, context) {
+    if (!block) return this.enumFor('cycle', n);
+    block = Enumerable.toFn(block);
+    while (n--) this.forEach(block, context);
+  },
+
+  drop: function(n) {
+    var entries = [];
+    this.forEachWithIndex(function(item, i) {
+      if (i >= n) entries.push(item);
+    });
+    return entries;
+  },
+
+  dropWhile: function(block, context) {
+    if (!block) return this.enumFor('dropWhile');
+    block = Enumerable.toFn(block);
+
+    var entries = [],
+        drop    = true;
+
+    this.forEach(function(item) {
+      if (drop) drop = drop && block.apply(context, arguments);
+      if (!drop) entries.push(item);
+    });
+    return entries;
+  },
+
+  forEachCons: function(n, block, context) {
+    if (!block) return this.enumFor('forEachCons', n);
+    block = Enumerable.toFn(block);
+
+    var entries = this.toArray(),
+        size    = entries.length,
+        limit   = size - n,
+        i;
+
+    for (i = 0; i <= limit; i++)
+      block.call(context, entries.slice(i, i+n));
+
+    return this;
+  },
+
+  forEachSlice: function(n, block, context) {
+    if (!block) return this.enumFor('forEachSlice', n);
+    block = Enumerable.toFn(block);
+
+    var entries = this.toArray(),
+        size    = entries.length,
+        m       = Math.ceil(size/n),
+        i;
+
+    for (i = 0; i < m; i++)
+      block.call(context, entries.slice(i*n, (i+1)*n));
+
+    return this;
+  },
+
+  forEachWithIndex: function(offset, block, context) {
+    if (typeof offset === 'function') {
+      context = block;
+      block   = offset;
+      offset  = 0;
+    }
+    offset = offset || 0;
+
+    if (!block) return this.enumFor('forEachWithIndex', offset);
+    block = Enumerable.toFn(block);
+
+    return this.forEach(function(item) {
+      var result = block.call(context, item, offset);
+      offset += 1;
+      return result;
+    });
+  },
+
+  forEachWithObject: function(object, block, context) {
+    if (!block) return this.enumFor('forEachWithObject', object);
+    block = Enumerable.toFn(block);
+
+    this.forEach(function() {
+      var args = [object].concat(JS.array(arguments));
+      block.apply(context, args);
+    });
+    return object;
+  },
+
+  find: function(block, context) {
+    if (!block) return this.enumFor('find');
+    block = Enumerable.toFn(block);
+
+    var needle = {}, K = needle;
+    this.forEach(function(item) {
+      if (needle !== K) return;
+      needle = block.apply(context, arguments) ? item : needle;
+    });
+    return needle === K ? null : needle;
+  },
+
+  findIndex: function(needle, context) {
+    if (needle === undefined) return this.enumFor('findIndex');
+
+    var index = null,
+        block = (typeof needle === 'function');
+
+    this.forEachWithIndex(function(item, i) {
+      if (index !== null) return;
+      if (Enumerable.areEqual(needle, item) || (block && needle.apply(context, arguments)))
+        index = i;
+    });
+    return index;
+  },
+
+  first: function(n) {
+    var entries = this.toArray();
+    return (n === undefined) ? entries[0] : entries.slice(0,n);
+  },
+
+  grep: function(pattern, block, context) {
+    block = Enumerable.toFn(block);
+    var results = [];
+    this.forEach(function(item) {
+      var match = (typeof pattern.match === 'function') ? pattern.match(item)
+                : (typeof pattern.test === 'function')  ? pattern.test(item)
+                : JS.isType(item, pattern);
+
+      if (!match) return;
+      if (block) item = block.apply(context, arguments);
+      results.push(item);
+    });
+    return results;
+  },
+
+  groupBy: function(block, context) {
+    if (!block) return this.enumFor('groupBy');
+    block = Enumerable.toFn(block);
+
+    var Hash = ((typeof require === 'function') ? require('./hash') : JS).Hash,
+        hash = new Hash();
+
+    this.forEach(function(item) {
+      var value = block.apply(context, arguments);
+      if (!hash.hasKey(value)) hash.store(value, []);
+      hash.get(value).push(item);
+    });
+    return hash;
+  },
+
+  inject: function(memo, block, context) {
+    var args    = JS.array(arguments),
+        counter = 0,
+        K       = {};
+
+    switch (args.length) {
+      case 1:   memo      = K;
+                block     = args[0];
+                break;
+
+      case 2:   if (typeof memo === 'function') {
+                  memo    = K;
+                  block   = args[0];
+                  context = args[1];
+                }
+    }
+    block = Enumerable.toFn(block);
+
+    this.forEach(function(item) {
+      if (!counter++ && memo === K) return memo = item;
+      var args = [memo].concat(JS.array(arguments));
+      memo = block.apply(context, args);
+    });
+    return memo;
+  },
+
+  map: function(block, context) {
+    if (!block) return this.enumFor('map');
+    block = Enumerable.toFn(block);
+
+    var map = [];
+    this.forEach(function() {
+      map.push(block.apply(context, arguments));
+    });
+    return map;
+  },
+
+  max: function(block, context) {
+    return this.minmax(block, context)[1];
+  },
+
+  maxBy: function(block, context) {
+    if (!block) return this.enumFor('maxBy');
+    return this.minmaxBy(block, context)[1];
+  },
+
+  member: function(needle) {
+    return this.any(function(item) { return Enumerable.areEqual(item, needle) });
+  },
+
+  min: function(block, context) {
+    return this.minmax(block, context)[0];
+  },
+
+  minBy: function(block, context) {
+    if (!block) return this.enumFor('minBy');
+    return this.minmaxBy(block, context)[0];
+  },
+
+  minmax: function(block, context) {
+    var list = this.sort(block, context);
+    return [list[0], list[list.length - 1]];
+  },
+
+  minmaxBy: function(block, context) {
+    if (!block) return this.enumFor('minmaxBy');
+    var list = this.sortBy(block, context);
+    return [list[0], list[list.length - 1]];
+  },
+
+  none: function(block, context) {
+    return !this.any(block, context);
+  },
+
+  one: function(block, context) {
+    block = Enumerable.toFn(block);
+    var count = 0;
+    this.forEach(function(item) {
+      if (block ? block.apply(context, arguments) : item) count += 1;
+    });
+    return count === 1;
+  },
+
+  partition: function(block, context) {
+    if (!block) return this.enumFor('partition');
+    block = Enumerable.toFn(block);
+
+    var ayes = [], noes = [];
+    this.forEach(function(item) {
+      (block.apply(context, arguments) ? ayes : noes).push(item);
+    });
+    return [ayes, noes];
+  },
+
+  reject: function(block, context) {
+    if (!block) return this.enumFor('reject');
+    block = Enumerable.toFn(block);
+
+    var map = [];
+    this.forEach(function(item) {
+      if (!block.apply(context, arguments)) map.push(item);
+    });
+    return map;
+  },
+
+  reverseForEach: function(block, context) {
+    if (!block) return this.enumFor('reverseForEach');
+    block = Enumerable.toFn(block);
+
+    var entries = this.toArray(),
+        n       = entries.length;
+
+    while (n--) block.call(context, entries[n]);
+    return this;
+  },
+
+  select: function(block, context) {
+    if (!block) return this.enumFor('select');
+    block = Enumerable.toFn(block);
+
+    var map = [];
+    this.forEach(function(item) {
+      if (block.apply(context, arguments)) map.push(item);
+    });
+    return map;
+  },
+
+  sort: function(block, context) {
+    var comparable = Enumerable.isComparable(this),
+        entries    = this.toArray();
+
+    block = block || (comparable
+        ? function(a,b) { return a.compareTo(b); }
+        : null);
+    return block
+        ? entries.sort(function(a,b) { return block.call(context, a, b); })
+        : entries.sort();
+  },
+
+  sortBy: function(block, context) {
+    if (!block) return this.enumFor('sortBy');
+    block = Enumerable.toFn(block);
+
+    var util       = Enumerable,
+        map        = new util.Collection(this.map(block, context)),
+        comparable = util.isComparable(map);
+
+    return new util.Collection(map.zip(this).sort(function(a, b) {
+      a = a[0]; b = b[0];
+      return comparable ? a.compareTo(b) : (a < b ? -1 : (a > b ? 1 : 0));
+    })).map(function(item) { return item[1]; });
+  },
+
+  take: function(n) {
+    var entries = [];
+    this.forEachWithIndex(function(item, i) {
+      if (i < n) entries.push(item);
+    });
+    return entries;
+  },
+
+  takeWhile: function(block, context) {
+    if (!block) return this.enumFor('takeWhile');
+    block = Enumerable.toFn(block);
+
+    var entries = [],
+        take    = true;
+    this.forEach(function(item) {
+      if (take) take = take && block.apply(context, arguments);
+      if (take) entries.push(item);
+    });
+    return entries;
+  },
+
+  toArray: function() {
+    return this.drop(0);
+  },
+
+  zip: function() {
+    var util    = Enumerable,
+        args    = [],
+        counter = 0,
+        n       = arguments.length,
+        block, context;
+
+    if (typeof arguments[n-1] === 'function') {
+      block = arguments[n-1]; context = {};
+    }
+    if (typeof arguments[n-2] === 'function') {
+      block = arguments[n-2]; context = arguments[n-1];
+    }
+    util.forEach.call(arguments, function(arg) {
+      if (arg === block || arg === context) return;
+      if (arg.toArray) arg = arg.toArray();
+      if (JS.isType(arg, Array)) args.push(arg);
+    });
+    var results = this.map(function(item) {
+      var zip = [item];
+      util.forEach.call(args, function(arg) {
+        zip.push(arg[counter] === undefined ? null : arg[counter]);
+      });
+      return ++counter && zip;
+    });
+    if (!block) return results;
+    util.forEach.call(results, block, context);
+  }
+});
+
+// http://developer.mozilla.org/en/docs/index.php?title=Core_JavaScript_1.5_Reference:Global_Objects:Array&oldid=58326
+Enumerable.define('forEach', Enumerable.forEach);
+
+Enumerable.alias({
+  collect:    'map',
+  detect:     'find',
+  entries:    'toArray',
+  every:      'all',
+  findAll:    'select',
+  filter:     'select',
+  reduce:     'inject',
+  some:       'any'
+});
+
+Enumerable.extend({
+  toFn: function(object) {
+    if (!object) return object;
+    if (object.toFunction) return object.toFunction();
+    if (this.OPS[object]) return this.OPS[object];
+    if (JS.isType(object, 'string') || JS.isType(object, String))
+    return function() {
+        var args   = JS.array(arguments),
+            target = args.shift(),
+            method = target[object];
+        return (typeof method === 'function') ? method.apply(target, args) : method;
+      };
+    return object;
+  },
+
+  OPS: {
+    '+':    function(a,b) { return a + b },
+    '-':    function(a,b) { return a - b },
+    '*':    function(a,b) { return a * b },
+    '/':    function(a,b) { return a / b },
+    '%':    function(a,b) { return a % b },
+    '^':    function(a,b) { return a ^ b },
+    '&':    function(a,b) { return a & b },
+    '&&':   function(a,b) { return a && b },
+    '|':    function(a,b) { return a | b },
+    '||':   function(a,b) { return a || b },
+    '==':   function(a,b) { return a == b },
+    '!=':   function(a,b) { return a != b },
+    '>':    function(a,b) { return a > b },
+    '>=':   function(a,b) { return a >= b },
+    '<':    function(a,b) { return a < b },
+    '<=':   function(a,b) { return a <= b },
+    '===':  function(a,b) { return a === b },
+    '!==':  function(a,b) { return a !== b },
+    '[]':   function(a,b) { return a[b] },
+    '()':   function(a,b) { return a(b) }
+  },
+
+  Enumerator: new JS.Class({
+    include: Enumerable,
+
+    extend: {
+      DEFAULT_METHOD: 'forEach'
+    },
+
+    initialize: function(object, method, args) {
+      this._object = object;
+      this._method = method || this.klass.DEFAULT_METHOD;
+      this._args   = (args || []).slice();
+    },
+
+    // this is largely here to support testing since I don't want to make the
+    // ivars public
+    equals: function(enumerator) {
+      return JS.isType(enumerator, this.klass) &&
+             this._object === enumerator._object &&
+             this._method === enumerator._method &&
+             Enumerable.areEqual(this._args, enumerator._args);
+          },
+
+          forEach: function(block, context) {
+      if (!block) return this;
+      var args = this._args.slice();
+      args.push(block);
+      if (context) args.push(context);
+      return this._object[this._method].apply(this._object, args);
+    }
+  })
+});
+
+Enumerable.Enumerator.alias({
+  cons:       'forEachCons',
+  reverse:    'reverseForEach',
+  slice:      'forEachSlice',
+  withIndex:  'forEachWithIndex',
+  withObject: 'forEachWithObject'
+});
+
+Enumerable.Collection.include(Enumerable);
+
+JS.Kernel.include({
+  enumFor: function(method) {
+    var args   = JS.array(arguments),
+        method = args.shift();
+    return new Enumerable.Enumerator(this, method, args);
+  }
+}, {_resolve: false});
+
+JS.Kernel.alias({toEnum: 'enumFor'});
+
+exports.Enumerable = Enumerable;
+});
+},{"./core":26,"./hash":28}],28:[function(require,module,exports){
+(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS,
+
+      Enumerable = js.Enumerable || require('./enumerable').Enumerable,
+      Comparable = js.Comparable || require('./comparable').Comparable;
+
+  if (E) exports.JS = exports;
+  factory(js, Enumerable, Comparable, E ? exports : js);
+
+})(function(JS, Enumerable, Comparable, exports) {
+'use strict';
+
+var Hash = new JS.Class('Hash', {
+  include: Enumerable || {},
+
+  extend: {
+    Pair: new JS.Class({
+      include: Comparable || {},
+      length: 2,
+
+      setKey: function(key) {
+        this[0] = this.key = key;
+      },
+
+      hasKey: function(key) {
+        return Enumerable.areEqual(this.key, key);
+      },
+
+      setValue: function(value) {
+        this[1] = this.value = value;
+      },
+
+      hasValue: function(value) {
+        return Enumerable.areEqual(this.value, value);
+      },
+
+      compareTo: function(other) {
+        return this.key.compareTo
+            ? this.key.compareTo(other.key)
+            : (this.key < other.key ? -1 : (this.key > other.key ? 1 : 0));
+      },
+
+      hash: function() {
+        var key   = Hash.codeFor(this.key),
+            value = Hash.codeFor(this.value);
+
+        return [key, value].sort().join('/');
+      }
+    }),
+
+    codeFor: function(object) {
+      if (typeof object !== 'object') return String(object);
+      return (typeof object.hash === 'function')
+          ? object.hash()
+          : object.toString();
+    }
+  },
+
+  initialize: function(object) {
+    this.clear();
+    if (!JS.isType(object, Array)) return this.setDefault(object);
+    for (var i = 0, n = object.length; i < n; i += 2)
+      this.store(object[i], object[i+1]);
+  },
+
+  forEach: function(block, context) {
+    if (!block) return this.enumFor('forEach');
+    block = Enumerable.toFn(block);
+
+    var hash, bucket, i;
+
+    for (hash in this._buckets) {
+      if (!this._buckets.hasOwnProperty(hash)) continue;
+      bucket = this._buckets[hash];
+      i = bucket.length;
+      while (i--) block.call(context, bucket[i]);
+    }
+    return this;
+  },
+
+  _bucketForKey: function(key, createIfAbsent) {
+    var hash   = this.klass.codeFor(key),
+        bucket = this._buckets[hash];
+
+    if (!bucket && createIfAbsent)
+      bucket = this._buckets[hash] = [];
+
+    return bucket;
+  },
+
+  _indexInBucket: function(bucket, key) {
+    var i     = bucket.length,
+        ident = !!this._compareByIdentity;
+
+    while (i--) {
+      if (ident ? (bucket[i].key === key) : bucket[i].hasKey(key))
+        return i;
+    }
+    return -1;
+  },
+
+  assoc: function(key, createIfAbsent) {
+    var bucket, index, pair;
+
+    bucket = this._bucketForKey(key, createIfAbsent);
+    if (!bucket) return null;
+
+    index = this._indexInBucket(bucket, key);
+    if (index > -1) return bucket[index];
+    if (!createIfAbsent) return null;
+
+    this.size += 1; this.length += 1;
+    pair = new this.klass.Pair;
+    pair.setKey(key);
+    bucket.push(pair);
+    return pair;
+  },
+
+  rassoc: function(value) {
+    var key = this.key(value);
+    return key ? this.assoc(key) : null;
+  },
+
+  clear: function() {
+    this._buckets = {};
+    this.length = this.size = 0;
+  },
+
+  compareByIdentity: function() {
+    this._compareByIdentity = true;
+    return this;
+  },
+
+  comparesByIdentity: function() {
+    return !!this._compareByIdentity;
+  },
+
+  setDefault: function(value) {
+    this._default = value;
+    return this;
+  },
+
+  getDefault: function(key) {
+    return (typeof this._default === 'function')
+        ? this._default(this, key)
+        : (this._default || null);
+  },
+
+  equals: function(other) {
+    if (!JS.isType(other, Hash) || this.length !== other.length)
+      return false;
+    var result = true;
+    this.forEach(function(pair) {
+      if (!result) return;
+      var otherPair = other.assoc(pair.key);
+      if (otherPair === null || !otherPair.hasValue(pair.value)) result = false;
+    });
+    return result;
+  },
+
+  hash: function() {
+    var hashes = [];
+    this.forEach(function(pair) { hashes.push(pair.hash()) });
+    return hashes.sort().join('');
+  },
+
+  fetch: function(key, defaultValue, context) {
+    var pair = this.assoc(key);
+    if (pair) return pair.value;
+
+    if (defaultValue === undefined) throw new Error('key not found');
+    if (typeof defaultValue === 'function') return defaultValue.call(context, key);
+    return defaultValue;
+  },
+
+  forEachKey: function(block, context) {
+    if (!block) return this.enumFor('forEachKey');
+    block = Enumerable.toFn(block);
+
+    this.forEach(function(pair) {
+      block.call(context, pair.key);
+    });
+    return this;
+  },
+
+  forEachPair: function(block, context) {
+    if (!block) return this.enumFor('forEachPair');
+    block = Enumerable.toFn(block);
+
+    this.forEach(function(pair) {
+      block.call(context, pair.key, pair.value);
+    });
+    return this;
+  },
+
+  forEachValue: function(block, context) {
+    if (!block) return this.enumFor('forEachValue');
+    block = Enumerable.toFn(block);
+
+    this.forEach(function(pair) {
+      block.call(context, pair.value);
+    });
+    return this;
+  },
+
+  get: function(key) {
+    var pair = this.assoc(key);
+    return pair ? pair.value : this.getDefault(key);
+  },
+
+  hasKey: function(key) {
+    return !!this.assoc(key);
+  },
+
+  hasValue: function(value) {
+    var has = false, ident = !!this._compareByIdentity;
+    this.forEach(function(pair) {
+      if (has) return;
+      if (ident ? value === pair.value : Enumerable.areEqual(value, pair.value))
+        has = true;
+    });
+    return has;
+  },
+
+  invert: function() {
+    var hash = new this.klass;
+    this.forEach(function(pair) {
+      hash.store(pair.value, pair.key);
+    });
+    return hash;
+  },
+
+  isEmpty: function() {
+    for (var hash in this._buckets) {
+      if (this._buckets.hasOwnProperty(hash) && this._buckets[hash].length > 0)
+        return false;
+    }
+    return true;
+  },
+
+  keepIf: function(block, context) {
+    return this.removeIf(function() {
+      return !block.apply(context, arguments);
+    });
+  },
+
+  key: function(value) {
+    var result = null;
+    this.forEach(function(pair) {
+      if (!result && Enumerable.areEqual(value, pair.value))
+        result = pair.key;
+    });
+    return result;
+  },
+
+  keys: function() {
+    var keys = [];
+    this.forEach(function(pair) { keys.push(pair.key) });
+    return keys;
+  },
+
+  merge: function(hash, block, context) {
+    var newHash = new this.klass;
+    newHash.update(this);
+    newHash.update(hash, block, context);
+    return newHash;
+  },
+
+  rehash: function() {
+    var temp = new this.klass;
+    temp._buckets = this._buckets;
+    this.clear();
+    this.update(temp);
+  },
+
+  remove: function(key, block) {
+    if (block === undefined) block = null;
+    var bucket, index, result;
+
+    bucket = this._bucketForKey(key);
+    if (!bucket) return (typeof block === 'function')
+                      ? this.fetch(key, block)
+                      : this.getDefault(key);
+
+    index = this._indexInBucket(bucket, key);
+    if (index < 0) return (typeof block === 'function')
+                        ? this.fetch(key, block)
+                        : this.getDefault(key);
+
+    result = bucket[index].value;
+    this._delete(bucket, index);
+    this.size -= 1;
+    this.length -= 1;
+
+    if (bucket.length === 0)
+      delete this._buckets[this.klass.codeFor(key)];
+
+    return result;
+  },
+
+  _delete: function(bucket, index) {
+    bucket.splice(index, 1);
+  },
+
+  removeIf: function(block, context) {
+    if (!block) return this.enumFor('removeIf');
+    block = Enumerable.toFn(block);
+
+    var toRemove = [];
+
+    this.forEach(function(pair) {
+      if (block.call(context, pair))
+        toRemove.push(pair.key);
+    }, this);
+
+    var i = toRemove.length;
+    while (i--) this.remove(toRemove[i]);
+
+    return this;
+  },
+
+  replace: function(hash) {
+    this.clear();
+    this.update(hash);
+  },
+
+  shift: function() {
+    var keys = this.keys();
+    if (keys.length === 0) return this.getDefault();
+    var pair = this.assoc(keys[0]);
+    this.remove(pair.key);
+    return pair;
+  },
+
+  store: function(key, value) {
+    this.assoc(key, true).setValue(value);
+    return value;
+  },
+
+  toString: function() {
+    return 'Hash:{' + this.map(function(pair) {
+      return pair.key.toString() + '=>' + pair.value.toString();
+    }).join(',') + '}';
+  },
+
+  update: function(hash, block, context) {
+    var givenBlock = (typeof block === 'function');
+    hash.forEach(function(pair) {
+      var key = pair.key, value = pair.value;
+      if (givenBlock && this.hasKey(key))
+        value = block.call(context, key, this.get(key), value);
+      this.store(key, value);
+    }, this);
+  },
+
+  values: function() {
+    var values = [];
+    this.forEach(function(pair) { values.push(pair.value) });
+    return values;
+  },
+
+  valuesAt: function() {
+    var i = arguments.length, results = [];
+    while (i--) results.push(this.get(arguments[i]));
+    return results;
+  }
+});
+
+Hash.alias({
+  includes: 'hasKey',
+  index:    'key',
+  put:      'store'
+});
+
+var OrderedHash = new JS.Class('OrderedHash', Hash, {
+  assoc: function(key, createIfAbsent) {
+    var _super = Hash.prototype.assoc;
+
+    var existing = _super.call(this, key, false);
+    if (existing || !createIfAbsent) return existing;
+
+    var pair = _super.call(this, key, true);
+
+    if (!this._first) {
+      this._first = this._last = pair;
+    } else {
+      this._last._next = pair;
+      pair._prev = this._last;
+      this._last = pair;
+    }
+    return pair;
+  },
+
+  clear: function() {
+    this.callSuper();
+    this._first = this._last = null;
+  },
+
+  _delete: function(bucket, index) {
+    var pair = bucket[index];
+
+    if (pair._prev) pair._prev._next = pair._next;
+    if (pair._next) pair._next._prev = pair._prev;
+
+    if (pair === this._first) this._first = pair._next;
+    if (pair === this._last) this._last = pair._prev;
+
+    return this.callSuper();
+  },
+
+  forEach: function(block, context) {
+    if (!block) return this.enumFor('forEach');
+    block = Enumerable.toFn(block);
+
+    var pair = this._first;
+    while (pair) {
+      block.call(context, pair);
+      pair = pair._next;
+    }
+  },
+
+  rehash: function() {
+    var pair = this._first;
+    this.clear();
+    while (pair) {
+      this.store(pair.key, pair.value);
+      pair = pair._next;
+    }
+  }
+});
+
+exports.Hash = Hash;
+exports.OrderedHash = OrderedHash;
+});
+},{"./comparable":24,"./core":26,"./enumerable":27}],29:[function(require,module,exports){
+(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS,
+
+      Enumerable = js.Enumerable || require('./enumerable').Enumerable;
+
+  if (E) exports.JS = exports;
+  factory(js, Enumerable, E ? exports : js);
+
+})(function(JS, Enumerable, exports) {
+'use strict';
+
+var LinkedList = new JS.Class('LinkedList', {
+  include: Enumerable || {},
+
+  initialize: function(array, useNodes) {
+    this.length = 0;
+    this.first = this.last = null;
+    if (!array) return;
+    for (var i = 0, n = array.length; i < n; i++)
+      this.push( useNodes ? new this.klass.Node(array[i]) : array[i] );
+  },
+
+  forEach: function(block, context) {
+    if (!block) return this.enumFor('forEach');
+    block = Enumerable.toFn(block);
+
+    var node   = this.first,
+        next, i, n;
+
+    for (i = 0, n = this.length; i < n; i++) {
+      next = node.next;
+      block.call(context, node, i);
+      if (node === this.last) break;
+      node = next;
+    }
+    return this;
+  },
+
+  at: function(n) {
+    if (n < 0 || n >= this.length) return undefined;
+    var node = this.first;
+    while (n--) node = node.next;
+    return node;
+  },
+
+  pop: function() {
+    return this.length ? this.remove(this.last) : undefined;
+  },
+
+  shift: function() {
+    return this.length ? this.remove(this.first) : undefined;
+  },
+
+  // stubs - should be implemented by concrete list types
+  insertAfter:  function() {},
+  push:         function() {},
+  remove:       function() {},
+
+  extend: {
+    Node: new JS.Class({
+      initialize: function(data) {
+        this.data = data;
+        this.prev = this.next = this.list = null;
+      }
+    })
+  }
+});
+
+LinkedList.Doubly = new JS.Class('LinkedList.Doubly', LinkedList, {
+  insertAt: function(n, newNode) {
+    if (n < 0 || n >= this.length) return;
+    this.insertBefore(this.at(n), newNode);
+  },
+
+  unshift: function(newNode) {
+    this.length > 0
+        ? this.insertBefore(this.first, newNode)
+        : this.push(newNode);
+  },
+
+  insertBefore: function() {}
+});
+
+LinkedList.insertTemplate = function(prev, next, pos) {
+  return function(node, newNode) {
+    if (node.list !== this) return;
+    newNode[prev] = node;
+    newNode[next] = node[next];
+    node[next] = (node[next][prev] = newNode);
+    if (newNode[prev] === this[pos]) this[pos] = newNode;
+    newNode.list = this;
+    this.length++;
+  };
+};
+
+LinkedList.Doubly.Circular = new JS.Class('LinkedList.Doubly.Circular', LinkedList.Doubly, {
+  insertAfter: LinkedList.insertTemplate('prev', 'next', 'last'),
+  insertBefore: LinkedList.insertTemplate('next', 'prev', 'first'),
+
+  push: function(newNode) {
+    if (this.length)
+      return this.insertAfter(this.last, newNode);
+
+    this.first = this.last =
+        newNode.prev = newNode.next = newNode;
+
+    newNode.list = this;
+    this.length = 1;
+  },
+
+  remove: function(removed) {
+    if (removed.list !== this || this.length === 0) return null;
+    if (this.length > 1) {
+      removed.prev.next = removed.next;
+      removed.next.prev = removed.prev;
+      if (removed === this.first) this.first = removed.next;
+      if (removed === this.last) this.last = removed.prev;
+    } else {
+      this.first = this.last = null;
+    }
+    removed.prev = removed.next = removed.list = null;
+    this.length--;
+    return removed;
+  }
+});
+
+exports.LinkedList = LinkedList;
+});
+},{"./core":26,"./enumerable":27}],30:[function(require,module,exports){
+var process=require("__browserify_process");var JS = (typeof this.JS === 'undefined') ? {} : this.JS;
+JS.Date = Date;
+
+(function(factory) {
+  var $ = (typeof this.global === 'object') ? this.global : this,
+      E = (typeof exports === 'object');
+
+  if (E) {
+    exports.JS = exports;
+    JS = exports;
+  } else {
+    $.JS = JS;
+  }
+  factory($, JS);
+
+})(function(global, exports) {
+'use strict';
+
+var Package = function(loader) {
+  Package._index(this);
+
+  this._loader    = loader;
+  this._names     = new OrderedSet();
+  this._deps      = new OrderedSet();
+  this._uses      = new OrderedSet();
+  this._styles    = new OrderedSet();
+  this._observers = {};
+  this._events    = {};
+};
+
+Package.displayName = 'Package';
+Package.toString = function() { return Package.displayName };
+
+Package.log = function(message) {
+  if (!exports.debug) return;
+  if (typeof window === 'undefined') return;
+  if (typeof global.runtime === 'object') runtime.trace(message);
+  if (global.console && console.info) console.info(message);
+};
+
+var resolve = function(filename) {
+  if (/^https?:/.test(filename)) return filename;
+  var root = exports.ROOT;
+  if (root) filename = (root + '/' + filename).replace(/\/+/g, '/');
+  return filename;
+};
+
+//================================================================
+// Ordered list of unique elements, for storing dependencies
+
+var OrderedSet = function(list) {
+  this._members = this.list = [];
+  this._index = {};
+  if (!list) return;
+
+  for (var i = 0, n = list.length; i < n; i++)
+    this.push(list[i]);
+};
+
+OrderedSet.prototype.push = function(item) {
+  var key   = (item.id !== undefined) ? item.id : item,
+      index = this._index;
+
+  if (index.hasOwnProperty(key)) return;
+  index[key] = this._members.length;
+  this._members.push(item);
+};
+
+//================================================================
+// Wrapper for deferred values
+
+var Deferred = Package.Deferred = function() {
+  this._status    = 'deferred';
+  this._value     = null;
+  this._callbacks = [];
+};
+
+Deferred.prototype.callback = function(callback, context) {
+  if (this._status === 'succeeded') callback.call(context, this._value);
+  else this._callbacks.push([callback, context]);
+};
+
+Deferred.prototype.succeed = function(value) {
+  this._status = 'succeeded';
+  this._value  = value;
+  var callback;
+  while (callback = this._callbacks.shift())
+    callback[0].call(callback[1], value);
+};
+
+//================================================================
+// Environment settings
+
+Package.ENV = exports.ENV = global;
+
+Package.onerror = function(e) { throw e };
+
+Package._throw = function(message) {
+  Package.onerror(new Error(message));
+};
+
+
+//================================================================
+// Configuration methods, called by the DSL
+
+var instance = Package.prototype,
+
+    methods = [['requires', '_deps'],
+               ['uses',     '_uses']],
+
+    i = methods.length;
+
+while (i--)
+  (function(pair) {
+    var method = pair[0], list = pair[1];
+    instance[method] = function() {
+      var n = arguments.length, i;
+      for (i = 0; i < n; i++) this[list].push(arguments[i]);
+      return this;
+    };
+  })(methods[i]);
+
+instance.provides = function() {
+  var n = arguments.length, i;
+  for (i = 0; i < n; i++) {
+    this._names.push(arguments[i]);
+    Package._getFromCache(arguments[i]).pkg = this;
+  }
+  return this;
+};
+
+instance.styling = function() {
+  for (var i = 0, n = arguments.length; i < n; i++)
+    this._styles.push(resolve(arguments[i]));
+};
+
+instance.setup = function(block) {
+  this._onload = block;
+  return this;
+};
+
+//================================================================
+// Event dispatchers, for communication between packages
+
+instance._on = function(eventType, block, context) {
+  if (this._events[eventType]) return block.call(context);
+  var list = this._observers[eventType] = this._observers[eventType] || [];
+  list.push([block, context]);
+  this._load();
+};
+
+instance._fire = function(eventType) {
+  if (this._events[eventType]) return false;
+  this._events[eventType] = true;
+
+  var list = this._observers[eventType];
+  if (!list) return true;
+  delete this._observers[eventType];
+
+  for (var i = 0, n = list.length; i < n; i++)
+    list[i][0].call(list[i][1]);
+
+  return true;
+};
+
+//================================================================
+// Loading frontend and other miscellany
+
+instance._isLoaded = function(withExceptions) {
+  if (!withExceptions && this.__isLoaded !== undefined) return this.__isLoaded;
+
+  var names = this._names.list,
+      i     = names.length,
+      name, object;
+
+  while (i--) { name = names[i];
+    object = Package._getObject(name, this._exports);
+    if (object !== undefined) continue;
+    if (withExceptions)
+      return Package._throw('Expected package at ' + this._loader + ' to define ' + name);
+    else
+      return this.__isLoaded = false;
+  }
+  return this.__isLoaded = true;
+};
+
+instance._load = function() {
+  if (!this._fire('request')) return;
+  if (!this._isLoaded()) this._prefetch();
+
+  var allDeps = this._deps.list.concat(this._uses.list),
+      source  = this._source || [],
+      n       = (this._loader || {}).length,
+      self    = this;
+
+  Package.when({load: allDeps});
+
+  Package.when({complete: this._deps.list}, function() {
+    Package.when({complete: allDeps, load: [this]}, function() {
+      this._fire('complete');
+    }, this);
+
+    var loadNext = function(exports) {
+      if (n === 0) return fireOnLoad(exports);
+      n -= 1;
+      var index = self._loader.length - n - 1;
+      Package.loader.loadFile(self._loader[index], loadNext, source[index]);
+    };
+
+    var fireOnLoad = function(exports) {
+      self._exports = exports;
+      if (self._onload) self._onload();
+      self._isLoaded(true);
+      self._fire('load');
+    };
+
+    if (this._isLoaded()) {
+      this._fire('download');
+      return this._fire('load');
+    }
+
+    if (this._loader === undefined)
+      return Package._throw('No load path found for ' + this._names.list[0]);
+
+    if (typeof this._loader === 'function')
+      this._loader(fireOnLoad);
+    else
+      loadNext();
+
+    if (!Package.loader.loadStyle) return;
+
+    var styles = this._styles.list,
+        i      = styles.length;
+
+    while (i--) Package.loader.loadStyle(styles[i]);
+
+    this._fire('download');
+  }, this);
+};
+
+instance._prefetch = function() {
+  if (this._source || !(this._loader instanceof Array) || !Package.loader.fetch)
+    return;
+
+  this._source = [];
+
+  for (var i = 0, n = this._loader.length; i < n; i++)
+    this._source[i] = Package.loader.fetch(this._loader[i]);
+};
+
+instance.toString = function() {
+  return 'Package:' + this._names.list.join(',');
+};
+
+//================================================================
+// Class-level event API, handles group listeners
+
+Package.when = function(eventTable, block, context) {
+  var eventList = [], objects = {}, event, packages, i;
+  for (event in eventTable) {
+    if (!eventTable.hasOwnProperty(event)) continue;
+    objects[event] = [];
+    packages = new OrderedSet(eventTable[event]);
+    i = packages.list.length;
+    while (i--) eventList.push([event, packages.list[i], i]);
+  }
+
+  var waiting = i = eventList.length;
+  if (waiting === 0) return block && block.call(context, objects);
+
+  while (i--)
+    (function(event) {
+      var pkg = Package._getByName(event[1]);
+      pkg._on(event[0], function() {
+        objects[event[0]][event[2]] = Package._getObject(event[1], pkg._exports);
+        waiting -= 1;
+        if (waiting === 0 && block) block.call(context, objects);
+      });
+    })(eventList[i]);
+};
+
+//================================================================
+// Indexes for fast lookup by path and name, and assigning IDs
+
+var globalPackage = (global.JS || {}).Package || {};
+
+Package._autoIncrement = globalPackage._autoIncrement || 1;
+Package._indexByPath   = globalPackage._indexByPath   || {};
+Package._indexByName   = globalPackage._indexByName   || {};
+Package._autoloaders   = globalPackage._autoloaders   || [];
+
+Package._index = function(pkg) {
+  pkg.id = this._autoIncrement;
+  this._autoIncrement += 1;
+};
+
+Package._getByPath = function(loader) {
+  var path = loader.toString(),
+      pkg  = this._indexByPath[path];
+
+  if (pkg) return pkg;
+
+  if (typeof loader === 'string')
+    loader = [].slice.call(arguments);
+
+  pkg = this._indexByPath[path] = new this(loader);
+  return pkg;
+};
+
+Package._getByName = function(name) {
+  if (typeof name !== 'string') return name;
+  var cached = this._getFromCache(name);
+  if (cached.pkg) return cached.pkg;
+
+  var autoloaded = this._manufacture(name);
+  if (autoloaded) return autoloaded;
+
+  var placeholder = new this();
+  placeholder.provides(name);
+  return placeholder;
+};
+
+Package.remove = function(name) {
+  var pkg = this._getByName(name);
+  delete this._indexByName[name];
+  delete this._indexByPath[pkg._loader];
+};
+
+//================================================================
+// Auotloading API, generates packages from naming patterns
+
+Package._autoload = function(pattern, options) {
+  this._autoloaders.push([pattern, options]);
+};
+
+Package._manufacture = function(name) {
+  var autoloaders = this._autoloaders,
+      n = autoloaders.length,
+      i, j, autoloader, path;
+
+  for (i = 0; i < n; i++) {
+    autoloader = autoloaders[i];
+    if (!autoloader[0].test(name)) continue;
+
+    path = autoloader[1].from;
+    if (typeof path === 'string') path = this._convertNameToPath(path);
+
+    var pkg = new this([path(name)]);
+    pkg.provides(name);
+
+    if (path = autoloader[1].require) {
+      path = [].concat(path);
+      j = path.length;
+      while (j--) pkg.requires(name.replace(autoloader[0], path[j]));
+    }
+
+    return pkg;
+  }
+  return null;
+};
+
+Package._convertNameToPath = function(from) {
+  return function(name) {
+    return from.replace(/\/?$/, '/') +
+           name.replace(/([a-z])([A-Z])/g, function(m,a,b) { return a + '_' + b })
+               .replace(/\./g, '/')
+               .toLowerCase() + '.js';
+  };
+};
+
+//================================================================
+// Cache for named packages and runtime objects
+
+Package._getFromCache = function(name) {
+  return this._indexByName[name] = this._indexByName[name] || {};
+};
+
+Package._getObject = function(name, rootObject) {
+  if (typeof name !== 'string') return undefined;
+
+  var cached = rootObject ? {} : this._getFromCache(name);
+  if (cached.obj !== undefined) return cached.obj;
+
+  var object = rootObject || this.ENV,
+      parts  = name.split('.'), part;
+
+  while (part = parts.shift()) object = object && object[part];
+
+  if (rootObject && object === undefined)
+    return this._getObject(name);
+
+  return cached.obj = object;
+};
+
+Package.CommonJSLoader = {
+  usable: function() {
+    return typeof require === 'function' &&
+           typeof exports === 'object';
+  },
+
+  __FILE__: function() {
+    return this._currentPath;
+  },
+
+  loadFile: function(path, fireCallbacks) {
+    var file, module;
+
+    if (typeof process !== 'undefined') {
+      module = path.replace(/\.[^\.]+$/g, '');
+      file   = require('path').resolve(module);
+    }
+    else if (typeof phantom !== 'undefined') {
+      file = phantom.libraryPath.replace(/\/$/, '') + '/' +
+             path.replace(/^\//, '');
+    }
+
+    this._currentPath = file + '.js';
+    var module = require(file);
+    fireCallbacks(module);
+
+    return module;
+  }
+};
+
+Package.BrowserLoader = {
+  HOST_REGEX: /^(https?\:)?\/\/[^\/]+/i,
+
+  usable: function() {
+    return !!Package._getObject('window.document.getElementsByTagName') &&
+           typeof phantom === 'undefined';
+  },
+
+  __FILE__: function() {
+    var scripts = document.getElementsByTagName('script'),
+        src     = scripts[scripts.length - 1].src,
+        url     = window.location.href;
+
+    if (/^\w+\:\/+/.test(src)) return src;
+    if (/^\//.test(src)) return window.location.origin + src;
+    return url.replace(/[^\/]*$/g, '') + src;
+  },
+
+  cacheBust: function(path) {
+    if (exports.cache !== false) return path;
+    var token = new JS.Date().getTime();
+    return path + (/\?/.test(path) ? '&' : '?') + token;
+  },
+
+  fetch: function(path) {
+    var originalPath = path;
+    path = this.cacheBust(path);
+
+    this.HOST = this.HOST || this.HOST_REGEX.exec(window.location.href);
+    var host = this.HOST_REGEX.exec(path);
+
+    if (!this.HOST || (host && host[0] !== this.HOST[0])) return null;
+    Package.log('[FETCH] ' + path);
+
+    var source = new Package.Deferred(),
+        self   = this,
+        xhr    = window.ActiveXObject
+               ? new ActiveXObject('Microsoft.XMLHTTP')
+               : new XMLHttpRequest();
+
+    xhr.open('GET', path, true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      xhr.onreadystatechange = self._K;
+      source.succeed(xhr.responseText + '\n//@ sourceURL=' + originalPath);
+      xhr = null;
+    };
+    xhr.send(null);
+    return source;
+  },
+
+  loadFile: function(path, fireCallbacks, source) {
+    if (!source) path = this.cacheBust(path);
+
+    var self   = this,
+        head   = document.getElementsByTagName('head')[0],
+        script = document.createElement('script');
+
+    script.type = 'text/javascript';
+
+    if (source)
+      return source.callback(function(code) {
+        Package.log('[EXEC]  ' + path);
+        var execute = new Function('code', 'eval(code)');
+        execute(code);
+        fireCallbacks();
+      });
+
+    Package.log('[LOAD] ' + path);
+    script.src = path;
+
+    script.onload = script.onreadystatechange = function() {
+      var state = script.readyState, status = script.status;
+      if ( !state || state === 'loaded' || state === 'complete' ||
+           (state === 4 && status === 200) ) {
+        fireCallbacks();
+        script.onload = script.onreadystatechange = self._K;
+        head   = null;
+        script = null;
+      }
+    };
+    head.appendChild(script);
+  },
+
+  loadStyle: function(path) {
+    var link  = document.createElement('link');
+    link.rel  = 'stylesheet';
+    link.type = 'text/css';
+    link.href = this.cacheBust(path);
+
+    document.getElementsByTagName('head')[0].appendChild(link);
+  },
+
+  _K: function() {}
+};
+
+Package.RhinoLoader = {
+  usable: function() {
+    return typeof java === 'object' &&
+           typeof require === 'function';
+  },
+
+  __FILE__: function() {
+    return this._currentPath;
+  },
+
+  loadFile: function(path, fireCallbacks) {
+    var cwd    = java.lang.System.getProperty('user.dir'),
+        module = path.replace(/\.[^\.]+$/g, '');
+
+    var requirePath = new java.io.File(cwd, module).toString();
+    this._currentPath = requirePath + '.js';
+    var module = require(requirePath);
+    fireCallbacks(module);
+
+    return module;
+  }
+};
+
+Package.ServerLoader = {
+  usable: function() {
+    return typeof Package._getObject('load') === 'function' &&
+           typeof Package._getObject('version') === 'function';
+  },
+
+  __FILE__: function() {
+    return this._currentPath;
+  },
+
+  loadFile: function(path, fireCallbacks) {
+    this._currentPath = path;
+    load(path);
+    fireCallbacks();
+  }
+};
+
+Package.WshLoader = {
+  usable: function() {
+    return !!Package._getObject('ActiveXObject') &&
+           !!Package._getObject('WScript');
+  },
+
+  __FILE__: function() {
+    return this._currentPath;
+  },
+
+  loadFile: function(path, fireCallbacks) {
+    this._currentPath = path;
+    var fso = new ActiveXObject('Scripting.FileSystemObject'), file, runner;
+    try {
+      file   = fso.OpenTextFile(path);
+      runner = function() { eval(file.ReadAll()) };
+      runner();
+      fireCallbacks();
+    } finally {
+      try { if (file) file.Close() } catch (e) {}
+    }
+  }
+};
+
+Package.XULRunnerLoader = {
+  jsloader:   '@mozilla.org/moz/jssubscript-loader;1',
+  cssservice: '@mozilla.org/content/style-sheet-service;1',
+  ioservice:  '@mozilla.org/network/io-service;1',
+
+  usable: function() {
+    try {
+      var CC = (Components || {}).classes;
+      return !!(CC && CC[this.jsloader] && CC[this.jsloader].getService);
+    } catch(e) {
+      return false;
+    }
+  },
+
+  setup: function() {
+    var Cc = Components.classes, Ci = Components.interfaces;
+    this.ssl = Cc[this.jsloader].getService(Ci.mozIJSSubScriptLoader);
+    this.sss = Cc[this.cssservice].getService(Ci.nsIStyleSheetService);
+    this.ios = Cc[this.ioservice].getService(Ci.nsIIOService);
+  },
+
+  loadFile: function(path, fireCallbacks) {
+    Package.log('[LOAD] ' + path);
+
+    this.ssl.loadSubScript(path);
+    fireCallbacks();
+  },
+
+  loadStyle: function(path) {
+    var uri = this.ios.newURI(path, null, null);
+    this.sss.loadAndRegisterSheet(uri, this.sss.USER_SHEET);
+  }
+};
+
+var candidates = [  Package.XULRunnerLoader,
+                    Package.RhinoLoader,
+                    Package.BrowserLoader,
+                    Package.CommonJSLoader,
+                    Package.ServerLoader,
+                    Package.WshLoader ],
+
+    n = candidates.length,
+    i, candidate;
+
+for (i = 0; i < n; i++) {
+  candidate = candidates[i];
+  if (candidate.usable()) {
+    Package.loader = candidate;
+    if (candidate.setup) candidate.setup();
+    break;
+  }
+}
+
+var DSL = {
+  __FILE__: function() {
+    return Package.loader.__FILE__();
+  },
+
+  pkg: function(name, path) {
+    var pkg = path
+        ? Package._getByPath(path)
+        : Package._getByName(name);
+    pkg.provides(name);
+    return pkg;
+  },
+
+  file: function(filename) {
+    var files = [], i = arguments.length;
+    while (i--) files[i] = resolve(arguments[i]);
+    return Package._getByPath.apply(Package, files);
+  },
+
+  load: function(path, fireCallbacks) {
+    Package.loader.loadFile(path, fireCallbacks);
+  },
+
+  autoload: function(pattern, options) {
+    Package._autoload(pattern, options);
+  }
+};
+
+DSL.files  = DSL.file;
+DSL.loader = DSL.file;
+
+var packages = function(declaration) {
+  declaration.call(DSL);
+};
+
+var parseLoadArgs = function(args) {
+ var files = [], i = 0;
+
+  while (typeof args[i] === 'string'){
+    files.push(args[i]);
+    i += 1;
+  }
+
+  return {files: files, callback: args[i], context: args[i+1]};
+};
+
+exports.load = function(path, callback) {
+  var args = parseLoadArgs(arguments),
+      n    = args.files.length;
+
+  var loadNext = function(index) {
+    if (index === n) return args.callback.call(args.context);
+    Package.loader.loadFile(args.files[index], function() {
+      loadNext(index + 1);
+    });
+  };
+  loadNext(0);
+};
+
+exports.require = function() {
+  var args = parseLoadArgs(arguments);
+
+  Package.when({complete: args.files}, function(objects) {
+    if (!args.callback) return;
+    args.callback.apply(args.context, objects && objects.complete);
+  });
+
+  return this;
+};
+
+exports.Package  = Package;
+exports.Packages = exports.packages = packages;
+exports.DSL      = DSL;
+});
+
+(function() {
+
+var E = (typeof exports === 'object'),
+    P = (E ? exports : JS),
+    Package = P.Package;
+
+P.packages(function() { with(this) {
+
+    // Debugging
+    // JSCLASS_PATH = 'build/min/';
+
+    Package.ENV.JSCLASS_PATH = Package.ENV.JSCLASS_PATH ||
+                               __FILE__().replace(/[^\/]*$/g, '');
+
+    var PATH = Package.ENV.JSCLASS_PATH;
+    if (!/\/$/.test(PATH)) PATH = PATH + '/';
+
+    var module = function(name) { return file(PATH + name + '.js') };
+
+    module('core')          .provides('JS',
+                                      'JS.Module',
+                                      'JS.Class',
+                                      'JS.Method',
+                                      'JS.Kernel',
+                                      'JS.Singleton',
+                                      'JS.Interface');
+
+    var test = 'JS.Test.Unit';
+    module('test')          .provides('JS.Test',
+                                      'JS.Test.Context',
+                                      'JS.Test.Mocking',
+                                      'JS.Test.FakeClock',
+                                      'JS.Test.AsyncSteps',
+                                      'JS.Test.Helpers',
+                                      test,
+                                      test + '.Assertions',
+                                      test + '.TestCase',
+                                      test + '.TestSuite',
+                                      test + '.TestResult')
+                            .requires('JS.Module',
+                                      'JS.Class',
+                                      'JS.Console',
+                                      'JS.DOM',
+                                      'JS.Enumerable',
+                                      'JS.SortedSet',
+                                      'JS.Range',
+                                      'JS.Hash',
+                                      'JS.MethodChain',
+                                      'JS.Comparable',
+                                      'JS.StackTrace')
+                            .styling(PATH + 'assets/testui.css');
+
+    module('dom')           .provides('JS.DOM',
+                                      'JS.DOM.Builder')
+                            .requires('JS.Class');
+
+
+    module('console')       .provides('JS.Console')
+                            .requires('JS.Module',
+                                      'JS.Enumerable');
+
+    module('comparable')    .provides('JS.Comparable')
+                            .requires('JS.Module');
+
+    module('constant_scope').provides('JS.ConstantScope')
+                            .requires('JS.Module');
+
+    module('forwardable')   .provides('JS.Forwardable')
+                            .requires('JS.Module');
+
+    module('enumerable')    .provides('JS.Enumerable')
+                            .requires('JS.Module',
+                                      'JS.Class');
+
+    module('deferrable')    .provides('JS.Deferrable')
+                            .requires('JS.Module');
+
+    module('observable')    .provides('JS.Observable')
+                            .requires('JS.Module');
+
+    module('hash')          .provides('JS.Hash',
+                                      'JS.OrderedHash')
+                            .requires('JS.Class',
+                                      'JS.Enumerable',
+                                      'JS.Comparable');
+
+    module('range')         .provides('JS.Range')
+                            .requires('JS.Class',
+                                      'JS.Enumerable',
+                                      'JS.Hash');
+
+    module('set')           .provides('JS.Set',
+                                      'JS.HashSet',
+                                      'JS.OrderedSet',
+                                      'JS.SortedSet')
+                            .requires('JS.Class',
+                                      'JS.Enumerable',
+                                      'JS.Hash');
+
+    module('linked_list')   .provides('JS.LinkedList',
+                                      'JS.LinkedList.Doubly',
+                                      'JS.LinkedList.Doubly.Circular')
+                            .requires('JS.Class',
+                                      'JS.Enumerable');
+
+    module('command')       .provides('JS.Command',
+                                      'JS.Command.Stack')
+                            .requires('JS.Class',
+                                      'JS.Enumerable',
+                                      'JS.Observable');
+
+    module('decorator')     .provides('JS.Decorator')
+                            .requires('JS.Module',
+                                      'JS.Class');
+
+    module('method_chain')  .provides('JS.MethodChain')
+                            .requires('JS.Module',
+                                      'JS.Kernel');
+
+    module('proxy')         .provides('JS.Proxy',
+                                      'JS.Proxy.Virtual')
+                            .requires('JS.Module',
+                                      'JS.Class');
+
+    module('stack_trace')   .provides('JS.StackTrace')
+                            .requires('JS.Module',
+                                      'JS.Singleton',
+                                      'JS.Observable',
+                                      'JS.Enumerable',
+                                      'JS.Console');
+
+    module('state')         .provides('JS.State')
+                            .requires('JS.Module',
+                                      'JS.Class');
+
+    module('tsort')         .provides('JS.TSort')
+                            .requires('JS.Module')
+                            .requires('JS.Class')
+                            .requires('JS.Hash');
+}});
+
+})();
+},{"__browserify_process":39,"path":40}],31:[function(require,module,exports){
+(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS;
+
+  if (E) exports.JS = exports;
+  factory(js, E ? exports : js);
+
+})(function(JS, exports) {
+'use strict';
+
+var Observable = new JS.Module('Observable', {
+  extend: {
+    DEFAULT_METHOD: 'update'
+  },
+
+  addObserver: function(observer, context) {
+    (this.__observers__ = this.__observers__ || []).push({_block: observer, _context: context});
+  },
+
+  removeObserver: function(observer, context) {
+    this.__observers__ = this.__observers__ || [];
+    context = context;
+    var i = this.countObservers();
+    while (i--) {
+      if (this.__observers__[i]._block === observer && this.__observers__[i]._context === context) {
+        this.__observers__.splice(i,1);
+        return;
+      }
+    }
+  },
+
+  removeObservers: function() {
+    this.__observers__ = [];
+  },
+
+  countObservers: function() {
+    return (this.__observers__ = this.__observers__ || []).length;
+  },
+
+  notifyObservers: function() {
+    if (!this.isChanged()) return;
+    var i = this.countObservers(), observer, block, context;
+    while (i--) {
+      observer = this.__observers__[i];
+      block    = observer._block;
+      context  = observer._context;
+      if (typeof block === 'function') block.apply(context, arguments);
+      else block[context || Observable.DEFAULT_METHOD].apply(block, arguments);
+    }
+  },
+
+  setChanged: function(state) {
+    this.__changed__ = !(state === false);
+  },
+
+  isChanged: function() {
+    if (this.__changed__ === undefined) this.__changed__ = true;
+    return !!this.__changed__;
+  }
+});
+
+Observable.alias({
+  subscribe:    'addObserver',
+  unsubscribe:  'removeObserver'
+}, true);
+
+exports.Observable = Observable;
+});
+},{"./core":26}],32:[function(require,module,exports){
+(function(factory) {
+  var E  = (typeof exports === 'object'),
+      js = (typeof JS === 'undefined') ? require('./core') : JS,
+
+      Observable = js.Observable || require('./observable').Observable,
+      Enumerable = js.Enumerable || require('./enumerable').Enumerable,
+      Console    = js.Console    || require('./console').Console;
+
+  if (E) exports.JS = exports;
+  factory(js, Observable, Enumerable, Console, E ? exports : js);
+
+})(function(JS, Observable, Enumerable, Console, exports) {
+'use strict';
+
+var StackTrace = new JS.Module('StackTrace', {
+  extend: {
+    logger: new JS.Singleton({
+      include: Console,
+      active: false,
+
+      update: function(event, data) {
+        if (!this.active) return;
+        switch (event) {
+          case 'call':    return this.logEnter(data);
+          case 'return':  return this.logExit(data);
+          case 'error':   return this.logError(data);
+        }
+      },
+
+      indent: function() {
+        var indent = ' ';
+        StackTrace.forEach(function() { indent += '|  ' });
+        return indent;
+      },
+
+      fullName: function(frame) {
+        var C        = Console,
+            method   = frame.method,
+            env      = frame.env,
+            name     = method.name,
+            module   = method.module;
+
+        return C.nameOf(env) +
+                (module === env ? '' : '(' + C.nameOf(module) + ')') +
+                '#' + name;
+      },
+
+      logEnter: function(frame) {
+        var fullName = this.fullName(frame),
+            args = Console.convert(frame.args).replace(/^\[/, '(').replace(/\]$/, ')');
+
+        if (this._open) this.puts();
+
+        this.reset();
+        this.print(' ');
+        this.consoleFormat('bgblack', 'white');
+        this.print('TRACE');
+        this.reset();
+        this.print(this.indent());
+        this.blue();
+        this.print(fullName);
+        this.red();
+        this.print(args);
+        this.reset();
+
+        this._open = true;
+      },
+
+      logExit: function(frame) {
+        var fullName = this.fullName(frame);
+
+        if (frame.leaf) {
+          this.consoleFormat('red');
+          this.print(' --> ');
+        } else {
+          this.reset();
+          this.print(' ');
+          this.consoleFormat('bgblack', 'white');
+          this.print('TRACE');
+          this.reset();
+          this.print(this.indent());
+          this.blue();
+          this.print(fullName);
+          this.red();
+          this.print(' --> ');
+        }
+        this.consoleFormat('yellow');
+        this.puts(Console.convert(frame.result));
+        this.reset();
+        this.print('');
+        this._open = false;
+      },
+
+      logError: function(e) {
+        this.puts();
+        this.reset();
+        this.print(' ');
+        this.consoleFormat('bgred', 'white');
+        this.print('ERROR');
+        this.consoleFormat('bold', 'red');
+        this.print(' ' + Console.convert(e));
+        this.reset();
+        this.print(' thrown by ');
+        this.bold();
+        this.print(StackTrace.top().name);
+        this.reset();
+        this.puts('. Backtrace:');
+        this.backtrace();
+      },
+
+      backtrace: function() {
+        StackTrace.reverseForEach(function(frame) {
+          var args = Console.convert(frame.args).replace(/^\[/, '(').replace(/\]$/, ')');
+          this.print('      | ');
+          this.consoleFormat('blue');
+          this.print(frame.name);
+          this.red();
+          this.print(args);
+          this.reset();
+          this.puts(' in ');
+          this.print('      |  ');
+          this.bold();
+          this.puts(Console.convert(frame.object));
+        }, this);
+        this.reset();
+        this.puts();
+      }
+    }),
+
+    include: [Observable, Enumerable],
+
+    wrap: function(func, method, env) {
+      var self = StackTrace;
+      var wrapper = function() {
+        var result;
+        self.push(this, method, env, Array.prototype.slice.call(arguments));
+
+        try { result = func.apply(this, arguments) }
+        catch (e) { self.error(e) }
+
+        self.pop(result);
+        return result;
+      };
+      wrapper.toString = function() { return func.toString() };
+      wrapper.__traced__ = true;
+      return wrapper;
+    },
+
+    stack: [],
+
+    forEach: function(block, context) {
+      Enumerable.forEach.call(this.stack, block, context);
+    },
+
+    top: function() {
+      return this.stack[this.stack.length - 1] || {};
+    },
+
+    push: function(object, method, env, args) {
+      var stack = this.stack;
+      if (stack.length > 0) stack[stack.length - 1].leaf = false;
+
+      var frame = {
+        object: object,
+        method: method,
+        env:    env,
+        args:   args,
+        leaf:   true
+      };
+      frame.name = this.logger.fullName(frame);
+      this.notifyObservers('call', frame);
+      stack.push(frame);
+    },
+
+    pop: function(result) {
+      var frame = this.stack.pop();
+      frame.result = result;
+      this.notifyObservers('return', frame);
+    },
+
+    error: function(e) {
+      if (e.logged) throw e;
+      e.logged = true;
+      this.notifyObservers('error', e);
+      this.stack = [];
+      throw e;
+    }
+  }
+});
+
+StackTrace.addObserver(StackTrace.logger);
+
+exports.StackTrace = StackTrace;
+});
+},{"./console":25,"./core":26,"./enumerable":27,"./observable":31}],33:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":24,"javascript.util":25}],24:[function(require,module,exports){
+},{"./lib/jsts":34,"javascript.util":35}],34:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -6796,7 +11000,7 @@ boundaryCount++;var newLoc=jsts.geomgraph.GeometryGraph.determineBoundary(this.b
 return;if(loc===Location.BOUNDARY&&this.useBoundaryDeterminationRule)
 this.insertBoundaryPoint(argIndex,coord);else
 this.insertPoint(argIndex,coord,loc);};jsts.geomgraph.GeometryGraph.prototype.getInvalidPoint=function(){return this.invalidPoint;};})();
-},{}],25:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 /*
   javascript.util is a port of selected parts of java.util to JavaScript which
   main purpose is to ease porting Java code to JavaScript.
@@ -6856,7 +11060,53 @@ return true;};HashSet.prototype.remove=function(o){throw new OperationNotSupport
 return array;};HashSet.prototype.iterator=function(){return new HashSet.Iterator(this);};HashSet.Iterator=function(hashSet){this.hashSet=hashSet;};HashSet.Iterator.prototype.hashSet=null;HashSet.Iterator.prototype.position=0;HashSet.Iterator.prototype.next=function(){if(this.position===this.hashSet.size()){throw new NoSuchElementException();}
 return this.hashSet.array[this.position++];};HashSet.Iterator.prototype.hasNext=function(){if(this.position<this.hashSet.size()){return true;}
 return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript.util.OperationNotSupported();};javascript.util.HashSet=HashSet;})();
-},{}],26:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
+var process=require("__browserify_process");'use strict'
+
+var print, stdin
+
+try { // node >= 0.3.0
+  print = require('util').puts
+} catch (e) { // node <= 0.3.0
+  print = require('sys').puts
+}
+
+Object.defineProperties(exports, {
+  stdout: {
+    value: process.stdout,
+    enumerable: true
+  },
+  stdin: {
+    get: function() {
+      return stdin || (stdin = process.openStdin())
+    },
+    enumerable: true
+  },
+  stderr: {
+    get: function() {
+      return stdin || (stdin = process.openStdin())
+    },
+    enumerable: true
+  },
+  env: {
+    value: process.env,
+    enumerable: true
+  },
+  args: {
+    value: process.argv,
+    enumerable: true
+  },
+  print: {
+    value: print,
+    enumerable: true
+  },
+  engine: {
+    value: 'node',
+    enumerable: true
+  }
+})
+
+},{"__browserify_process":39,"sys":43,"util":43}],37:[function(require,module,exports){
 //     Underscore.js 1.6.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -8201,7 +12451,7 @@ return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript
   }
 }).call(this);
 
-},{}],27:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -8226,7 +12476,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],28:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -8281,14 +12531,253 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],29:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
+var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// resolves . and .. elements in a path array with directory names there
+// must be no slashes, empty elements, or device names (c:\) in the array
+// (so also no leading and trailing slashes - it does not distinguish
+// relative and absolute paths)
+function normalizeArray(parts, allowAboveRoot) {
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var last = parts[i];
+    if (last === '.') {
+      parts.splice(i, 1);
+    } else if (last === '..') {
+      parts.splice(i, 1);
+      up++;
+    } else if (up) {
+      parts.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (allowAboveRoot) {
+    for (; up--; up) {
+      parts.unshift('..');
+    }
+  }
+
+  return parts;
+}
+
+// Split a filename into [root, dir, basename, ext], unix version
+// 'root' is just a slash, or nothing.
+var splitPathRe =
+    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
+var splitPath = function(filename) {
+  return splitPathRe.exec(filename).slice(1);
+};
+
+// path.resolve([from ...], to)
+// posix version
+exports.resolve = function() {
+  var resolvedPath = '',
+      resolvedAbsolute = false;
+
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments[i] : process.cwd();
+
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
+  }
+
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
+
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+    return !!p;
+  }), !resolvedAbsolute).join('/');
+
+  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
+};
+
+// path.normalize(path)
+// posix version
+exports.normalize = function(path) {
+  var isAbsolute = exports.isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
+
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
+    return !!p;
+  }), !isAbsolute).join('/');
+
+  if (!path && !isAbsolute) {
+    path = '.';
+  }
+  if (path && trailingSlash) {
+    path += '/';
+  }
+
+  return (isAbsolute ? '/' : '') + path;
+};
+
+// posix version
+exports.isAbsolute = function(path) {
+  return path.charAt(0) === '/';
+};
+
+// posix version
+exports.join = function() {
+  var paths = Array.prototype.slice.call(arguments, 0);
+  return exports.normalize(filter(paths, function(p, index) {
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
+  }).join('/'));
+};
+
+
+// path.relative(from, to)
+// posix version
+exports.relative = function(from, to) {
+  from = exports.resolve(from).substr(1);
+  to = exports.resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') break;
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') break;
+    }
+
+    if (start > end) return [];
+    return arr.slice(start, end - start + 1);
+  }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
+};
+
+exports.sep = '/';
+exports.delimiter = ':';
+
+exports.dirname = function(path) {
+  var result = splitPath(path),
+      root = result[0],
+      dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+};
+
+
+exports.basename = function(path, ext) {
+  var f = splitPath(path)[2];
+  // TODO: make this comparison case-insensitive on windows?
+  if (ext && f.substr(-1 * ext.length) === ext) {
+    f = f.substr(0, f.length - ext.length);
+  }
+  return f;
+};
+
+
+exports.extname = function(path) {
+  return splitPath(path)[3];
+};
+
+function filter (xs, f) {
+    if (xs.filter) return xs.filter(f);
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) res.push(xs[i]);
+    }
+    return res;
+}
+
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b'
+    ? function (str, start, len) { return str.substr(start, len) }
+    : function (str, start, len) {
+        if (start < 0) start = str.length + start;
+        return str.substr(start, len);
+    }
+;
+
+},{"__browserify_process":39}],41:[function(require,module,exports){
+exports.isatty = function () { return false; };
+
+function ReadStream() {
+  throw new Error('tty.ReadStream is not implemented');
+}
+exports.ReadStream = ReadStream;
+
+function WriteStream() {
+  throw new Error('tty.ReadStream is not implemented');
+}
+exports.WriteStream = WriteStream;
+
+},{}],42:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],30:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8876,4 +13365,4 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":29,"__browserify_process":28,"inherits":27}]},{},[1])
+},{"./support/isBuffer":42,"__browserify_process":39,"inherits":38}]},{},[1])

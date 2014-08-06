@@ -14,7 +14,8 @@
     "js-combinatorics": "*",
     "jsts": "*",
     "async": "*",
-    "jsclass": "*"
+    "jsclass": "*",
+    "system": "*"
   },
   "devDependencies": {
     "mocha": ">=1.0.0",
