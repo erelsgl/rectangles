@@ -22,7 +22,8 @@
     "should": ">=0.6.0"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "install": "browserify client/main.js -o client/main.bundle.js"
   },
   "keywords": [
     "rectangles",
