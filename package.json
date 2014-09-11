@@ -23,7 +23,7 @@
   },
   "scripts": {
     "test": "mocha",
-    "install": "browserify client/main.js -o client/main.bundle.js"
+    "install": "browserify client/jsts.js -o client/jsts.bundle.js"
   },
   "keywords": [
     "rectangles",

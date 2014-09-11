@@ -1,13 +1,5 @@
-var jsts = require("jsts");
-require("./intersection-cache");
-require("./factory-utils");
+var jsts = require("../../computational-geometry");
 require("./point-utils");
-require("./AxisParallelRectangle");
-require("./SimpleRectilinearPolygon");
-require("./maximum-disjoint-set-sync");
-require("./maximum-disjoint-set-async");
-require("./representative-disjoint-set-sync");
-require("./shapes-touching-points");
 require("./square-with-max-points");
 require("./corners");
 require("./transformations");

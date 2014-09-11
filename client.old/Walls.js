@@ -37,15 +37,6 @@ function wallsFromString(string) {
 	setWallFlag("right", flags[3]=='1');
 }
 
-function envelopeFromWalls() {
-	return {
-		minx: $("#wall-left").is(':checked')? 0: -Infinity,
-		maxx: $("#wall-right").is(':checked')? window.canvas.width: Infinity,
-		miny: $("#wall-top").is(':checked')? 0: -Infinity,
-		maxy: $("#wall-bottom").is(':checked')? window.canvas.height: Infinity
-	};
-}
-
 $(document).ready(function() {
 	setWallStyle("top", $("#wall-top").is(":checked"));
 	setWallStyle("bottom", $("#wall-bottom").is(":checked"));

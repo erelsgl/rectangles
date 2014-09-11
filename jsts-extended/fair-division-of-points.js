@@ -5,12 +5,10 @@
  * @since 2014-04
  */
 
-var jsts = require('jsts');
-require("./factory-utils");
-require("./AxisParallelRectangle");
+var jsts = require('../../computational-geometry');
 require("./square-with-max-points");
 var _ = require("underscore");
-var utils = require('./numeric-utils');
+var utils = require('../../computational-geometry/lib/numeric-utils');
 
 var DEFAULT_ENVELOPE = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,Infinity);
 

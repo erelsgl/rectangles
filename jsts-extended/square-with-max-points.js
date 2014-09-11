@@ -10,10 +10,10 @@
  * http://codereview.stackexchange.com/questions/46531/reducing-code-duplication-in-a-geometric-function
  */
 
-var jsts = require('jsts');
+var jsts = require('../../computational-geometry');
 require("./point-utils");
 var _ = require("underscore");
-var utils = require('./numeric-utils');
+var utils = require('../../computational-geometry/lib/numeric-utils');
 
 /**
  * @param points array of points, e.g. [{x:0,y:0}, {x:100,y:100}, etc.]

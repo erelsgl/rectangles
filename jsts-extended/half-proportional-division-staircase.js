@@ -5,16 +5,12 @@
  * @since 2014-04
  */
 
-var jsts = require('jsts');
-require("./factory-utils");
-require("./AxisParallelRectangle");
+var jsts = require('../../computational-geometry');
 require("./square-with-max-points");
 require("./transformations");
 require("./point-utils");
 require("./corners");
-require("./side");
-
-var numutils = require("./numeric-utils")
+var numutils = require('../../computational-geometry/lib/numeric-utils');
 
 var _ = require("underscore");
 _.mixin(require("argminmax"));

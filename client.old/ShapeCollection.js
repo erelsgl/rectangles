@@ -1,27 +1,17 @@
-/**
- * Defines a collection of JSTS shapes on an SVG paper.
- * @author Erel Segal-Halevi
- * @since 2013-12-28
- */
-
+// A collection of JSTS shapes on an SVG paper
 function ShapeCollection(svgpaper, defaultStyle) {
 	var shapes = [];
 
 	// Add a new shape: 
 	shapes.add = function(shape, style) {
-		if (!style)
-			style = {};
-		if (shape.color) 
-			style.fill = style.stroke = shape.color;
 		for (var i in defaultStyle)
 			if (!style[i])
 				style[i] = defaultStyle[i];
-		
 		var shapeOnPaper;
 		if (shape instanceof jsts.geom.AxisParallelRectangle)	{
 			shapeOnPaper = svgpaper.rect(shape.maxx-shape.minx, shape.maxy-shape.miny);
 			shapeOnPaper.move(shape.minx,shape.miny);
-		} else if (shape.getCoordinates) {
+		} else if (shape instanceof jsts.geom.Polygon) {
 			var coordinates = shape.getCoordinates().map(function(cur) {
 				return cur.x+","+cur.y;
 			}).join(" ");
