@@ -7,6 +7,7 @@
 
 var should = require('should');
 var jsts = require("../jsts-extended");
+//console.dir(jsts.algorithm.transformPoint); process.exit(1)
 
 var alg = jsts.algorithm.halfProportionalDivision; // shorthand
 var halfplane_N    = new jsts.geom.Envelope(-Infinity,Infinity, 0,Infinity);

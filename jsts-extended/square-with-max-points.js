@@ -11,7 +11,6 @@
  */
 
 var jsts = require('../../computational-geometry');
-require("./point-utils");
 var _ = require("underscore");
 var utils = require('../../computational-geometry/lib/numeric-utils');
 

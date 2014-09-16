@@ -5,7 +5,7 @@
  * @since 2014-04
  */
 
-var jsts = require('jsts');
+var jsts = require('../../computational-geometry');
 var _ = require('underscore')
 _.mixin(require("argminmax"));
 

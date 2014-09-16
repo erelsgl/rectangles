@@ -7,10 +7,10 @@
 
 var jsts = require('../../computational-geometry');
 require("./square-with-max-points");
-require("./transformations");
-require("./point-utils");
 require("./corners");
 var numutils = require('../../computational-geometry/lib/numeric-utils');
+
+//console.dir(jsts.algorithm.transformPoint); process.exit(1)
 
 var _ = require("underscore");
 _.mixin(require("argminmax"));
@@ -37,7 +37,7 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 	TRACE(numOfAgents,s+"(k="+k+", y="+round2(y)+"): "+southAgents.length+" south agents ("+_.pluck(southAgents,"color")+") got "+southPlots.length+" plots and "+northAgents.length+" north agents ("+_.pluck(northAgents,"color")+") got "+northPlots.length+" plots.");
 }
 
-var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
+var roundFields3 = Math.roundFields.bind(0, 3);
 var round2 = function(x) { 	return Math.round(x*100)/100; }
 
 var mapOpenSidesStringToSouthernSide = {
