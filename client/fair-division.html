@@ -106,19 +106,13 @@ var drawFairDivision = function() {
 	$(".interrupt").removeAttr("disabled");
 	window.landplots.clear();
 	var maxSlimness = 1;
-	
-	var envelopeTemp = new jsts.geom.Envelope(0, canvas.width, 0, canvas.height);
-	if (!$("#wall-left").is(':checked')) envelopeTemp.minx = -Infinity;
-	if (!$("#wall-right").is(':checked')) envelopeTemp.maxx = Infinity;
-	if (!$("#wall-top").is(':checked')) envelopeTemp.miny = -Infinity;
-	if (!$("#wall-bottom").is(':checked')) envelopeTemp.maxy = Infinity;
 
 	if (!window.points.byColor)
 		throw new Error("window.points is "+JSON.stringify(window.points));
 	var pointsByColor = window.points.byColor;
 	var pointsPerAgent = Object.keys(pointsByColor).map(function(key){return pointsByColor[key]});
 	var fairDivision = window.calcHalfProportionalDivision(
-		pointsPerAgent, envelopeTemp, maxSlimness);
+		pointsPerAgent, envelopeFromWalls(), maxSlimness);
 
 	var newStatus = " ";
 	for (var color in window.points.byColor) {

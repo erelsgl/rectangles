@@ -1,7 +1,154 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 module.exports = require("./lib");
 
-},{"./lib":11}],2:[function(require,module,exports){
+},{"./lib":12}],2:[function(require,module,exports){
+/**
+ * Adds to jsts.algorithm some utility functions related to affine transformations.
+ * 
+ * The following fields are supported: 
+ * - translate[0] (real)  - added to the x value.
+ * - translate[1] (real)  - added to the y value.
+ * - scale      (real)    - multiplies the x and y values after translation.
+ * - rotateRadians        - rotate in positive directions by given number of radians.
+ * - rotateQuarters       - rotate in positive directions by given number of quarters (=90 degrees).
+ * - reflectXaxis  (boolean) - convert y to minus y.
+ * - reflectYaxis  (boolean) - convert x to minus x.
+ * - reflectXY  (boolean) - true to swap x with y after scaling.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+
+/**
+ * Apply a single transformation on a single point.
+ * @param t a transformation-description object with one or more fields from {translate, scale, rotateRadians, rotateQuarters, reflectXaxis, reflectYaxis, reflectXY}
+ * @param point {x:..,y:..}
+ */
+
+
+var jsts = require('jsts');
+
+var transformPoint1 = function(t, point) {
+	if (t.translate) {
+		point.x += t.translate[0];
+		point.y += t.translate[1];
+	}
+	if (t.scale) {
+		point.x *= t.scale;
+		point.y *= t.scale;
+	}
+	if (t.rotateRadians) {  // PROBLEM: rounding errors
+		var sin = Math.sin(t.rotateRadians);
+		var cos = Math.cos(t.rotateRadians);
+		var newX = cos*point.x - sin*point.y;
+		var newY = sin*point.x + cos*point.y;
+		point.x = newX;
+		point.y = newY;
+	}
+	if (t.rotateQuarters) {
+		var q = (t.rotateQuarters+4)%4;
+		var sin = q==1? 1: q==3? -1: 0;
+		var cos = q==0? 1: q==2? -1: 0;
+		var newX = (cos==0? 0: cos*point.x) - (sin==0? 0: sin*point.y);
+		var newY = (sin==0? 0: sin*point.x) + (cos==0? 0: cos*point.y);
+		point.x = newX;
+		point.y = newY;
+	}
+	if (t.reflectXaxis) {
+		point.y = -point.y;
+	}
+	if (t.reflectYaxis) {
+		point.x = -point.x;
+	}
+	if (t.reflectXY) {
+		var z = point.x;
+		point.x = point.y;
+		point.y = z;
+	}
+}
+
+
+/**
+ * Apply an array of transformations on a single point.
+ * @param transformation array with transformation-description objects.
+ * @param the changed point object.
+ */
+jsts.algorithm.transformPoint = function(transformation, point) {
+	if (transformation.forEach)
+		transformation.forEach(function(t) {
+			transformPoint1(t,point);
+		});
+	else
+		transformPoint1(transformation,point);
+	return point;
+};
+
+/**
+ * @return the given point after the application of the given transformations.
+ * @param transformation array with transformation-description objects.
+ * @param point {x,y}
+ * @note the input point is NOT changed.
+ */
+jsts.algorithm.transformedPoint = function(transformation, point) {
+	return jsts.algorithm.transformPoint(transformation, {x:point.x, y:point.y});
+};
+
+/**
+ * Transforms an AxisParallelRectangle using the given transformation.
+ * @param rect of class AxisParallelRectangle
+ * @param transformation an array of transformation-description objects.
+ */
+jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
+	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
+	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
+	rect.minx = Math.min(newMin.x,newMax.x);	rect.miny = Math.min(newMin.y,newMax.y);
+	rect.maxx = Math.max(newMin.x,newMax.x);	rect.maxy = Math.max(newMin.y,newMax.y);
+	return rect;
+};
+
+/**
+ * @return the given rectangle after the application of the given transformations.
+ * @param rect class AxisParallelRectangle
+ * @param transformation an array of transformation-description objects.
+ */
+jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
+	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
+	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
+	return 	rect.factory.createAxisParallelRectangle(newMin.x,newMin.y, newMax.x,newMax.y);
+};
+
+/**
+ * @return a transformation that reverses the effects of the given transformation.
+ */
+var reverseSingleTransformation = function(t) {
+	var r = {};
+	if (t.translate) 
+		r.translate = [-t.translate[0], -t.translate[1]];
+	if (t.scale)
+		r.scale = 1/t.scale;
+	if (t.rotateRadians)
+		r.rotateRadians = -t.rotateRadians;
+	if (t.rotateQuarters)
+		r.rotateQuarters = (4-t.rotateQuarters)%4;
+	if (t.reflectXaxis)
+		r.reflectXaxis = t.reflectXaxis;
+	if (t.reflectYaxis)
+		r.reflectYaxis = t.reflectYaxis;
+	if (t.reflectXY)
+		r.reflectXY = t.reflectXY;
+	return r;
+}
+
+/**
+ * @return an array of transformations that reverses the effects of the given array of transformations.
+ */
+jsts.algorithm.reverseTransformation = function(transformation) {
+	var reverseTransformation = transformation.map(reverseSingleTransformation);
+	reverseTransformation.reverse();
+	return reverseTransformation;
+};
+
+},{"jsts":29}],3:[function(require,module,exports){
 (function() {
 
   /**
@@ -247,7 +394,7 @@ module.exports = require("./lib");
 
 
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 /**
  * Add some extensions to the doubly-linked list of the JSClass library.
  */
@@ -283,7 +430,7 @@ DoublyLinkedList.prototype.isEmpty = function() {
 		return this.length == 0; 
 }
 
-},{"jsclass/src/linked_list":23}],4:[function(require,module,exports){
+},{"jsclass/src/linked_list":25}],5:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -425,7 +572,7 @@ jsts.algorithm.MaximumDisjointSetSolver.prototype.maximumDisjointSetRec = functi
 	); // end of async.whilst
 } // end of function maximumDisjointSetRec
 
-},{"./intersection-cache":12,"./partition-utils":14,"async":16,"js-combinatorics":17,"jsts":27,"underscore":31}],5:[function(require,module,exports){
+},{"./intersection-cache":13,"./partition-utils":15,"async":18,"js-combinatorics":19,"jsts":29,"underscore":33}],6:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint shapes from a given set of candidates.
  * 
@@ -542,7 +689,7 @@ function maximumDisjointSetRec(candidates,stopAtCount) {
 
 
 
-},{"./intersection-cache":12,"./partition-utils":14,"js-combinatorics":17,"jsts":27,"underscore":31}],6:[function(require,module,exports){
+},{"./intersection-cache":13,"./partition-utils":15,"js-combinatorics":19,"jsts":29,"underscore":33}],7:[function(require,module,exports){
 /**
  * Calculate the minimum square covering of a SimpleRectilinearPolygon.
  * Based on Bar-Yehuda, R. and Ben-Hanoch, E. (1996). A linear-time algorithm for covering simple polygons with similar rectangles. International Journal of Computational Geometry & Applications, 6.01:79-102.
@@ -1217,7 +1364,7 @@ jsts.algorithm.minSquareCovering = function(arg, factory) {
 	}
 }
 
-},{"./DoublyLinkedList":3,"./Side":8,"./SimpleRectilinearPolygon":9,"jsclass/src/linked_list":23,"jsts":27}],7:[function(require,module,exports){
+},{"./DoublyLinkedList":4,"./Side":9,"./SimpleRectilinearPolygon":10,"jsclass/src/linked_list":25,"jsts":29}],8:[function(require,module,exports){
 /**
  * Calculate a largest subset of interior-disjoint representative shapes from given sets of candidates.
  * 
@@ -1287,7 +1434,7 @@ function representativeDisjointSetSub(candidateSets) {
 
 
 
-},{"./intersection-cache":12,"./partition-utils":14,"js-combinatorics":17,"jsts":27,"underscore":31}],8:[function(require,module,exports){
+},{"./intersection-cache":13,"./partition-utils":15,"js-combinatorics":19,"jsts":29,"underscore":33}],9:[function(require,module,exports){
 /**
  * Enums related to sides
  */
@@ -1327,7 +1474,7 @@ jsts.turnDirection = function(turn) {
 	return turn>0? 1: -1;
 }
 
-},{"jsts":27}],9:[function(require,module,exports){
+},{"jsts":29}],10:[function(require,module,exports){
 /**
  * The SimpleRectilinearPolygon class represents a hole-free (simply-connected) rectilinear polygon.
  * Contains special data structures for calculating the minimum square covering.
@@ -1415,7 +1562,7 @@ jsts.geom.GeometryFactory.prototype.createSimpleRectilinearPolygon = function(xy
 
 
 
-},{"jsts":27}],10:[function(require,module,exports){
+},{"jsts":29}],11:[function(require,module,exports){
 /**
  * Adds to jsts.geom.GeometryFactory some simple utility functions related to points.
  * @author Erel Segal-Halevi
@@ -1445,8 +1592,9 @@ jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
 	}, this);
 };
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 var jsts = require("jsts");
+require("./AffineTransformations");
 require("./AxisParallelRectangle");
 require("./SimpleRectilinearPolygon");
 require("./Side");
@@ -1456,6 +1604,9 @@ require("./MaxDisjointSetAsync");
 require("./RepresentativeDisjointSetSync");
 
 require("./shapes-touching-points");
+require("./numeric-utils");
+require("./partition-utils");
+require("./point-utils");
 
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
@@ -1467,7 +1618,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AxisParallelRectangle":2,"./MaxDisjointSetAsync":4,"./MaxDisjointSetSync":5,"./MinSquareCovering":6,"./RepresentativeDisjointSetSync":7,"./Side":8,"./SimpleRectilinearPolygon":9,"./shapes-touching-points":15,"jsts":27}],12:[function(require,module,exports){
+},{"./AffineTransformations":2,"./AxisParallelRectangle":3,"./MaxDisjointSetAsync":5,"./MaxDisjointSetSync":6,"./MinSquareCovering":7,"./RepresentativeDisjointSetSync":8,"./Side":9,"./SimpleRectilinearPolygon":10,"./numeric-utils":14,"./partition-utils":15,"./point-utils":16,"./shapes-touching-points":17,"jsts":29}],13:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -1559,13 +1710,39 @@ jsts.algorithm.calcDisjointByCache = function(shapes, referenceShapes) {
 
 
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 /**
  * Some utils for structs of numbers.
  * 
  * @author Erel Segal-Halevi
  * @since 2014-04
  */
+
+
+
+Math.log10 = function(x) {
+	return Math.log(x) / Math.LN10;
+}
+
+// By Pyrolistical: http://stackoverflow.com/a/1581007/827927
+Math.roundToSignificantFigures = function(significantFigures, num) {
+	if(num == 0) return 0;
+	
+	var d = Math.ceil(Math.log10(num < 0 ? -num: num));
+	var power = significantFigures - d;
+	
+	var magnitude = Math.pow(10, power);
+	var shifted = Math.round(num*magnitude);
+	return shifted/magnitude;
+}
+
+Math.roundFields = function(significantFigures, object) {
+	for (var field in object)
+		if (typeof object[field] === 'number')
+			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
+}
+
+
 
 module.exports = {
 	sortedUniqueValues: function(structs, fieldNames) {
@@ -1605,7 +1782,7 @@ module.exports = {
 	},
 }
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 /**
  * Adds to jsts.algorithm some utility functions related to partitioning collections of shapes.
  * 
@@ -1751,7 +1928,69 @@ function partitionDescription(partition) {
 }
 
 
-},{"./numeric-utils":13,"underscore":31}],15:[function(require,module,exports){
+},{"./numeric-utils":14,"underscore":33}],16:[function(require,module,exports){
+/**
+ * Adds to jsts.algorithm some utility functions related to collections of points.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+var _ = require('underscore');
+var jsts = require('jsts');
+
+var TOLERANCE=1.01
+
+jsts.algorithm.isPointInXY = function isPointInXY(point, minx,miny,maxx,maxy) {
+	return minx<=point.x*TOLERANCE && point.x<=maxx*TOLERANCE && 
+	       miny<=point.y*TOLERANCE && point.y<=maxy*TOLERANCE ;
+}
+
+jsts.algorithm.isPointInEnvelope = function (point,envelope) {
+	return jsts.algorithm.isPointInXY(point, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.numPointsInXY = function(points, minx,miny,maxx,maxy) {
+	return points.reduce(function(num,point) {
+		return num + jsts.algorithm.isPointInXY(point, minx,miny,maxx,maxy);
+	}, 0);	
+}
+
+jsts.algorithm.numPointsInEnvelope = function(points, envelope) {
+	return jsts.algorithm.numPointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.pointsInXY = function(points, minx,miny,maxx,maxy) {
+	return points.filter(function(point) {
+		return jsts.algorithm.isPointInXY(point, minx,miny,maxx,maxy)
+	});
+}
+
+jsts.algorithm.pointsInEnvelope = function(points, envelope) {
+	if (!Array.isArray(points))
+		throw new Error("points: expected an array but got "+JSON.stringify(points));
+	return jsts.algorithm.pointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
+}
+
+jsts.algorithm.pointsToString = function(points, color) {
+	var s = "";
+	for (var p=0; p<points.length; ++p) {
+		if (s.length>0)
+			s+=":";
+		s += points[p].x + "," + points[p].y+","+color;
+	}
+	return s;
+}
+
+jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
+	var s = "";
+	agentsValuePoints.forEach(function(points) {
+		s += jsts.algorithm.pointsToString(points, points.color)+":";
+	});
+	return s;
+}
+
+
+},{"jsts":29,"underscore":33}],17:[function(require,module,exports){
 /**
  * Find a set of candidate shapes based on a given set of points.
  * 
@@ -1964,7 +2203,7 @@ function colorByGroupId(shapes) {
 	});
 	return shapes;
 }
-},{"./AxisParallelRectangle":2,"./factory-utils":10,"jsts":27}],16:[function(require,module,exports){
+},{"./AxisParallelRectangle":3,"./factory-utils":11,"jsts":29}],18:[function(require,module,exports){
 var process=require("__browserify_process");/*!
  * async
  * https://github.com/caolan/async
@@ -3089,7 +3328,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":48}],17:[function(require,module,exports){
+},{"__browserify_process":45}],19:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -3441,7 +3680,7 @@ var process=require("__browserify_process");/*!
     });
 })(this);
 
-},{}],18:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS;
@@ -3492,7 +3731,7 @@ var Comparable = new JS.Module('Comparable', {
 
 exports.Comparable = Comparable;
 });
-},{"./core":20}],19:[function(require,module,exports){
+},{"./core":22}],21:[function(require,module,exports){
 var process=require("__browserify_process");(function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS,
@@ -4054,7 +4293,7 @@ Console.extend(Console);
 
 exports.Console = Console;
 });
-},{"./core":20,"./enumerable":21,"__browserify_process":48,"system":30,"tty":50}],20:[function(require,module,exports){
+},{"./core":22,"./enumerable":23,"__browserify_process":45,"system":32,"tty":47}],22:[function(require,module,exports){
 var JS = (typeof this.JS === 'undefined') ? {} : this.JS;
 
 (function(factory) {
@@ -4767,7 +5006,7 @@ JS.Singleton = new JS.Class('Singleton', {
 JS.extend(exports, JS);
 if (global.JS) JS.extend(global.JS, JS);
 });
-},{"./loader":24,"./stack_trace":26}],21:[function(require,module,exports){
+},{"./loader":26,"./stack_trace":28}],23:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS;
@@ -5383,7 +5622,7 @@ JS.Kernel.alias({toEnum: 'enumFor'});
 
 exports.Enumerable = Enumerable;
 });
-},{"./core":20,"./hash":22}],22:[function(require,module,exports){
+},{"./core":22,"./hash":24}],24:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS,
@@ -5819,7 +6058,7 @@ var OrderedHash = new JS.Class('OrderedHash', Hash, {
 exports.Hash = Hash;
 exports.OrderedHash = OrderedHash;
 });
-},{"./comparable":18,"./core":20,"./enumerable":21}],23:[function(require,module,exports){
+},{"./comparable":20,"./core":22,"./enumerable":23}],25:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS,
@@ -5949,7 +6188,7 @@ LinkedList.Doubly.Circular = new JS.Class('LinkedList.Doubly.Circular', LinkedLi
 
 exports.LinkedList = LinkedList;
 });
-},{"./core":20,"./enumerable":21}],24:[function(require,module,exports){
+},{"./core":22,"./enumerable":23}],26:[function(require,module,exports){
 var process=require("__browserify_process");var JS = (typeof this.JS === 'undefined') ? {} : this.JS;
 JS.Date = Date;
 
@@ -6804,7 +7043,7 @@ P.packages(function() { with(this) {
 }});
 
 })();
-},{"__browserify_process":48,"path":49}],25:[function(require,module,exports){
+},{"__browserify_process":45,"path":46}],27:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS;
@@ -6873,7 +7112,7 @@ Observable.alias({
 
 exports.Observable = Observable;
 });
-},{"./core":20}],26:[function(require,module,exports){
+},{"./core":22}],28:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS,
@@ -7068,14 +7307,14 @@ StackTrace.addObserver(StackTrace.logger);
 
 exports.StackTrace = StackTrace;
 });
-},{"./console":19,"./core":20,"./enumerable":21,"./observable":25}],27:[function(require,module,exports){
+},{"./console":21,"./core":22,"./enumerable":23,"./observable":27}],29:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 global.javascript = {};
 global.javascript.util = require('javascript.util');
 var jsts = require('./lib/jsts');
 module.exports = jsts
 
-},{"./lib/jsts":28,"javascript.util":29}],28:[function(require,module,exports){
+},{"./lib/jsts":30,"javascript.util":31}],30:[function(require,module,exports){
 /* The JSTS Topology Suite is a collection of JavaScript classes that
 implement the fundamental operations required to validate a given
 geo-spatial data set to a known topological specification.
@@ -8786,7 +9025,7 @@ return true;if(this.isBoundaryPoint(li,bdyNodes[1]))
 return true;return false;}else{for(var i=bdyNodes.iterator();i.hasNext();){var node=i.next();var pt=node.getCoordinate();if(li.isIntersection(pt))
 return true;}
 return false;}};})();
-},{}],29:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 /*
   javascript.util is a port of selected parts of java.util to JavaScript which
   main purpose is to ease porting Java code to JavaScript.
@@ -8846,7 +9085,7 @@ return true;};HashSet.prototype.remove=function(o){throw new OperationNotSupport
 return array;};HashSet.prototype.iterator=function(){return new HashSet.Iterator(this);};HashSet.Iterator=function(hashSet){this.hashSet=hashSet;};HashSet.Iterator.prototype.hashSet=null;HashSet.Iterator.prototype.position=0;HashSet.Iterator.prototype.next=function(){if(this.position===this.hashSet.size()){throw new NoSuchElementException();}
 return this.hashSet.array[this.position++];};HashSet.Iterator.prototype.hasNext=function(){if(this.position<this.hashSet.size()){return true;}
 return false;};HashSet.Iterator.prototype.remove=function(){throw new javascript.util.OperationNotSupported();};javascript.util.HashSet=HashSet;})();
-},{}],30:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 var process=require("__browserify_process");'use strict'
 
 var print, stdin
@@ -8892,7 +9131,7 @@ Object.defineProperties(exports, {
   }
 })
 
-},{"__browserify_process":48,"sys":52,"util":52}],31:[function(require,module,exports){
+},{"__browserify_process":45,"sys":49,"util":49}],33:[function(require,module,exports){
 //     Underscore.js 1.7.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -10309,7 +10548,7 @@ Object.defineProperties(exports, {
   }
 }.call(this));
 
-},{}],32:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 /**
  * Main Javascript program for MinSquareCovering.html
  */
@@ -10362,7 +10601,7 @@ window.calcHalfProportionalDivision = function(pointsPerAgent, envelopeTemp, max
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":37,"underscore":46}],33:[function(require,module,exports){
+},{"../jsts-extended":39,"underscore":43}],35:[function(require,module,exports){
 var _ = require("underscore");
 
 /**
@@ -10497,7 +10736,7 @@ ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot
 
 module.exports = ValueFunction;
 
-},{"underscore":46}],34:[function(require,module,exports){
+},{"underscore":43}],36:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -10505,7 +10744,7 @@ module.exports = ValueFunction;
  * @since 2014-04
  */
 
-var jsts = require('jsts');
+var jsts = require('../../computational-geometry');
 var _ = require('underscore')
 _.mixin(require("argminmax"));
 
@@ -11061,7 +11300,7 @@ jsts.algorithm.updatedBorder = function(border, landplot) {
 
 
 
-},{"argminmax":41,"jsts":43,"underscore":46}],35:[function(require,module,exports){
+},{"../../computational-geometry":1,"argminmax":41,"underscore":43}],37:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a fair number of points.
  * 
@@ -11170,7 +11409,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":13,"./square-with-max-points":39,"underscore":46}],36:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./square-with-max-points":40,"underscore":43}],38:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -11180,10 +11419,10 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 
 var jsts = require('../../computational-geometry');
 require("./square-with-max-points");
-require("./transformations");
-require("./point-utils");
 require("./corners");
 var numutils = require('../../computational-geometry/lib/numeric-utils');
+
+//console.dir(jsts.algorithm.transformPoint); process.exit(1)
 
 var _ = require("underscore");
 _.mixin(require("argminmax"));
@@ -11210,7 +11449,7 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 	TRACE(numOfAgents,s+"(k="+k+", y="+round2(y)+"): "+southAgents.length+" south agents ("+_.pluck(southAgents,"color")+") got "+southPlots.length+" plots and "+northAgents.length+" north agents ("+_.pluck(northAgents,"color")+") got "+northPlots.length+" plots.");
 }
 
-var roundFields3 = jsts.algorithm.roundFields.bind(0, 3);
+var roundFields3 = Math.roundFields.bind(0, 3);
 var round2 = function(x) { 	return Math.round(x*100)/100; }
 
 var mapOpenSidesStringToSouthernSide = {
@@ -12245,12 +12484,10 @@ jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[2] = (norm2Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[3] = (norm1Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[4] = (norm0Walls);
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":13,"./ValueFunction":33,"./corners":34,"./point-utils":38,"./square-with-max-points":39,"./transformations":40,"argminmax":41,"underscore":46,"util":52}],37:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./ValueFunction":35,"./corners":36,"./square-with-max-points":40,"argminmax":41,"underscore":43,"util":49}],39:[function(require,module,exports){
 var jsts = require("../../computational-geometry");
-require("./point-utils");
 require("./square-with-max-points");
 require("./corners");
-require("./transformations");
 require("./fair-division-of-points");
 require("./half-proportional-division-staircase");
 jsts.stringify = function(object) {
@@ -12263,68 +12500,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"../../computational-geometry":1,"./corners":34,"./fair-division-of-points":35,"./half-proportional-division-staircase":36,"./point-utils":38,"./square-with-max-points":39,"./transformations":40}],38:[function(require,module,exports){
-/**
- * Adds to jsts.algorithm some utility functions related to collections of points.
- * 
- * @author Erel Segal-Halevi
- * @since 2014-04
- */
-var _ = require('underscore');
-
-var TOLERANCE=1.01
-
-jsts.algorithm.isPointInXY = function isPointInXY(point, minx,miny,maxx,maxy) {
-	return minx<=point.x*TOLERANCE && point.x<=maxx*TOLERANCE && 
-	       miny<=point.y*TOLERANCE && point.y<=maxy*TOLERANCE ;
-}
-
-jsts.algorithm.isPointInEnvelope = function (point,envelope) {
-	return jsts.algorithm.isPointInXY(point, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
-}
-
-jsts.algorithm.numPointsInXY = function(points, minx,miny,maxx,maxy) {
-	return points.reduce(function(num,point) {
-		return num + jsts.algorithm.isPointInXY(point, minx,miny,maxx,maxy);
-	}, 0);	
-}
-
-jsts.algorithm.numPointsInEnvelope = function(points, envelope) {
-	return jsts.algorithm.numPointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
-}
-
-jsts.algorithm.pointsInXY = function(points, minx,miny,maxx,maxy) {
-	return points.filter(function(point) {
-		return jsts.algorithm.isPointInXY(point, minx,miny,maxx,maxy)
-	});
-}
-
-jsts.algorithm.pointsInEnvelope = function(points, envelope) {
-	if (!Array.isArray(points))
-		throw new Error("points: expected an array but got "+JSON.stringify(points));
-	return jsts.algorithm.pointsInXY(points, envelope.minx,envelope.miny,envelope.maxx,envelope.maxy);
-}
-
-jsts.algorithm.pointsToString = function(points, color) {
-	var s = "";
-	for (var p=0; p<points.length; ++p) {
-		if (s.length>0)
-			s+=":";
-		s += points[p].x + "," + points[p].y+","+color;
-	}
-	return s;
-}
-
-jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
-	var s = "";
-	agentsValuePoints.forEach(function(points) {
-		s += jsts.algorithm.pointsToString(points, points.color)+":";
-	});
-	return s;
-}
-
-
-},{"underscore":46}],39:[function(require,module,exports){
+},{"../../computational-geometry":1,"./corners":36,"./fair-division-of-points":37,"./half-proportional-division-staircase":38,"./square-with-max-points":40}],40:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -12338,7 +12514,6 @@ jsts.algorithm.agentsValuePointsToString = function(agentsValuePoints) {
  */
 
 var jsts = require('../../computational-geometry');
-require("./point-utils");
 var _ = require("underscore");
 var utils = require('../../computational-geometry/lib/numeric-utils');
 
@@ -12403,157 +12578,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":13,"./point-utils":38,"underscore":46}],40:[function(require,module,exports){
-/**
- * Adds to jsts.algorithm some utility functions related to affine transformations.
- * 
- * The following fields are supported: 
- * - translateX (real) - added to the x value.
- * - translateY (real) - added to the y value.
- * - scale      (real) - multiplies the x and y values after translation.
- * - transpose  (boolean) - true to swap x with y after scaling.
- * 
- * @author Erel Segal-Halevi
- * @since 2014-04
- */
-
-var transformPoint1 = function(t, point) {
-	if (t.translate) {
-		point.x += t.translate[0];
-		point.y += t.translate[1];
-	}
-	if (t.scale) {
-		point.x *= t.scale;
-		point.y *= t.scale;
-	}
-	if (t.rotateRadians) {  // PROBLEM: rounding errors
-		var sin = Math.sin(t.rotateRadians);
-		var cos = Math.cos(t.rotateRadians);
-		var newX = cos*point.x - sin*point.y;
-		var newY = sin*point.x + cos*point.y;
-		point.x = newX;
-		point.y = newY;
-	}
-	if (t.rotateQuarters) {
-		var q = (t.rotateQuarters+4)%4;
-		var sin = q==1? 1: q==3? -1: 0;
-		var cos = q==0? 1: q==2? -1: 0;
-		var newX = (cos==0? 0: cos*point.x) - (sin==0? 0: sin*point.y);
-		var newY = (sin==0? 0: sin*point.x) + (cos==0? 0: cos*point.y);
-		point.x = newX;
-		point.y = newY;
-	}
-	if (t.reflectXaxis) {
-		point.y = -point.y;
-	}
-	if (t.reflectYaxis) {
-		point.x = -point.x;
-	}
-	if (t.reflectXY) {
-		var z = point.x;
-		point.x = point.y;
-		point.y = z;
-	}
-}
-
-
-/**
- * Transforms a point using the given transformation.
- * @param point {x,y}
- * @param transformation array with objects {translate, scale, reflectXaxis, reflectYaxis, reflectXY}
- */
-jsts.algorithm.transformPoint = function(transformation, point) {
-	if (transformation.forEach)
-		transformation.forEach(function(t) {
-			transformPoint1(t,point);
-		});
-	else
-		transformPoint1(transformation,point);
-	return point;
-};
-
-/**
- * Transforms a point using the given transformation.
- * @param point {x,y}
- * @param transformation array with objects {translate, scale, rotateRadians}
- */
-jsts.algorithm.transformedPoint = function(transformation, point) {
-	return jsts.algorithm.transformPoint(transformation, {x:point.x, y:point.y});
-};
-
-/**
- * Transforms an AxisParallelRectangle using the given transformation.
- * @param rect class AxisParallelRectangle
- * @param transformation {translateX, translateY, scale, transpose}
- */
-jsts.algorithm.transformAxisParallelRectangle = function(transformation, rect) {
-	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
-	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
-	rect.minx = Math.min(newMin.x,newMax.x);	rect.miny = Math.min(newMin.y,newMax.y);
-	rect.maxx = Math.max(newMin.x,newMax.x);	rect.maxy = Math.max(newMin.y,newMax.y);
-	return rect;
-};
-
-/**
- * Transforms an AxisParallelRectangle using the given transformation.
- * @param rect class AxisParallelRectangle
- * @param transformation array with objects {translate, scale, rotateRadians}
- */
-jsts.algorithm.transformedAxisParallelRectangle = function(transformation, rect) {
-	var newMin = jsts.algorithm.transformPoint(transformation, {x:rect.minx, y:rect.miny});
-	var newMax = jsts.algorithm.transformPoint(transformation, {x:rect.maxx, y:rect.maxy});
-	return 	rect.factory.createAxisParallelRectangle(newMin.x,newMin.Y, newMax.x,newMax.y);
-};
-
-var reverseSingleTransformation = function(t) {
-	var r = {};
-	if (t.translate) 
-		r.translate = [-t.translate[0], -t.translate[1]];
-	if (t.scale)
-		r.scale = 1/t.scale;
-	if (t.rotateRadians)
-		r.rotateRadians = -t.rotateRadians;
-	if (t.rotateQuarters)
-		r.rotateQuarters = (4-t.rotateQuarters)%4;
-	if (t.reflectXaxis)
-		r.reflectXaxis = t.reflectXaxis;
-	if (t.reflectYaxis)
-		r.reflectYaxis = t.reflectYaxis;
-	if (t.reflectXY)
-		r.reflectXY = t.reflectXY;
-	return r;
-}
-
-jsts.algorithm.reverseTransformation = function(transformation) {
-	var reverseTransformation = transformation.map(reverseSingleTransformation);
-	reverseTransformation.reverse();
-	return reverseTransformation;
-};
-
-
-Math.log10 = function(x) {
-	return Math.log(x) / Math.LN10;
-}
-
-// By Pyrolistical: http://stackoverflow.com/a/1581007/827927
-Math.roundToSignificantFigures = function(significantFigures, num) {
-	if(num == 0) return 0;
-	
-	var d = Math.ceil(Math.log10(num < 0 ? -num: num));
-	var power = significantFigures - d;
-	
-	var magnitude = Math.pow(10, power);
-	var shifted = Math.round(num*magnitude);
-	return shifted/magnitude;
-}
-
-jsts.algorithm.roundFields = function(significantFigures, object) {
-	for (var field in object)
-		if (typeof object[field] === 'number')
-			object[field]=Math.roundToSignificantFigures(significantFigures, object[field]);
-}
-
-},{}],41:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"underscore":43}],41:[function(require,module,exports){
 var _ = require("underscore");
 
   // Internal function: creates a callback bound to its context if supplied
@@ -12629,16 +12654,10 @@ module.exports = {
 
 
 },{"underscore":42}],42:[function(require,module,exports){
-module.exports=require(31)
+module.exports=require(33)
 },{}],43:[function(require,module,exports){
-module.exports=require(27)
-},{"./lib/jsts":44,"javascript.util":45}],44:[function(require,module,exports){
-module.exports=require(28)
-},{}],45:[function(require,module,exports){
-module.exports=require(29)
-},{}],46:[function(require,module,exports){
-module.exports=require(31)
-},{}],47:[function(require,module,exports){
+module.exports=require(33)
+},{}],44:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -12663,7 +12682,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],48:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -12718,7 +12737,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],49:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -12944,7 +12963,7 @@ var substr = 'ab'.substr(-1) === 'b'
     }
 ;
 
-},{"__browserify_process":48}],50:[function(require,module,exports){
+},{"__browserify_process":45}],47:[function(require,module,exports){
 exports.isatty = function () { return false; };
 
 function ReadStream() {
@@ -12957,14 +12976,14 @@ function WriteStream() {
 }
 exports.WriteStream = WriteStream;
 
-},{}],51:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],52:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -13552,4 +13571,4 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":51,"__browserify_process":48,"inherits":47}]},{},[32])
+},{"./support/isBuffer":48,"__browserify_process":45,"inherits":44}]},{},[34])
