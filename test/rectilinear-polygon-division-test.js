@@ -33,6 +33,6 @@ describe('Rectilinear polygon division algorithm', function() {
 
 		var agent2 = [0.5,0.5, 9.5,0.5, 10.5,1.5, 1.5,10.5, 1.6,10.6, 2.5,11.5, 11.5,2.5];
 		testAlgorithm([agent2], [0,0, 10,1, 11,2, 12,3, 13,13, 3,12, 2,11, 1,10],  // 3 overlapping squares
-				3, [{ minx: 6, maxx: 20, miny: 6, maxy: 20 }]);  //... give the north-eastern square
+				3, [{ minx: 1, maxx: 11, miny: 1, maxy: 11}]);  //... give the 2nd covering square
 	})
 });
