@@ -96,33 +96,6 @@ jsts.algorithm.halfProportionalDivision3Walls = function(agentsValuePoints, enve
 	return landplots;
 };
 
-/**
- * Test the given algorithm (jsts.algorithm.halfProportionalDivision4Walls or jsts.algorithm.halfProportionalDivision3Walls)
- * with the given args (array) 
- * and make sure that every agent gets the required num of points.
- */
-jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
-	var landplots = algorithm.apply(0, args);
-	var setsOfPoints = args[0];
-	
-	if (landplots.length<setsOfPoints.length) {
-		setsOfPoints.forEach(function(points) {
-			console.log(jsts.algorithm.pointsToString(points, points.color)+":");
-		});
-		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
-	}
-	setsOfPoints.forEach(function(points) {
-		landplots.forEach(function(landplot) {
-			if (points.color == landplot.color) {
-				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
-				if (pointsInLandplot<requiredNum) {
-					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
-				}
-			}
-		})
-	})
- }
-
 
 
 
@@ -169,6 +142,11 @@ var runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, va
 
 
 
+/** Order the given array of ValueFunction objects by an ascending order of a specific yCut - the yCut with value "yCutValue". */
+var orderValueFunctionsByYcut = function(valueFunctions, yCutValue) {
+	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
+}
+
 
 
 /**
@@ -200,7 +178,7 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	var yCuts_2k = [], yCuts_2k_minus1 = [], yCuts_2k_next = [];
 	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_next[1] = 0;
 	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
-		ValueFunction.orderArrayByYcut(valueFunctions, v);
+		orderValueFunctionsByYcut(valueFunctions, v);
 		if (v&1) { // v is odd -  v = 2k-1
 			var k = (v+1)>>1;
 			yCuts_2k_minus1[k] = valueFunctions[k-1].yCuts[v];
@@ -221,7 +199,7 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 		for (var k=1; k<=numOfAgents-1; ++k) {
 			var y_2k = yCuts_2k[k];           // the k-th 2k line
 			var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
-			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
+			orderValueFunctionsByYcut(valueFunctions, 2*k);
 			if (y_2k <= yLength-0.5) {  // North will be 2-fat; South may be 2-thin.
 				var y = Math.min(y_2k_next, yLength-0.5);
 				var south = {minx:0, maxx:1, miny:0, maxy:y};
@@ -292,7 +270,7 @@ var norm4Walls = function(valueFunctions, yLength, maxAspectRatio) {
 		for (var k=1; k<=numOfAgents-1; ++k) {
 			var y_2k = yCuts_2k[k];           // the k-th 2k line
 			var y_2k_next = yCuts_2k_next[k]; // the k+1-th 2k line
-			ValueFunction.orderArrayByYcut(valueFunctions, 2*k);
+			orderValueFunctionsByYcut(valueFunctions, 2*k);
 			if (y_2k <= yLength-0.5) {  // South is 2-thin (y_2k<y_2k_next<0.5)
 				var y = y_2k_next;
 				var south = {minx:0, maxx:1, miny:0, maxy:y};
@@ -364,7 +342,7 @@ var norm3Walls = function(valueFunctions, yLength, maxAspectRatio) {
 	// HERE: numOfAgents >= 2
 	
 	var k = numOfAgents-1;
-	ValueFunction.orderArrayByYcut(valueFunctions, assumedValue-1);
+	orderValueFunctionsByYcut(valueFunctions, assumedValue-1);
 	var southAgents = valueFunctions.slice(0,k),
 	    northAgent = valueFunctions[k];
 	var y = northAgent.yCuts[assumedValue-1];
@@ -404,7 +382,7 @@ var norm3WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
 	var yCuts_2k = [], yCuts_2k_next = [], yCuts_2k_minus1 = [], yCuts_2k_minus1_next = [];
 	yCuts_2k[0] = yCuts_2k_minus1[0] = yCuts_2k_next[0] = yCuts_2k_minus1_next[0] = 0;
 	for (var v=1; v<=assumedValue; ++v) { // complexity O(n^2 log n)
-		ValueFunction.orderArrayByYcut(valueFunctions, v);
+		orderValueFunctionsByYcut(valueFunctions, v);
 		if (v&1) { // v is odd -  v = 2k-1
 			var k = (v+1)>>1;
 			yCuts_2k_minus1[k] = valueFunctions[k-1].yCuts[v];
@@ -432,7 +410,7 @@ var norm3WallsThin = function(valueFunctions, yLength, maxAspectRatio) {
 			var south = {minx:0, maxx:1, miny:0, maxy:y},
 			    north = {minx:0, maxx:1, miny:y, maxy:yLength};
 			
-			ValueFunction.orderArrayByYcut(valueFunctions, 2*k-1);
+			orderValueFunctionsByYcut(valueFunctions, 2*k-1);
 			var southAgents = valueFunctions.slice(0, k),
 			    northAgents = valueFunctions.slice(k, numOfAgents);
 			TRACE(numOfAgents,"++ Partition to two 3-walls pieces: ["+0+","+round2(y)+"] and ["+round2(y)+","+round2(yLength)+"], k="+k+", "+southAgents.length+" south agents and "+northAgents.length+" north agents.");

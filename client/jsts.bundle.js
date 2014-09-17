@@ -370,9 +370,6 @@ jsts.algorithm.reverseTransformation = function(transformation) {
   
   jsts.geom.AxisParallelRectangle.prototype.CLASS_NAME = 'jsts.geom.AxisParallelRectangle';
 
-  
-
-  function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 
   /**
    * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
@@ -720,7 +717,7 @@ var DoublyLinkedList = LinkedList.Doubly.Circular;
 require('./DoublyLinkedList');
 
 function TRACE(s) {
-	///console.log(s);
+	console.log(s);
 };
 
 
@@ -1197,9 +1194,25 @@ MinSquareCoveringData.prototype.removeErasableRegion = function(knob, knobCount)
 	else if (knobCount==2) {     // a room with a wide opening; remove the "balcony" of the room.
 		var knob1=knob, knob2=knob.next;
 		var knobLength = knob.length(), prevLength = knob1.prev.length(), nextLength = knob2.next.length();
-//		console.log("*** 2 knobs - remove balcony ***");
-//		console.log("knob1="+knob1.toString()+"\nknob2="+knob2.toString()+"\nknob2.next="+knob2.next.toString());
-		if ((prevLength<=nextLength && nextLength<=knobLength) ||    // type #2
+		TRACE("\t2 knobs: remove balcony");
+		TRACE("\t\tknob1="+knob1.toString()+"\n\t\tknob2="+knob2.toString()+"\n\t\tknob2.next="+knob2.next.toString());
+		if ((prevLength==nextLength && nextLength<=knobLength)) {      // type #1
+			var doorWidth = knobLength-prevLength;
+			if (knob1.isVertical()) {
+				knob1.setX(knob1.prev.c0.x);  // also sets knob2.c0.x
+				knob2.setY(knob2.next.c1.y);  // also sets knob1.c1.y
+				knob1.c0.y = knob1.prev.prev.c0.y;
+				knob2.c1.x = knob2.next.next.c1.x;
+			} else {
+				knob1.setY(knob1.prev.c0.y);  // also sets knob2.c0.y
+				knob2.setX(knob2.next.c1.x);  // also sets knob1.c1.x
+				knob1.c0.x = knob1.prev.prev.c0.x;
+				knob2.c1.y = knob2.next.next.c1.y;
+			}
+			this.removeSegments([knob1.prev.prev,knob1.prev], /*removeCornersBeforeSegments=*/true);
+			this.removeSegments([knob2.next,knob2.next.next], /*removeCornersBeforeSegments=*/false);
+			knob = knob2;  // this is a 1-knob continuator
+		} else if ((prevLength<nextLength && nextLength<=knobLength) ||    // type #2
  		    (prevLength<=knobLength && knobLength<=nextLength)) {      // type #1
 			var doorWidth = knobLength-prevLength;
 			if (knob1.isVertical()) {
@@ -1215,10 +1228,9 @@ MinSquareCoveringData.prototype.removeErasableRegion = function(knob, knobCount)
 			}		
 			this.removeSegments([knob1.prev.prev,knob1.prev], /*removeCornersBeforeSegments=*/true);
 			knob = knob2;  // this is a 1-knob continuator
-		} else if (	(nextLength<=prevLength && prevLength<=knobLength) ||  // type #2
+		} else if (	(nextLength<prevLength && prevLength<=knobLength) ||  // type #2
 			        (nextLength<=knobLength && knobLength<=prevLength))  {  // type #1
 			var doorWidth = knobLength-nextLength;
-//			console.log("doorWidth="+doorWidth)
 			if (knob2.isVertical()) {
 				knob2.setX(knob2.next.c1.x);
 				knob2.c0.y = knob2.c1.y - knob2.ySign()*doorWidth;
@@ -1230,12 +1242,12 @@ MinSquareCoveringData.prototype.removeErasableRegion = function(knob, knobCount)
 				knob2.c1.x = knob2.next.next.c1.x;
 				knob1.c0.x = knob1.c1.x; // = knob2.c0.x
 			}
-//			console.log("*** 2 knobs - removeD balcony ***");
-//			console.log("knob1="+knob1.toString()+"\nknob2="+knob2.toString());
-			
 			this.removeSegments([knob2.next,knob2.next.next], /*removeCornersBeforeSegments=*/true);
 			knob = knob1;  // this is a 1-knob continuator
 		} 
+		TRACE("\t2 knobs: removeD balcony");
+		TRACE("\t\tknob1="+knob1.toString()+"\n\t\tknob2="+knob2.toString());
+
 		this.calculateConvexityAndVisibility();
 		this.checkValid();
 	}
@@ -1243,23 +1255,23 @@ MinSquareCoveringData.prototype.removeErasableRegion = function(knob, knobCount)
 	//console.log(this.toString()+"\n");
 
 	var exposedDistance0 = knob.prev.length();
-	if (!exposedDistance0){console.log("knob="+knob.toString());  throw new Error("No exposedDistance0")}
+	if (knobCount==1 && !exposedDistance0) {console.log("knob="+knob.toString());  throw new Error("No exposedDistance at knob.prev")}
 	var exposedDistance1 = knob.next.length();
-	if (!exposedDistance1) {console.log("knob="+knob.toString()); throw new Error("No exposedDistance1")}
+	if (knobCount==1 && !exposedDistance1) {console.log("knob="+knob.toString()); throw new Error("No exposedDistance at knob.next")}
 	var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
 	var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
-	if (!coveredDistance) {console.log("knob="+knob.toString()); throw new Error("No coveredDistance")}
+	if (knobCount==1 && !coveredDistance) {console.log("knob="+knob.toString()); throw new Error("No coveredDistance")}
 	var securityDistance = knob.distanceToNearestBorder() - knob.length();
-	if (!securityDistance) {console.log("knob="+knob.toString()); throw new Error("No securityDistance")}
+	if (knobCount==1 && !securityDistance) {console.log("knob="+knob.toString()); throw new Error("No securityDistance")}
 	var nonExposedDistance = Math.min(coveredDistance,securityDistance);
 	TRACE("nonExposedDistance=min("+coveredDistance+","+securityDistance+")="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
-
-	if (nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
+	
+	if (nonExposedDistance && nonExposedDistance < exposedDistance) { // The knob just moves into the polygon:
 		if (knob.isVertical())
 			knob.c0.x = knob.c1.x = knob.c1.x + knob.signOfPolygonInterior()*nonExposedDistance;
 		else 
 			knob.c0.y = knob.c1.y = knob.c1.y + knob.signOfPolygonInterior()*nonExposedDistance;
-	} else {  // nonExposedDistance >= exposedDistance: some corners should be removed
+	} else if (exposedDistance && exposedDistance <= nonExposedDistance){  // some corners should be removed:
 		if (exposedDistance0<exposedDistance1) {
 			// shorten the next segment:
 			if (knob.isVertical()) 
@@ -1344,15 +1356,11 @@ MinSquareCoveringData.prototype.findMinimalCovering = function() {
  * A shorthand function for directly calculating the minimal square covering of a polygon defined by the given xy values.
  * Useful for testing and demonstrations.
  * 
- * @param arg either one of the following:
- * * An array of alternating x and y values, describing a rectilinear polygon.
- * * A SimpleRectilinearPolygon
+ * @param arg  * * A SimpleRectilinearPolygon
  * @return an array with a minimal square covering of that polygon.
  */
 jsts.algorithm.minSquareCovering = function(arg, factory) {
-	var srp = (Array.isArray(arg)?
-		new jsts.geom.SimpleRectilinearPolygon(arg):
-		arg);
+	var srp = arg;
 	var srpc = new jsts.algorithm.MinSquareCoveringData(srp);
 	var covering = srpc.findMinimalCovering();
 	if (factory) {
@@ -1501,6 +1509,8 @@ var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon = function(xy,
 		throw new Error("xy should be an array but is "+JSON.stringify(xy));
 	if (xy.length==0)
 		throw new Error("xy is empty: "+JSON.stringify(xy));
+	if (!factory)
+		throw new Error("factory is empty");
 
 	var points;
 	var first = xy[0];
@@ -1519,14 +1529,18 @@ var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon = function(xy,
 		point = {x:xy[0], y:xy[1]};	points.push(point);	// last point is identical to first point
 	}
 	
-	jsts.geom.LinearRing.apply(this, [points, factory]);
+	jsts.geom.LinearRing.apply(this, [factory.createCoordinates(points), factory]);
 };
 
 SimpleRectilinearPolygon.prototype = new jsts.geom.LinearRing();
 SimpleRectilinearPolygon.constructor = SimpleRectilinearPolygon;
 
 
-
+SimpleRectilinearPolygon.prototype.getPolygon = function() {
+	if (!this.polygon)
+		this.polygon = this.factory.createPolygon(this);
+	return this.polygon;
+}
 
 /**
  * Creates and returns a full copy of this {@link Polygon} object. (including
@@ -1538,17 +1552,18 @@ SimpleRectilinearPolygon.prototype.clone = function() {
 	return new SimpleRectilinearPolygon(this.points, this.factory);
 };
 
+SimpleRectilinearPolygon.prototype.relate2 = function(g) {
+	return this.getPolygon().relate2(g)
+}
 
 /**
  * @return {String} String representation of Polygon type.
  */
 SimpleRectilinearPolygon.prototype.toString = function() {
-	return 'SimpleRectilinearPolygon with '+this.corners.length+' corners:\n'+this.corners+"\n)";
-	};
+	return 'SimpleRectilinearPolygon with '+this.points.length+' corners:\n'+this.points+"\n)";
+};
  
-	SimpleRectilinearPolygon.prototype.CLASS_NAME = 'SimpleRectilinearPolygon';
-
-function coord(x,y)	{	return new jsts.geom.Coordinate(x,y); }
+SimpleRectilinearPolygon.prototype.CLASS_NAME = 'SimpleRectilinearPolygon';
 
 /**
  * Constructs a <code>Polygon</code> that is an axis-parallel rectangle with the given x and y values.
@@ -1572,23 +1587,38 @@ jsts.geom.GeometryFactory.prototype.createSimpleRectilinearPolygon = function(xy
 function coord(x,y)  {  return new jsts.geom.Coordinate(x,y); }
 
 /**
- * Constructs an array of <code>Coordinate</code>s from a given array of {x,y} points.
+ * Constructs an array of <code>Coordinate</code>s from a given array of {x,y} values.
  */
-jsts.geom.GeometryFactory.prototype.createCoordinates = function(points) {
-	return points.map(function(point) {
+jsts.geom.GeometryFactory.prototype.createCoordinates = function(xy) {
+	return xy.map(function(point) {
 		return coord(point.x, point.y);
 	}, this);
 };
 
+
+var oldCreatePoint = jsts.geom.GeometryFactory.prototype.createPoint;
+
+/**
+ * Constructs a point from x and y values.
+ */
+jsts.geom.GeometryFactory.prototype.createPoint = function(x,y) {
+	if (!isNaN(x) && !isNaN(y))
+		return oldCreatePoint.call(this, coord(x,y));
+	else if (!isNaN(x.x) && !isNaN(x.y))
+		return oldCreatePoint.call(this, coord(x.x, x.y));
+	else if (point instanceof jsts.geom.Coordinate)
+		return oldCreatePoint.call(this, x);
+	else
+		throw new Error("Illegal arguments to createPoint: "+JSON.stringify(x)+", "+JSON.stringify(y))
+};
+
+
 /**
  * Constructs an array of <code>Point</code>s from a given array of {x,y} points.
  */
-jsts.geom.GeometryFactory.prototype.createPoints = function(points) {
-	return points.map(function(point) {
-		return (point instanceof jsts.geom.Coordinate? 
-			this.createPoint(point):
-			this.createPoint(coord(point.x, point.y))
-			);
+jsts.geom.GeometryFactory.prototype.createPoints = function(xy) {
+	return xy.map(function(point) {
+		return 	this.createPoint(point);
 	}, this);
 };
 
@@ -1607,6 +1637,7 @@ require("./shapes-touching-points");
 require("./numeric-utils");
 require("./partition-utils");
 require("./point-utils");
+require("./factory-utils");
 
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
@@ -1618,7 +1649,7 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"./AffineTransformations":2,"./AxisParallelRectangle":3,"./MaxDisjointSetAsync":5,"./MaxDisjointSetSync":6,"./MinSquareCovering":7,"./RepresentativeDisjointSetSync":8,"./Side":9,"./SimpleRectilinearPolygon":10,"./numeric-utils":14,"./partition-utils":15,"./point-utils":16,"./shapes-touching-points":17,"jsts":29}],13:[function(require,module,exports){
+},{"./AffineTransformations":2,"./AxisParallelRectangle":3,"./MaxDisjointSetAsync":5,"./MaxDisjointSetSync":6,"./MinSquareCovering":7,"./RepresentativeDisjointSetSync":8,"./Side":9,"./SimpleRectilinearPolygon":10,"./factory-utils":11,"./numeric-utils":14,"./partition-utils":15,"./point-utils":16,"./shapes-touching-points":17,"jsts":29}],13:[function(require,module,exports){
 /**
  * Create the interiorDisjoint relation, and a cache for keeping previous results of this relation.
  * 
@@ -3328,7 +3359,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":45}],19:[function(require,module,exports){
+},{"__browserify_process":47}],19:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -4293,7 +4324,7 @@ Console.extend(Console);
 
 exports.Console = Console;
 });
-},{"./core":22,"./enumerable":23,"__browserify_process":45,"system":32,"tty":47}],22:[function(require,module,exports){
+},{"./core":22,"./enumerable":23,"__browserify_process":47,"system":32,"tty":49}],22:[function(require,module,exports){
 var JS = (typeof this.JS === 'undefined') ? {} : this.JS;
 
 (function(factory) {
@@ -7043,7 +7074,7 @@ P.packages(function() { with(this) {
 }});
 
 })();
-},{"__browserify_process":45,"path":46}],27:[function(require,module,exports){
+},{"__browserify_process":47,"path":48}],27:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS;
@@ -9131,7 +9162,7 @@ Object.defineProperties(exports, {
   }
 })
 
-},{"__browserify_process":45,"sys":49,"util":49}],33:[function(require,module,exports){
+},{"__browserify_process":47,"sys":51,"util":51}],33:[function(require,module,exports){
 //     Underscore.js 1.7.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -10567,7 +10598,7 @@ window.calcSimpleRectilinearPolygon = function(points) {
 		xy.push(points[i].x)
 		xy.push(points[i].y)
 	}
-	return new jsts.geom.SimpleRectilinearPolygon(xy);
+	return factory.createSimpleRectilinearPolygon(xy);
 }
 
 window.calcMinSquareCovering = function(srp) {
@@ -10601,12 +10632,15 @@ window.calcHalfProportionalDivision = function(pointsPerAgent, envelopeTemp, max
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":39,"underscore":43}],35:[function(require,module,exports){
+},{"../jsts-extended":39,"underscore":45}],35:[function(require,module,exports){
 var _ = require("underscore");
 
 /**
  * Class ValueFunction represents a valuation function of an agent.
  * Defined by a list of points, all of which have the same value.
+ * 
+ * @param points either a list of {x:,y:} records, or a list of alternating x,y values.
+ * 
  * @author Erel Segal-Halevi
  * @since 2014-04
  */
@@ -10615,10 +10649,17 @@ var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 		throw new Error("points: expected an array but got "+JSON.stringify(points));
 	if (!points.length)
 		throw new Error("No points! totalValue="+totalValue);
-	this.setTotalValue(totalValue, points.length, valuePerPoint);
 	this.color = color? color: points.color? points.color: null;
 	this.index = points.index? points.index: null;
+
+	if (!isNaN(points[0])) {  // convert points from a list alternating x-y values to a list of {x:,y:} structures
+		var xy = points;
+		points = [];
+		for (var i=0; i<xy.length; i+=2) 
+			points.push({x:xy[i], y:xy[i+1]});
+	}
 	this.setPoints(points);
+	this.setTotalValue(totalValue, points.length, valuePerPoint);
 };
 
 ValueFunction.prototype.setTotalValue = function(totalValue, numOfPoints, valuePerPoint) {
@@ -10629,12 +10670,17 @@ ValueFunction.prototype.setTotalValue = function(totalValue, numOfPoints, valueP
 	this.pointsPerUnitValue = 1/valuePerPoint;
 }
 
-ValueFunction.prototype.setPoints = function(newPoints) {
-	this.points = newPoints;
+ValueFunction.prototype.setPoints = function(points) {
+	this.points = points;
 	
 	// Don't change the totalValue and the valuePerPoint - they remain as they are 
 	//	even when the points are filtered by an envelope!
-	var yVals = _.pluck(newPoints,"y");
+	
+	this.setYCuts();
+}
+
+ValueFunction.prototype.setYCuts = function() {
+	var yVals = _.pluck(this.points, "y");
 	yVals.sort(function(a,b){return a-b});
 
 	var cuts = [0];
@@ -10648,6 +10694,7 @@ ValueFunction.prototype.setPoints = function(newPoints) {
 	}
 	this.yCuts = cuts;
 }
+
 
 ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
 	return new ValueFunction(this.totalValue, newPoints, this.color, this.valuePerPoint);
@@ -10712,11 +10759,6 @@ ValueFunction.createArray = function(totalValue, arraysOfPoints) {
 	return arraysOfPoints.map(ValueFunction.create.bind(0,totalValue));
 }
 
-/** Order the given array of ValueFunction objects by an ascending order of a specific yCut - the yCut with value "yCutValue". */
-ValueFunction.orderArrayByYcut = function(valueFunctions, yCutValue) {
-	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
-}
-
 /** Order the given array of ValueFunction objects by an ascending order of the value they assign to a specific landplot */
 /** WARNING: Not thread-safe! */
 ValueFunction.orderArrayByLandplotValue = function(valueFunctions, landplot) {
@@ -10736,7 +10778,7 @@ ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot
 
 module.exports = ValueFunction;
 
-},{"underscore":43}],36:[function(require,module,exports){
+},{"underscore":45}],36:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -11300,7 +11342,7 @@ jsts.algorithm.updatedBorder = function(border, landplot) {
 
 
 
-},{"../../computational-geometry":1,"argminmax":41,"underscore":43}],37:[function(require,module,exports){
+},{"../../computational-geometry":1,"argminmax":43,"underscore":45}],37:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a fair number of points.
  * 
@@ -11409,7 +11451,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./square-with-max-points":40,"underscore":43}],38:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./square-with-max-points":41,"underscore":45}],38:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -11584,31 +11626,6 @@ jsts.algorithm.halfProportionalDivision0Walls = function(agentsValuePoints, enve
 			norm0Walls, southernSide,
 			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
 };
-
-/**
- * Test the given algorithm (jsts.algorithm.halfProportionalDivision4Walls or jsts.algorithm.halfProportionalDivision3Walls)
- * with the given args (array) 
- * and make sure that every agent gets the required num of points.
- */
-jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
-	var landplots = algorithm.apply(0, args);
-	var agentsValuePoints = args[0];
-	
-	if (landplots.length<agentsValuePoints.length) {
-		console.error(jsts.algorithm.agentsValuePointsToString(agentsValuePoints));
-		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
-	}
-	agentsValuePoints.forEach(function(points) {
-		landplots.forEach(function(landplot) {
-			if (points.color == landplot.color) {
-				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
-				if (pointsInLandplot<requiredNum) {
-					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
-				}
-			}
-		})
-	})
- }
 
 
 
@@ -12484,12 +12501,14 @@ jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[2] = (norm2Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[3] = (norm1Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[4] = (norm0Walls);
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./ValueFunction":35,"./corners":36,"./square-with-max-points":40,"argminmax":41,"underscore":43,"util":49}],39:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./ValueFunction":35,"./corners":36,"./square-with-max-points":41,"argminmax":43,"underscore":45,"util":51}],39:[function(require,module,exports){
 var jsts = require("../../computational-geometry");
 require("./square-with-max-points");
 require("./corners");
 require("./fair-division-of-points");
 require("./half-proportional-division-staircase");
+require("./rectilinear-polygon-division");
+require("./test-division-algorithm")
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
 		return object.map(function(cur) {
@@ -12500,7 +12519,60 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"../../computational-geometry":1,"./corners":36,"./fair-division-of-points":37,"./half-proportional-division-staircase":38,"./square-with-max-points":40}],40:[function(require,module,exports){
+},{"../../computational-geometry":1,"./corners":36,"./fair-division-of-points":37,"./half-proportional-division-staircase":38,"./rectilinear-polygon-division":40,"./square-with-max-points":41,"./test-division-algorithm":42}],40:[function(require,module,exports){
+/**
+ * Fairly cut a SimpleRectilinearPolygon such that each agent receives a square.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-09
+ */
+
+var jsts = require("../../computational-geometry");
+var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon;
+var ValueFunction = require("./ValueFunction");
+var _ = require("underscore");
+
+
+/**
+ * @param agentsValuePoints an array of n>=1 or more valuation functions, represented by value points (x,y).
+ * @param cake a SimpleRectilinearPolygon representing the cake to divide.
+ * @return an array of n squares (minx,maxx,miny,maxy) representing the shares of the n agents.
+ */
+jsts.algorithm.rectilinearPolygonDivision = function(valueFunctions, cake) {
+	var numOfAgents = valueFunctions.length;
+	//TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" using a 4-walls staircase algorithm with border: "+JSON.stringify(border));
+	var covering = jsts.algorithm.minSquareCovering(cake);
+	
+	if (numOfAgents==1) {
+		var theAgent = valueFunctions[0];
+		var bestSquare = _.max(covering, function(square){
+			return theAgent.valueOf(square);
+		})
+		return [bestSquare];
+	} else {
+		return covering
+	}
+}
+
+
+
+////////// TEST
+
+var valuePerAgent= 1;
+var factory = new jsts.geom.GeometryFactory();
+var makePolygon = factory.createSimpleRectilinearPolygon.bind(factory);
+var makeValuations = function(points,color) {
+	return ValueFunction.create(valuePerAgent,points,color);
+}
+var divide = jsts.algorithm.rectilinearPolygonDivision;
+
+var cake =      makePolygon([0,0, 10,10, 20,20]); // simple L-shape
+var agent1 = makeValuations([5,5, 5,15, 6,16, 7,17, 15,15],'blue');
+
+console.dir(divide([agent1], cake));
+
+
+},{"../../computational-geometry":1,"./ValueFunction":35,"underscore":45}],41:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -12578,7 +12650,57 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"underscore":43}],41:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"underscore":45}],42:[function(require,module,exports){
+/**
+ * Divide a cake such that each color gets a square with 1/2n of its points.
+ * 
+ * @author Erel Segal-Halevi
+ * @since 2014-04
+ */
+
+var jsts = require('../../computational-geometry');
+var ValueFunction = require("./ValueFunction");
+
+var _ = require("underscore");
+_.mixin(require("argminmax"));
+
+var util = require("util");
+var ValueFunction = require("./ValueFunction");
+
+/**
+ * Test the given algorithm with the given args (array) and make sure that every agent gets the required num of points.
+ * 
+ * @param algorithm a cake-cutting algorithm.
+ * @param args [array] the arguments with which to call the algorithm. The first argument must be the agentsValuePoints.
+ * @param requiredNum [int] number of points that should be in the landplot of every agent.
+ * 
+ * @return the landplots (the result of the division algorithm)
+ */
+jsts.algorithm.testDivisionAlgorithm = function(algorithm, args, requiredNum)  {
+	var landplots = algorithm.apply(0, args);
+	var agentsValuePoints = args[0];
+	
+	if (landplots.length<agentsValuePoints.length) {
+		console.error(jsts.algorithm.agentsValuePointsToString(agentsValuePoints));
+		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
+	}
+	agentsValuePoints.forEach(function(points) {
+		if (points instanceof ValueFunction)
+			points = points.points;
+		landplots.forEach(function(landplot) {
+			if (points.color == landplot.color) {
+				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
+				if (pointsInLandplot<requiredNum) {
+					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
+				}
+			}
+		})
+	})
+	return landplots;
+ }
+
+
+},{"../../computational-geometry":1,"./ValueFunction":35,"argminmax":43,"underscore":45,"util":51}],43:[function(require,module,exports){
 var _ = require("underscore");
 
   // Internal function: creates a callback bound to its context if supplied
@@ -12653,11 +12775,11 @@ module.exports = {
 
 
 
-},{"underscore":42}],42:[function(require,module,exports){
+},{"underscore":44}],44:[function(require,module,exports){
 module.exports=require(33)
-},{}],43:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 module.exports=require(33)
-},{}],44:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -12682,7 +12804,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],45:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -12737,7 +12859,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],46:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -12963,7 +13085,7 @@ var substr = 'ab'.substr(-1) === 'b'
     }
 ;
 
-},{"__browserify_process":45}],47:[function(require,module,exports){
+},{"__browserify_process":47}],49:[function(require,module,exports){
 exports.isatty = function () { return false; };
 
 function ReadStream() {
@@ -12976,14 +13098,14 @@ function WriteStream() {
 }
 exports.WriteStream = WriteStream;
 
-},{}],48:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],49:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -13571,4 +13693,4 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":48,"__browserify_process":45,"inherits":44}]},{},[34])
+},{"./support/isBuffer":50,"__browserify_process":47,"inherits":46}]},{},[34])

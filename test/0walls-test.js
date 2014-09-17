@@ -13,7 +13,7 @@ var alg = jsts.algorithm.halfProportionalDivision; // shorthand
 var halfplane_N    = new jsts.geom.Envelope(-Infinity,Infinity, 0,Infinity);
 var halfplane_S    = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,400);
 
-var testAlgorithm = jsts.algorithm.testAlgorithm;
+var testAlgorithm = jsts.algorithm.testDivisionAlgorithm;
 var alg0walls = jsts.algorithm.halfProportionalDivision0Walls; // shorthand
 
 describe('0 walls algorithm', function() {

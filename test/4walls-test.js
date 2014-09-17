@@ -9,7 +9,7 @@ var should = require('should');
 var jsts = require("../jsts-extended");
 
 var alg = jsts.algorithm.halfProportionalDivision; // shorthand
-var testAlgorithm = jsts.algorithm.testAlgorithm;
+var testAlgorithm = jsts.algorithm.testDivisionAlgorithm;
 var alg4walls = jsts.algorithm.halfProportionalDivision3Walls; // shorthand
 var square    = new jsts.geom.Envelope(0,400, 0,400);
 

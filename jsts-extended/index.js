@@ -3,6 +3,8 @@ require("./square-with-max-points");
 require("./corners");
 require("./fair-division-of-points");
 require("./half-proportional-division-staircase");
+require("./rectilinear-polygon-division");
+require("./test-division-algorithm")
 jsts.stringify = function(object) {
 	if (object instanceof Array) {
 		return object.map(function(cur) {

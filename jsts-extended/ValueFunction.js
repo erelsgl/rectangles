@@ -3,6 +3,9 @@ var _ = require("underscore");
 /**
  * Class ValueFunction represents a valuation function of an agent.
  * Defined by a list of points, all of which have the same value.
+ * 
+ * @param points either a list of {x:,y:} records, or a list of alternating x,y values.
+ * 
  * @author Erel Segal-Halevi
  * @since 2014-04
  */
@@ -11,10 +14,17 @@ var ValueFunction = function(totalValue, points, color, valuePerPoint) {
 		throw new Error("points: expected an array but got "+JSON.stringify(points));
 	if (!points.length)
 		throw new Error("No points! totalValue="+totalValue);
-	this.setTotalValue(totalValue, points.length, valuePerPoint);
 	this.color = color? color: points.color? points.color: null;
 	this.index = points.index? points.index: null;
+
+	if (!isNaN(points[0])) {  // convert points from a list alternating x-y values to a list of {x:,y:} structures
+		var xy = points;
+		points = [];
+		for (var i=0; i<xy.length; i+=2) 
+			points.push({x:xy[i], y:xy[i+1]});
+	}
 	this.setPoints(points);
+	this.setTotalValue(totalValue, points.length, valuePerPoint);
 };
 
 ValueFunction.prototype.setTotalValue = function(totalValue, numOfPoints, valuePerPoint) {
@@ -25,12 +35,17 @@ ValueFunction.prototype.setTotalValue = function(totalValue, numOfPoints, valueP
 	this.pointsPerUnitValue = 1/valuePerPoint;
 }
 
-ValueFunction.prototype.setPoints = function(newPoints) {
-	this.points = newPoints;
+ValueFunction.prototype.setPoints = function(points) {
+	this.points = points;
 	
 	// Don't change the totalValue and the valuePerPoint - they remain as they are 
 	//	even when the points are filtered by an envelope!
-	var yVals = _.pluck(newPoints,"y");
+	
+	this.setYCuts();
+}
+
+ValueFunction.prototype.setYCuts = function() {
+	var yVals = _.pluck(this.points, "y");
 	yVals.sort(function(a,b){return a-b});
 
 	var cuts = [0];
@@ -44,6 +59,7 @@ ValueFunction.prototype.setPoints = function(newPoints) {
 	}
 	this.yCuts = cuts;
 }
+
 
 ValueFunction.prototype.cloneWithNewPoints = function(newPoints) {
 	return new ValueFunction(this.totalValue, newPoints, this.color, this.valuePerPoint);
@@ -106,11 +122,6 @@ ValueFunction.create = function(totalValue, points) {
 /** @return an array of ValueFunction objects based on the given total value (same for all objects) and the lists of points. */
 ValueFunction.createArray = function(totalValue, arraysOfPoints) {
 	return arraysOfPoints.map(ValueFunction.create.bind(0,totalValue));
-}
-
-/** Order the given array of ValueFunction objects by an ascending order of a specific yCut - the yCut with value "yCutValue". */
-ValueFunction.orderArrayByYcut = function(valueFunctions, yCutValue) {
-	valueFunctions.sort(function(a,b){return a.yCuts[yCutValue]-b.yCuts[yCutValue]}); // order the valueFunctions by their v-line. complexity O(n log n)
 }
 
 /** Order the given array of ValueFunction objects by an ascending order of the value they assign to a specific landplot */

@@ -16,7 +16,7 @@ window.calcSimpleRectilinearPolygon = function(points) {
 		xy.push(points[i].x)
 		xy.push(points[i].y)
 	}
-	return new jsts.geom.SimpleRectilinearPolygon(xy);
+	return factory.createSimpleRectilinearPolygon(xy);
 }
 
 window.calcMinSquareCovering = function(srp) {

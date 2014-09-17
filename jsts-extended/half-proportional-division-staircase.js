@@ -173,31 +173,6 @@ jsts.algorithm.halfProportionalDivision0Walls = function(agentsValuePoints, enve
 			valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION);
 };
 
-/**
- * Test the given algorithm (jsts.algorithm.halfProportionalDivision4Walls or jsts.algorithm.halfProportionalDivision3Walls)
- * with the given args (array) 
- * and make sure that every agent gets the required num of points.
- */
-jsts.algorithm.testAlgorithm = function(algorithm, args, requiredNum)  {
-	var landplots = algorithm.apply(0, args);
-	var agentsValuePoints = args[0];
-	
-	if (landplots.length<agentsValuePoints.length) {
-		console.error(jsts.algorithm.agentsValuePointsToString(agentsValuePoints));
-		throw new Error("Not enough land-plots: "+JSON.stringify(landplots));
-	}
-	agentsValuePoints.forEach(function(points) {
-		landplots.forEach(function(landplot) {
-			if (points.color == landplot.color) {
-				var pointsInLandplot = jsts.algorithm.numPointsInEnvelope(points, landplot);
-				if (pointsInLandplot<requiredNum) {
-					throw new Error("Not enough points for "+landplot.color+": expected "+requiredNum+" but found only "+pointsInLandplot+" from "+JSON.stringify(points)+" in landplot "+JSON.stringify(landplot));
-				}
-			}
-		})
-	})
- }
-
 
 
 

@@ -11,7 +11,7 @@ var jsts = require("../jsts-extended");
 var alg = jsts.algorithm.halfProportionalDivision; // shorthand
 var quarterplane_NE    = new jsts.geom.Envelope(0,Infinity, 0,Infinity);
 var quarterplane_SW    = new jsts.geom.Envelope(-Infinity,400, -Infinity,400);
-var testAlgorithm = jsts.algorithm.testAlgorithm;
+var testAlgorithm = jsts.algorithm.testDivisionAlgorithm;
 
 describe('2 walls algorithm', function() {
 	it('single agent with 2 points', function() {

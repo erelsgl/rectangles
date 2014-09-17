@@ -16,7 +16,7 @@ var fatrect2  = new jsts.geom.Envelope(0,400, 0,200); // a 2-fat rectangle
 var thinrect1 = new jsts.geom.Envelope(0,100, 0,400); // a 2-fat rectangle
 var thinrect2 = new jsts.geom.Envelope(0,400, 0,90); // a 2-fat rectangle
 
-var testAlgorithm = jsts.algorithm.testAlgorithm;
+var testAlgorithm = jsts.algorithm.testDivisionAlgorithm;
 
 describe.skip('4 walls algorithm', function() {
 	it('single agent with 2 points', function() {
