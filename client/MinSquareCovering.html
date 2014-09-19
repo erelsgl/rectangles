@@ -18,6 +18,11 @@
 <link rel='stylesheet' href='style.css' />
 <title>Minimum Square Covering</title>
 
+<style>
+a { cursor: pointer; color: blue; text-decoration: underline; }
+a:hover,a.hover {  }
+</style>
+
 </head>
 <body>
 
@@ -40,12 +45,47 @@
 </td><td style='width:50%; font-size:12px'>
 <p><a href='index.html'>Computational Geometry</a>  &gt; </p>
 <h1>Minimum Square Covering</h1>
-<p>INPUT: A rectilinear polygon. Move the blue circles to change the polygon.</p>
+<p>INPUT: A rectilinear polygon represented by a list of every <i>other</i> corner. Move the blue circles to change the polygon.</p>
 <p>OUTPUT: A smallest set of squares whose union is the polygon.</p>
+<p>TEST CASES: <ul>
+<li>Rectangles: 
+	<a class='example' title='100,100:300,300'>square</a> 
+	<a class='example' title='100,300:310,100'>fat</a> 
+	<a class='example' title='100,100:120,310'>thin</a>
+	</li>
+<li>U shapes: 
+	<a class='example' title='300,100:250,210:150,100:100,300'>fat</a> 
+	<a class='example' title='300,100:250,250:150,100:100,300'>medium</a> 
+	<a class='example' title='300,100:250,290:150,100:100,300'>thin</a> 
+	</li>
+<li>Pack of cards: 
+	<a class='example' title='100,100:200,110:210,210:110,200'>two</a>  
+	<a class='example' title='100,100:200,110:210,120:220,220:120,210:110,200'>three</a>
+	<a class='example' title='100,100:200,110:210,120:220,130:230,230:130,220:120,210:110,200'>four</a>
+	</li>
+<li>Thin roads: 
+	<a class='example' title='100,100:300,300:250,150'>2 legs</a>  
+	<a class='example' title='100,100:300,300:100,250:250,150'>3 legs</a>  
+	<a class='example' title='100,100:300,300:110,110:140,250:250,150'>4 legs (overlap)</a>  
+	</li>
+<li>Fat roads: 
+	<a class='example' title='100,100:300,300:150,250'>2 legs</a>  
+	<a class='example' title='100,100:300,300:100,210:120,190'>3 legs</a>  
+	</li>
+<li>Halls and rooms: 
+	<a class='example' title='100,100:190,110:210,100:300,190:290,210:300,300:210,290:190,300:100,210:110,190'>tight</a>  
+	<a class='example' title='50,50:120,110:280,50:350,120:290,280:350,350:280,290:120,350:50,280:110,120'>apart</a>  
+	<a class='example' title='50,50:120,110:280,50:350,190:290,210:350,350:280,290:120,350:50,210:110,190'>H-shape</a>  
+	</li>
+<li>Rooms and corridors: 
+	<a class='example' title='100,100:140,105:160,100:200,105:220,100:260,140:220,135:200,140:160,135:140,140'>linear</a>  
+	<a class='example' title='100,100:140,105:160,100:200,140:195,160:200,200:160,195:140,200:100,160:140,165:160,160:165,140:160,135:140,140'>c-shaped</a>  
+	</li>
+</ul>
 <p>
-CONTROLS:
+CONTROLS:</p>
 <ul>
-<li><button class='addpoint'>Add a point</button>.</li>
+<li> <button class='addpoint'>Add a point</button></li>
 <li>Remove a point by dragging it over the left or top border.</li>
 <li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
 <li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
@@ -80,6 +120,13 @@ function updatePermaLink() {
 	window.updatePermaLink("points="+encodeURI(pointsString));
 }
 
+$(".example").click(function() {
+	var pointsString = $(this).attr("title");
+	window.points.clear();
+	window.points.fromString(pointsString);
+	window.points.refresh();
+})
+
 $(".addpoint").click(function() {
 	var color="blue";//$(this).text().toLowerCase();
 	window.points.add({x:20,y:20}, color); 
@@ -102,13 +149,14 @@ $("#createCovering").change(function() {
 	window.points.refresh();
 })
 
-
-
 window.points = DraggablePoints(window.svgpaper, /* change event = */function() {
 	window.shapes.clear();
 
 	updatePermaLink();
 	setStatus(""+(window.points.length*2)+" corners");
+	
+	if (!window.points.length)
+		return;
 	
 	var createCovering = $("#createCovering").prop('checked');
 
