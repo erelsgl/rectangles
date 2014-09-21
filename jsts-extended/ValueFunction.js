@@ -114,6 +114,8 @@ ValueFunction.prototype.sizeOfSquareWithValue = function(corner, requestedValue,
 
 /** @return a ValueFunction object based on the given total value and list of points. */
 ValueFunction.create = function(totalValue, points) {
+	if (!points)
+		throw new Error("points are undefined")
 	return (points.prototype===ValueFunction.prototype? 
 			points:
 			new ValueFunction(totalValue, points));

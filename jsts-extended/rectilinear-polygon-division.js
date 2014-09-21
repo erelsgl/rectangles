@@ -9,6 +9,7 @@ var jsts = require("../../computational-geometry");
 var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon;
 var ValueFunction = require("./ValueFunction");
 var _ = require("underscore");
+_.mixin(require("argminmax"));
 var util = require("util");
 
 function logValueFunctions(valueFunctions) {
@@ -34,12 +35,12 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
  * @param cake a SimpleRectilinearPolygon representing the cake to divide.
  * @return an array of n squares (minx,maxx,miny,maxy) representing the shares of the n agents.
  */
-jsts.algorithm.rectilinearPolygonDivision = function(valueFunctions, cake, requiredLandplotValue) {
+jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, cake, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" from a cake "+cake.toString());
 	var covering = jsts.algorithm.minSquareCovering(cake);
 	
-	if (numOfAgents==1) {
+	if (false && numOfAgents==1) {
 		var theAgent = valueFunctions[0];
 		var bestSquare = _.max(covering, function(square) {
 			return theAgent.valueOf(square);
@@ -52,7 +53,62 @@ jsts.algorithm.rectilinearPolygonDivision = function(valueFunctions, cake, requi
 		}
 		return [bestSquare];
 	} else {
-		return covering // just for trace
+
+		// for each agent, calculate all level squares with value 1:
+		valueFunctions.forEach(function(valueFunction) {
+			var candidateSquares = [];
+
+			for (var i=0; i<covering.length; ++i) {
+				var coveringSquare = covering[i];
+				var minx=coveringSquare.minx, maxx=coveringSquare.maxx, miny=coveringSquare.miny, maxy=coveringSquare.maxy;
+				var squareSizeSW = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
+				var squareSizeSE = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
+				var squareSizeNW = valueFunction.sizeOfSquareWithValue({x:minx,y:maxy}, requiredLandplotValue, "SE");
+				var squareSizeNE = valueFunction.sizeOfSquareWithValue({x:maxx,y:maxy}, requiredLandplotValue, "SW");
+
+				if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy)
+					candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
+
+				if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy)
+					candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
+
+				if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny)
+					candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
+
+				if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny)
+					candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
+			}
+			valueFunction.square = _.min(candidateSquares, function(square){return square.size});
+		});
+
+
+		// get the agent with the square with the smallest height overall:
+		var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
+			return valueFunction.square.size;
+		});
+		var winningAgent = valueFunctions[iWinningAgent];
+		var winningSquare = winningAgent.square;
+
+		if (!winningSquare || !isFinite(winningSquare.size)) {
+			TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+			if (requiredLandplotValue<=1)
+				TRACE_NO_LANDPLOT(valueFunctions);
+			return [];
+		}
+
+		var landplot = winningSquare;
+		if (winningAgent.color) landplot.color = winningAgent.color;
+		TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
+
+		if (valueFunctions.length==1)
+			return [landplot];
+
+		var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+		var remainingCake = cake.removeRectangle(landplot);
+		var remainingLandplots = recursive(remainingValueFunctions, remainingCake, requiredLandplotValue);
+		remainingLandplots.push(landplot);
+		return remainingLandplots;
+		
 	}
 }
 
