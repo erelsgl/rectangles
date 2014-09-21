@@ -182,94 +182,6 @@ var runDivisionAlgorithm = jsts.algorithm.runDivisionAlgorithm = function(normal
 	return runDivisionAlgorithm2(normalizedDivisionFunction, southernSide,
 			ValueFunction.createArray(valuePerAgent, agentsValuePoints),
 			envelope, maxAspectRatio, allowSingleValueFunction);
-/*
-	if (agentsValuePoints.length==0) 
-		return [];
-	if (!maxAspectRatio) maxAspectRatio=1;
-
-	var rotateTransformation = {rotateQuarters: southernSide - jsts.Side.South};
-	enveloper = jsts.algorithm.transformAxisParallelRectangle(rotateTransformation, {minx:envelope.minx, maxx:envelope.maxx, miny:envelope.miny, maxy:envelope.maxy});
-
-	var width = enveloper.maxx-enveloper.minx, height = enveloper.maxy-enveloper.miny;
-	if (height<=0 && width<=0)
-		throw new Error("Zero-sized envelope: "+JSON.stringify(enveloper));
-	if (width<=0)
-		width = height/1000;
-	var scaleFactor = (isFinite(width)? 1/width: 1);
-	var translateFactor = 
-		[isFinite(enveloper.minx)? -enveloper.minx: isFinite(enveloper.maxx)? -enveloper.maxx: 0,
-		 isFinite(enveloper.miny)? -enveloper.miny: isFinite(enveloper.maxy)? -enveloper.maxy: 0];
-	var yLength = height*scaleFactor;
-
-	// transform the system so that the envelope is [0,1]x[0,L], where L>=1:
-	var transformation = 
-		[rotateTransformation,
-		 {translate: translateFactor},
-		 {scale: scaleFactor}];
-
-	var index = 0;
-	var transformedValuePoints = agentsValuePoints.map(function(points) {
-		// transform the points of the agent to the envelope [0,1]x[0,L]:
-		var newPoints = 	jsts.algorithm.pointsInEnvelope(points, envelope)
-			.map(jsts.algorithm.transformedPoint.bind(0,transformation));
-
-		if (newPoints.length==0)
-			throw new Error("No points from "+JSON.stringify(points)+" are in envelope "+JSON.stringify(envelope));
-		
-		newPoints.color = points.color;
-		newPoints.index = index++;  // remember the index of the agent; it is used by the normalized functions for keeping track of who already got a land-plot
-		return newPoints;
-	});
-	
-	
-	transformedValuePoints = transformedValuePoints.filter(function(points) {
-		return (points.length>0);
-	});
-	
-	if (transformedValuePoints.length==0)
-		return [];
-	
-	if (transformedValuePoints.length>1 || allowSingleValueFunction)  {  // subjective valuations
-		var transformedValueFunctions = ValueFunction.createArray(valuePerAgent, transformedValuePoints);
-		//console.log("pointsPerUnitValue="+_.pluck(transformedValueFunctions,'pointsPerUnitValue'));
-		var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? valuePerAgent: 1;
-		var minVal = 1;
-		var landplots = [];
-		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
-			landplots = normalizedDivisionFunction(transformedValueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
-			if (landplots.length==transformedValueFunctions.length) {
-				landplots.minValuePerAgent = requiredLandplotValue;
-				break;
-			}
-		}
-	} else {   // identical valuations
-		var valuePoints = transformedValuePoints[0];
-		valuePerAgent = valuePoints.length-1;
-		requiredLandplotValue = 1;
-		var transformedValueFunction = ValueFunction.create(valuePerAgent, valuePoints);
-		
-		var maxNumOfAgents = valuePoints.length;
-		var transformedValueFunctions = [];
-		for (var i=0; i<maxNumOfAgents; ++i)
-			transformedValueFunctions.push(transformedValueFunction);
-		
-		while (transformedValueFunctions.length>0) {
-			landplots = normalizedDivisionFunction(transformedValueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
-			if (landplots.length==transformedValueFunctions.length) {
-				landplots.minValuePerAgent = requiredLandplotValue;
-				break;
-			}
-			transformedValueFunctions.pop();
-		}
-	}
-
-	// transform the system back:
-	var reverseTransformation = jsts.algorithm.reverseTransformation(transformation);
-	landplots.forEach(
-		jsts.algorithm.transformAxisParallelRectangle.bind(0,reverseTransformation));
-
-	return landplots;
-	*/
 }
 
 
@@ -532,33 +444,10 @@ var staircase3walls_allCoveringRectangles = function(valueFunctions, levels, req
 
 
 
-var calculateLevelSquares = function(valueFunctions, level, requiredLandplotValue) {
-	level.squares = [];
-	var minx=level.minx, maxx=level.maxx, miny=level.y;
-	if (level.yWest>level.y) {  // western corner is convex - bid for squares
-		var swCorner = {x:minx,y:miny};
-		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
-			var valueFunction = valueFunctions[iAgent];
-			var squareSizeEast = valueFunction.sizeOfSquareWithValue(swCorner, requiredLandplotValue, "NE");
-			if (minx+squareSizeEast <= maxx)
-				level.squares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast, iAgent:iAgent});
-		}
-	}
-	if (level.yEast>level.y) {  // eastern corner is convex - bid for squares
-		var seCorner = {x:maxx,y:miny};
-		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
-			var valueFunction = valueFunctions[iAgent];
-			var squareSizeWest = valueFunction.sizeOfSquareWithValue(seCorner, requiredLandplotValue, "NW");
-			if (maxx-squareSizeWest >= minx)
-				level.squares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest, iAgent:iAgent});
-		};
-	}
-}
-
-
-
 /**
  * Normalized 3-walls staircase algorithm - alternative algorithm:
+ * Each agent can draw squares only in knobs or the original polygon, or in corners or the original polygon after knobs with no squares have been removed.
+ * 
  * - valueFunctions.length>=1
  * - levels.length >= 1; each level is represented by {y,minx,maxx}.
  * - levels are ordered by non-decreasing x value, from west to east.
@@ -636,6 +525,31 @@ var staircase3walls_cornerSquares = function(valueFunctions, levels, requiredLan
 	return remainingLandplots;
 }
 
+
+
+
+var calculateLevelSquares = function(valueFunctions, level, requiredLandplotValue) {
+	level.squares = [];
+	var minx=level.minx, maxx=level.maxx, miny=level.y;
+	if (level.yWest>level.y) {  // western corner is convex - bid for squares
+		var swCorner = {x:minx,y:miny};
+		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
+			var valueFunction = valueFunctions[iAgent];
+			var squareSizeEast = valueFunction.sizeOfSquareWithValue(swCorner, requiredLandplotValue, "NE");
+			if (minx+squareSizeEast <= maxx)
+				level.squares.push({minx:minx, miny:miny, maxx:minx+squareSizeEast, maxy:miny+squareSizeEast, iAgent:iAgent});
+		}
+	}
+	if (level.yEast>level.y) {  // eastern corner is convex - bid for squares
+		var seCorner = {x:maxx,y:miny};
+		for (var iAgent=0; iAgent<valueFunctions.length; ++iAgent) {
+			var valueFunction = valueFunctions[iAgent];
+			var squareSizeWest = valueFunction.sizeOfSquareWithValue(seCorner, requiredLandplotValue, "NW");
+			if (maxx-squareSizeWest >= minx)
+				level.squares.push({maxx:maxx, miny:miny, minx:maxx-squareSizeWest, maxy:miny+squareSizeWest, iAgent:iAgent});
+		};
+	}
+}
 
 
 
@@ -740,9 +654,6 @@ var halvingEastWest  = function(valueFunctions, totalValue) {
 	var westernValueFunctions = valueFunctions.slice(0, numOfWesternAgents);
 	var easternValueFunctions = valueFunctions.slice(numOfWesternAgents, numOfAgents);
 	var halvingPoint = (westernValueFunctions[westernValueFunctions.length-1].halvingPoint+easternValueFunctions[0].halvingPoint)/2;
-//	console.log("westernValueFunctions="+JSON.stringify(westernValueFunctions))
-//	console.log("halvingPoint="+halvingPoint)
-//	console.log("easternValueFunctions="+JSON.stringify(easternValueFunctions))
 	
 	TRACE(numOfAgents, " -- Halving at x="+halvingPoint+", giving the west to "+_.pluck(westernValueFunctions,"color")+" with halving points "+_.pluck(westernValueFunctions,"halvingPoint")+" and the east to "+_.pluck(easternValueFunctions,"color")+" with halving points "+_.pluck(easternValueFunctions,"halvingPoint"));
 	
