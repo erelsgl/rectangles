@@ -101,6 +101,10 @@ window.svgpaper.line(200,0, 200,400).stroke({ width: 1, color:'#ccc' });
 window.svgpaper.line(0,0, 400,400).stroke({ width: 1, color:'#ccc' });
 window.svgpaper.line(0,400, 400,0).stroke({ width: 1, color:'#ccc' });
 
+window.jsts.algorithm.ALLOW_SINGLE_VALUE_FUNCTION = true;
+window.jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE = false; // for debugging
+
+
 function drawShapes(err, shapes) { // A callback for the asynchronous solver
 	for (var i=0; i<shapes.length; ++i)
 		window.landplots.add(shapes[i]);
@@ -115,7 +119,7 @@ function drawShapesAndUpdateLink() {
 	window.landplots.clear();
 
 	updatePermaLink();
-	setStatus(""+(window.points.length)+" points. Calculating disjoint set...");
+	setStatus(""+(window.points.length)+" points. Calculating...");
 
 	var drawMode = $("#draw").val();
 	if (drawMode==='drawNone') return;

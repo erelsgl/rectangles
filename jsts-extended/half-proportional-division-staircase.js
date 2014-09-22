@@ -103,7 +103,7 @@ jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, 
 	var openSides = jsts.algorithm.getOpenSides(envelope);
 //	TRACE(agentsValuePoints.length, "openSides="+openSides);
 	if (openSides.length==0) {
-		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio);
+		landplots = jsts.algorithm.halfProportionalDivision4Walls(agentsValuePoints, envelope, maxAspectRatio);
 	} else if (openSides.length==1) {
 		var openSide = openSides[0];
 		landplots = jsts.algorithm.halfProportionalDivision3Walls(agentsValuePoints, envelope, maxAspectRatio, openSide);
@@ -275,6 +275,8 @@ var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(norm
 
 
 
+var factory = new jsts.geom.GeometryFactory();
+
 
 /**
  * Normalized 4-walls algorithm:
@@ -284,7 +286,7 @@ var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(norm
  * - Value per agent: at least 2*n
  */
 var norm4Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
-	var initial = new SimpleRectilinearPolygon[{x:0,y:0}, {x:0,y:1}, {x:1,y:1}, {x:1,y:0}, {x:0,y:0}];
+	var initial = factory.createSimpleRectilinearPolygon([{x:0,y:0}, {x:0,y:1}, {x:1,y:1}, {x:1,y:0}, {x:0,y:0}]);
 	return jsts.algorithm.rectilinearPolygonDivision(valueFunctions, initial, requiredLandplotValue);
 }
 
