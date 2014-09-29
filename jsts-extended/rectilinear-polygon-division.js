@@ -47,6 +47,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 	
 	cakeCoveringData.iterateMinimalCovering(function(coveringSquare) {
 		// for each agent, calculate all corner squares with value 1:
+		var numOfCandidatesPerCoveringSquare = 0;
 		valueFunctions.forEach(function(valueFunction) {
 
 			var minx=coveringSquare.minx
@@ -66,19 +67,30 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 			  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
 			  ;
 
-			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW))
+			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW)) {
 				valueFunction.candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
+				numOfCandidatesPerCoveringSquare++;
+			}
 
-			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE))
+			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE)) {
 				valueFunction.candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
+				numOfCandidatesPerCoveringSquare++;
+			}
 
-			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW))
+			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW)) {
 				valueFunction.candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
+				numOfCandidatesPerCoveringSquare++;
+			}
 
-			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE))
+			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE)) {
 				valueFunction.candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
+				numOfCandidatesPerCoveringSquare++;
+			}
 		});
 		
+		if (numOfCandidatesPerCoveringSquare==0) {
+		//	console.log("WARNING: No candidates for "+JSON.stringify(coveringSquare));
+		}
 		return true;
 	})
 
