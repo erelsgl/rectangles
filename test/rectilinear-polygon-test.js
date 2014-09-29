@@ -66,7 +66,16 @@ describe('Two agents', function() {
 	});
 	
 	var agent1 = [1,1, 5,1, 9,1, 1,8, 1,19, 19,19];
-	it.only('L-shape', function() {
-		testAlgorithm([agent1, agent1], mediumLshape, 3);  //... give the north-western square
+	var mediumLshape = [0,0, 10,10, 20,20];
+	it('medium L-shape', function() {
+		testAlgorithm([agent1, agent1], mediumLshape, 2);
+	});
+	
+	var fatLShape = [0,0, 20,10, 30,30];
+	var agent2 = [18,18, 19,19, 1,1, 1,29, 29,29, 29,11]
+	it('fat L-shape', function() {  
+		// This test-case breaks the algorithm that uses all covering squares, 
+		//		because one of the selected squares makes the cake not-simply-connected.
+		testAlgorithm([agent2, agent2], fatLShape, 2);
 	});
 });

@@ -8,9 +8,9 @@
 var jsts = require('../../computational-geometry');
 require("./square-with-max-points");
 require("./corners");
+require("./rectilinear-polygon-division");
 var numutils = require('../../computational-geometry/lib/numeric-utils');
 
-//console.dir(jsts.algorithm.transformPoint); process.exit(1)
 
 var _ = require("underscore");
 _.mixin(require("argminmax"));
@@ -79,9 +79,13 @@ jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE = true;  // try to find divi
  */
 jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
 	var landplots = jsts.algorithm.halfProportionalDivision(agentsValuePoints, envelope, maxAspectRatio);
+	var prevColor = null;
 	return landplots.map(function(landplot) {
 		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
-		rect.color = landplot.color;
+		rect.color = (landplot.color!=prevColor?
+				landplot.color: 
+				color(index++));
+		prevColor = rect.color;
 		rect.fill = landplot.fill;
 		rect.stroke = landplot.stroke;
 		return rect;
@@ -288,93 +292,9 @@ var factory = new jsts.geom.GeometryFactory();
 var norm4Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue) {
 	var initial = factory.createSimpleRectilinearPolygon([{x:0,y:0}, {x:0,y:1}, {x:1,y:1}, {x:1,y:0}, {x:0,y:0}]);
 	return jsts.algorithm.rectilinearPolygonDivision(valueFunctions, initial, requiredLandplotValue);
+		// defined in a separate file rectilinear-polygon-division.js
 }
 
-
-
-
-
-/**
- * @param agentsValuePoints an array of n>=1 or more valuation functions, represented by value points (x,y).
- * @param cake a SimpleRectilinearPolygon representing the cake to divide.
- * @return an array of n squares (minx,maxx,miny,maxy) representing the shares of the n agents.
- */
-jsts.algorithm.rectilinearPolygonDivision = function recurse(valueFunctions, cake, requiredLandplotValue) {
-	var numOfAgents = valueFunctions.length;
-	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" from a cake "+cake.toString());
-	var covering = jsts.algorithm.minSquareCovering(cake);
-	
-	if (false && numOfAgents==1) {
-		var theAgent = valueFunctions[0];
-		var bestSquare = _.max(covering, function(square) {
-			return theAgent.valueOf(square);
-		})
-		if (theAgent.valueOf(bestSquare)<requiredLandplotValue) {
-			TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-			if (requiredLandplotValue<=1)
-				TRACE_NO_LANDPLOT(util.inspect(valueFunctions,{depth:3}));
-			return [];
-		}
-		return [bestSquare];
-	} else {
-
-		// for each agent, calculate all level squares with value 1:
-		valueFunctions.forEach(function(valueFunction) {
-			var candidateSquares = [];
-
-			for (var i=0; i<covering.length; ++i) {
-				var coveringSquare = covering[i];
-				var minx=coveringSquare.minx, maxx=coveringSquare.maxx, miny=coveringSquare.miny, maxy=coveringSquare.maxy;
-				var squareSizeSW = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
-				var squareSizeSE = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
-				var squareSizeNW = valueFunction.sizeOfSquareWithValue({x:minx,y:maxy}, requiredLandplotValue, "SE");
-				var squareSizeNE = valueFunction.sizeOfSquareWithValue({x:maxx,y:maxy}, requiredLandplotValue, "SW");
-
-				if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy)
-					candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
-
-				if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy)
-					candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
-
-				if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny)
-					candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
-
-				if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny)
-					candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
-			}
-			valueFunction.square = _.min(candidateSquares, function(square){return square.size});
-		});
-
-
-		// get the agent with the square with the smallest height overall:
-		var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
-			return valueFunction.square.size;
-		});
-		var winningAgent = valueFunctions[iWinningAgent];
-		var winningSquare = winningAgent.square;
-
-		if (!winningSquare || !isFinite(winningSquare.size)) {
-			TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-			if (requiredLandplotValue<=1)
-				TRACE_NO_LANDPLOT(valueFunctions);
-			return [];
-		}
-
-		var landplot = winningSquare;
-		if (winningAgent.color) landplot.color = winningAgent.color;
-		TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
-
-		if (valueFunctions.length==1)
-			return [landplot];
-
-		var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
-		var remainingCake = cake.removeRectangle(landplot);
-		var remainingLandplots = recurse(remainingValueFunctions, remainingCake, requiredLandplotValue);
-		remainingLandplots.push(landplot);
-		return remainingLandplots;
-		
-	}
-}
 
 
 

@@ -38,6 +38,8 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, cake, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" from a cake "+cake.toString());
+	
+	var cakeCoveringData = new jsts.algorithm.MinSquareCoveringData(cake);
 	var covering = jsts.algorithm.minSquareCovering(cake);
 	
 	if (false && numOfAgents==1) {
@@ -54,28 +56,36 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		return [bestSquare];
 	} else {
 
-		// for each agent, calculate all level squares with value 1:
+		// for each agent, calculate all corner squares with value 1:
 		valueFunctions.forEach(function(valueFunction) {
 			var candidateSquares = [];
 
 			for (var i=0; i<covering.length; ++i) {
 				var coveringSquare = covering[i];
 				var minx=coveringSquare.minx, maxx=coveringSquare.maxx, miny=coveringSquare.miny, maxy=coveringSquare.maxy;
-				var squareSizeSW = valueFunction.sizeOfSquareWithValue({x:minx,y:miny}, requiredLandplotValue, "NE");
-				var squareSizeSE = valueFunction.sizeOfSquareWithValue({x:maxx,y:miny}, requiredLandplotValue, "NW");
-				var squareSizeNW = valueFunction.sizeOfSquareWithValue({x:minx,y:maxy}, requiredLandplotValue, "SE");
-				var squareSizeNE = valueFunction.sizeOfSquareWithValue({x:maxx,y:maxy}, requiredLandplotValue, "SW");
+				
+				var SW = {x:minx,y:miny}
+				  , SE = {x:maxx,y:miny}
+				  , NW = {x:minx,y:maxy}
+				  , NE = {x:maxx,y:maxy}
+				  ;
+				
+				var squareSizeSW = valueFunction.sizeOfSquareWithValue(SW, requiredLandplotValue, "NE")
+				  , squareSizeSE = valueFunction.sizeOfSquareWithValue(SE, requiredLandplotValue, "NW")
+				  , squareSizeNW = valueFunction.sizeOfSquareWithValue(NW, requiredLandplotValue, "SE")
+				  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
+				  ;
 
-				if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy)
+				if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW))
 					candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
 
-				if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy)
+				if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE))
 					candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
 
-				if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny)
+				if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW))
 					candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
 
-				if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny)
+				if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE))
 					candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
 			}
 			valueFunction.square = _.min(candidateSquares, function(square){return square.size});
