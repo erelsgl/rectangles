@@ -719,7 +719,7 @@ require('./DoublyLinkedList');
 var almostEqual = require("almost-equal")
 
 function TRACE(s) {
-	console.log(s);
+//	console.log(s);
 };
 
 
@@ -903,6 +903,7 @@ Segment.prototype.toString = function() {
 		console.warn("this.next is null!");
 	return "["+
 		this.c0+" - "+this.c1+
+		" , len="+this.length()+
 		" , dir="+this.direction+
 		(this.prev && this.next? ", tocorner="+this.distanceToNearestConcaveCorner()+", toborder="+this.distanceToNearestBorder(): "")+
 		(this.knobCount? ", knobCount="+this.knobCount: "") +
@@ -1113,7 +1114,7 @@ MinSquareCoveringData.prototype.findContinuatorSegment = function() {
 	if (segment.isKnob()) {
 		var knobLength = segment.length();
 		// Make sure "segment" is the first in a knob chain:
-		while (segment.prev.length()==knobLength && 
+		while (almostEqual(segment.prev.length(),knobLength,0,0.001) && 
 				segment.prev.isKnob() && 
 				segment.prev!=this.segments.first)  {
 			segment = segment.prev;
@@ -1131,7 +1132,7 @@ MinSquareCoveringData.prototype.findContinuatorSegment = function() {
 			// Calculate the length of the knob-chain:
 			var knobCount = 1;
 			var knobEndingChain = segment;
-			while (knobEndingChain.next.length()==knobLength && 
+			while (almostEqual(knobEndingChain.next.length(),knobLength,0,0.001) && 
 					knobEndingChain.next.isKnob() && 
 					knobEndingChain.next!=firstSegment)  {
 				knobEndingChain = knobEndingChain.next;
@@ -1174,7 +1175,7 @@ MinSquareCoveringData.prototype.findContinuatorSegment = function() {
 				                (A_Aprev==knobLength && CCnext>=knobLength);
 				break;
 			case 1:
-				isContinuator = (knobStartingChain.distanceToNearestBorder() > knobLength);
+				isContinuator = (knobStartingChain.distanceToNearestBorder() > knobLength+almostEqual.FLT_EPSILON);
 				break;
 			}
 			if (isContinuator)
@@ -1218,11 +1219,13 @@ MinSquareCoveringData.prototype.removeSegments = function(segments, removeCorner
  * @param knob a segment in this.segments.
  * @param knobCount a number between 1 and 4 describing the number of adjacent knobs (starting from knob)
  */
-MinSquareCoveringData.prototype.removeErasableRegion = function(knob, knobCount) {
+MinSquareCoveringData.prototype.removeErasableRegion = function(knob) {
 	if (!knob.isKnob()) {
 		console.dir(knob);
 		throw new Error("non-knob disguised as a knob!")
 	}
+	
+	var knobCount = knob.knobCount;
 
 	if (knobCount<1 || 4<knobCount) {
 		console.dir(knob);
@@ -1329,14 +1332,14 @@ MinSquareCoveringData.prototype.removeErasableRegion = function(knob, knobCount)
 	
 	// handle remaining 1-knob continuator:
 	var exposedDistance0 = knob.prev.length();
-	if (knobCount==1 && !exposedDistance0 || exposedDistance0<0) {console.log("knob="+knob.toString());  throw new Error("exposedDistance at knob.prev = "+exposedDistance0)}
+	if (knobCount==1 && exposedDistance0<almostEqual.FLT_EPSILON || exposedDistance0<0) {console.log("knob="+knob.toString());  throw new Error("exposedDistance at knob.prev = "+exposedDistance0)}
 	var exposedDistance1 = knob.next.length();
-	if (knobCount==1 && !exposedDistance1 || exposedDistance1<0) {console.log("knob="+knob.toString()); throw new Error("exposedDistance at knob.next = "+exposedDistance0)}
+	if (knobCount==1 && exposedDistance1<almostEqual.FLT_EPSILON || exposedDistance1<0) {console.log("knob="+knob.toString()); throw new Error("exposedDistance at knob.next = "+exposedDistance0)}
 	var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
 	var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
-	if (knobCount==1 && !coveredDistance || coveredDistance<0) {console.log("knob="+knob.toString()); throw new Error("coveredDistance = "+coveredDistance)}
+	if (knobCount==1 && coveredDistance<almostEqual.FLT_EPSILON || coveredDistance<0) {console.log("knob="+knob.toString()); throw new Error("coveredDistance = "+coveredDistance)}
 	var securityDistance = knob.distanceToNearestBorder() - knob.length();
-	if (knobCount==1 && !securityDistance || securityDistance<0) {console.log("knob="+knob.toString()); throw new Error("securityDistance = "+securityDistance)}
+	if (knobCount==1 && securityDistance<almostEqual.FLT_EPSILON || securityDistance<0) {console.log("knob="+knob.toString()); throw new Error("securityDistance = "+securityDistance)}
 	var nonExposedDistance = Math.min(coveredDistance,securityDistance);
 	TRACE("nonExposedDistance=min("+coveredDistance+","+securityDistance+")="+nonExposedDistance+" exposedDistance=min("+exposedDistance0+","+exposedDistance1+")="+exposedDistance);
 	
@@ -1418,37 +1421,56 @@ MinSquareCoveringData.prototype.hasConvexCorner = function(corner) {
 }
 
 
-MinSquareCoveringData.prototype.findMinimalCovering = function() {
+/**
+ * Iterates the squares covering this polygon.
+ * 
+ * @param iterator a function with a single argument which is the current covering square.
+ * The function should return a truthy value; if it returns a falsy value, the iteration stops immediately.
+ */
+MinSquareCoveringData.prototype.iterateMinimalCovering = function(iterator) {
 	var P = this;   // P is the residual polygon.
-	var covering = [];       // C is the current covering.
 	var maxIterations = Math.max(2*P.corners.length,200);
 	while (!P.isEmpty() && maxIterations>0) {
 		TRACE("\nP="+P.corners.toString())
 		var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
 		var continuator = knob.continuator();
-		TRACE("\tprocessing knob "+knob.toString()+" with continuator "+JSON.stringify(continuator))
+		TRACE("\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
 
 		var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered, to avoid redundant squares.!
-		if (!balconyOfContinuatorIsCovered) 
-			covering.push(continuator); 
+		if (!balconyOfContinuatorIsCovered) {
+			var shouldWeContinue = iterator(continuator);
+			if (!shouldWeContinue)
+				break;
+		}
 
-		P.removeErasableRegion(knob, knob.knobCount);
+		P.removeErasableRegion(knob);
 		maxIterations--;
 	}
-	
-	if (!P.isEmpty()) {
+
+	if (maxIterations<=0) {
 		throw new Error("Covering not found after many iterations!");
 	}
-	
+}
+
+/**
+ * @return a list of squares covering this polygon.
+ */
+MinSquareCoveringData.prototype.findMinimalCovering = function() {
+	var covering = [];       // C is the current covering.
+	this.iterateMinimalCovering(function(square) {
+		covering.push(square); 
+		return true;
+	});
 	return covering;
 }
+
 
 
 /**
  * A shorthand function for directly calculating the minimal square covering of a polygon defined by the given xy values.
  * Useful for testing and demonstrations.
  * 
- * @param arg  * * A SimpleRectilinearPolygon
+ * @param arg A SimpleRectilinearPolygon
  * @return an array with a minimal square covering of that polygon.
  */
 jsts.algorithm.minSquareCovering = function(arg, factory) {
@@ -1608,8 +1630,16 @@ var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon = function(xy,
 	var first = xy[0];
 	if ((typeof first === 'object') && ('x' in first)) {
 		points = xy;	// xy is already an array of points
+		if (points.length<5)
+			throw new Error("only "+points.length+" points: "+JSON.stringify(points));
 		if (points.length%2==0)
 			throw new Error("even number of points: "+JSON.stringify(points));
+		
+		if (SimpleRectilinearPolygon.FORCE_FIRST_SEGMENT_HORIZONTAL && points[0].x==points[1].x) {
+			points.shift();
+			points.push(points[0]);
+		}
+
 	} else {
 		if (xy.length%2==1)
 			throw new Error("odd number of xy values: "+JSON.stringify(xy));
@@ -1626,6 +1656,7 @@ var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon = function(xy,
 
 SimpleRectilinearPolygon.prototype = new jsts.geom.LinearRing();
 SimpleRectilinearPolygon.constructor = SimpleRectilinearPolygon;
+SimpleRectilinearPolygon.FORCE_FIRST_SEGMENT_HORIZONTAL = true;
 
 
 SimpleRectilinearPolygon.prototype.getPolygon = function() {
@@ -12597,86 +12628,81 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" from a cake "+cake.toString());
 	
 	var cakeCoveringData = new jsts.algorithm.MinSquareCoveringData(cake);
-	var covering = jsts.algorithm.minSquareCovering(cake);
-	
-	if (false && numOfAgents==1) {
-		var theAgent = valueFunctions[0];
-		var bestSquare = _.max(covering, function(square) {
-			return theAgent.valueOf(square);
-		})
-		if (theAgent.valueOf(bestSquare)<requiredLandplotValue) {
-			TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-			if (requiredLandplotValue<=1)
-				TRACE_NO_LANDPLOT(util.inspect(valueFunctions,{depth:3}));
-			return [];
-		}
-		return [bestSquare];
-	} else {
 
+	valueFunctions.forEach(function(valueFunction) {
+		valueFunction.candidateSquares = [];
+	});
+	
+	cakeCoveringData.iterateMinimalCovering(function(coveringSquare) {
 		// for each agent, calculate all corner squares with value 1:
 		valueFunctions.forEach(function(valueFunction) {
-			var candidateSquares = [];
 
-			for (var i=0; i<covering.length; ++i) {
-				var coveringSquare = covering[i];
-				var minx=coveringSquare.minx, maxx=coveringSquare.maxx, miny=coveringSquare.miny, maxy=coveringSquare.maxy;
-				
-				var SW = {x:minx,y:miny}
-				  , SE = {x:maxx,y:miny}
-				  , NW = {x:minx,y:maxy}
-				  , NE = {x:maxx,y:maxy}
-				  ;
-				
-				var squareSizeSW = valueFunction.sizeOfSquareWithValue(SW, requiredLandplotValue, "NE")
-				  , squareSizeSE = valueFunction.sizeOfSquareWithValue(SE, requiredLandplotValue, "NW")
-				  , squareSizeNW = valueFunction.sizeOfSquareWithValue(NW, requiredLandplotValue, "SE")
-				  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
-				  ;
+			var minx=coveringSquare.minx
+			  , maxx=coveringSquare.maxx
+			  , miny=coveringSquare.miny
+			  , maxy=coveringSquare.maxy;
+			
+			var SW = {x:minx,y:miny}
+			  , SE = {x:maxx,y:miny}
+			  , NW = {x:minx,y:maxy}
+			  , NE = {x:maxx,y:maxy}
+			  ;
+			
+			var squareSizeSW = valueFunction.sizeOfSquareWithValue(SW, requiredLandplotValue, "NE")
+			  , squareSizeSE = valueFunction.sizeOfSquareWithValue(SE, requiredLandplotValue, "NW")
+			  , squareSizeNW = valueFunction.sizeOfSquareWithValue(NW, requiredLandplotValue, "SE")
+			  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
+			  ;
 
-				if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW))
-					candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
+			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW))
+				valueFunction.candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
 
-				if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE))
-					candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
+			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE))
+				valueFunction.candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
 
-				if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW))
-					candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
+			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW))
+				valueFunction.candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
 
-				if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE))
-					candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
-			}
-			valueFunction.square = _.min(candidateSquares, function(square){return square.size});
+			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE))
+				valueFunction.candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
 		});
-
-
-		// get the agent with the square with the smallest height overall:
-		var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
-			return valueFunction.square.size;
-		});
-		var winningAgent = valueFunctions[iWinningAgent];
-		var winningSquare = winningAgent.square;
-
-		if (!winningSquare || !isFinite(winningSquare.size)) {
-			TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
-			if (requiredLandplotValue<=1)
-				TRACE_NO_LANDPLOT(valueFunctions);
-			return [];
-		}
-
-		var landplot = winningSquare;
-		if (winningAgent.color) landplot.color = winningAgent.color;
-		TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
-
-		if (valueFunctions.length==1)
-			return [landplot];
-
-		var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
-		var remainingCake = cake.removeRectangle(landplot);
-		var remainingLandplots = recursive(remainingValueFunctions, remainingCake, requiredLandplotValue);
-		remainingLandplots.push(landplot);
-		return remainingLandplots;
 		
+		return true;
+	})
+
+	valueFunctions.forEach(function(valueFunction) {
+		valueFunction.square = _.min(valueFunction.candidateSquares, function(square){
+			return square.size
+		});
+	});
+	
+	// get the agent with the square with the smallest height overall:
+	var iWinningAgent = _.argmin(valueFunctions, function(valueFunction) {
+		return valueFunction.square.size;
+	});
+	
+	var winningAgent = valueFunctions[iWinningAgent];
+	var winningSquare = winningAgent.square;
+
+	if (!winningSquare || !isFinite(winningSquare.size)) {
+		TRACE(numOfAgents, "-- no square with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			TRACE_NO_LANDPLOT(valueFunctions);
+		return [];
 	}
+
+	var landplot = winningSquare;
+	if (winningAgent.color) landplot.color = winningAgent.color;
+	TRACE(numOfAgents, "++ agent "+iWinningAgent+" gets the landplot "+JSON.stringify(landplot));
+
+	if (valueFunctions.length==1)
+		return [landplot];
+
+	var remainingValueFunctions = valueFunctions.slice(0,iWinningAgent).concat(valueFunctions.slice(iWinningAgent+1,valueFunctions.length));
+	var remainingCake = cake.removeRectangle(landplot);
+	var remainingLandplots = recursive(remainingValueFunctions, remainingCake, requiredLandplotValue);
+	remainingLandplots.push(landplot);
+	return remainingLandplots;
 }
 
 

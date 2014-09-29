@@ -54,8 +54,15 @@ describe('Single agent', function() {
 	});
 
 	var agent3 = [0.5,2, 2,15.5, 14,0.5, 15.5,15.5, 8,8, 2,0.5];
-	it('Hall and 4 rooms', function() {
+	it('Hall and 4 rooms A', function() {
 		testAlgorithm([agent3], hall4rooms, 2);  //... give the south-western room
+	});
+
+	var agent4 = [6,7, 7,7, 7,8, 7,9, 8,7, 8,8, 8,9, 9,7, 9,8, 9,9, 9,10];
+	it('Hall and 4 rooms B', function() {
+		// This test-case breaks the algorithm that uses only corner squares
+		//		because all value is concentrated in the hall, which is not adjacent to any corner.
+		testAlgorithm([agent4], hall4rooms, 2);  //... give the south-western room
 	});
 });
 
