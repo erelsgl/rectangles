@@ -44,55 +44,44 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 	valueFunctions.forEach(function(valueFunction) {
 		valueFunction.candidateSquares = [];
 	});
-	
-	cakeCoveringData.iterateMinimumCovering(function(coveringSquare) {
-		// for each agent, calculate all corner squares with value 1:
-		var numOfCandidatesPerCoveringSquare = 0;
-		valueFunctions.forEach(function(valueFunction) {
 
-			var minx=coveringSquare.minx
-			  , maxx=coveringSquare.maxx
-			  , miny=coveringSquare.miny
-			  , maxy=coveringSquare.maxy;
-			
-			var SW = {x:minx,y:miny}
-			  , SE = {x:maxx,y:miny}
-			  , NW = {x:minx,y:maxy}
-			  , NE = {x:maxx,y:maxy}
-			  ;
-			
-			var squareSizeSW = valueFunction.sizeOfSquareWithValue(SW, requiredLandplotValue, "NE")
-			  , squareSizeSE = valueFunction.sizeOfSquareWithValue(SE, requiredLandplotValue, "NW")
-			  , squareSizeNW = valueFunction.sizeOfSquareWithValue(NW, requiredLandplotValue, "SE")
-			  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
-			  ;
-
-			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW)) {
-				valueFunction.candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
-				numOfCandidatesPerCoveringSquare++;
-			}
-
-			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE)) {
-				valueFunction.candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
-				numOfCandidatesPerCoveringSquare++;
-			}
-
-			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW)) {
-				valueFunction.candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
-				numOfCandidatesPerCoveringSquare++;
-			}
-
-			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE)) {
-				valueFunction.candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
-				numOfCandidatesPerCoveringSquare++;
-			}
-		});
+	TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
+	var knobs = cakeCoveringData.findAllSegmentsWithContinuators();
+	var shouldRemoveKnobs = false;
+	knobs.forEach(function(knob) {
+		var knobLength = knob.length();
+		var continuator = knob.getAdjacentSquareInPolygon();
+		TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
 		
-		if (numOfCandidatesPerCoveringSquare==0) {
-			var newCake = cakeCoveringData.getResidualPolygon();
+		var numOfCandidatesPerKnob = 0;
+		var corner = knob.c0;
+		var cornerCount = Math.min(4,knob.knobCount+1);
+		for (var i=0; i<=cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
+			var directionOfPolygonInterior = corner.directionOfPolygonInterior();
+			valueFunctions.forEach(function(valueFunction) {
+				var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, directionOfPolygonInterior);
+				if (squareSize<=knobLength) {
+					var x0 = corner.x
+					  , x1 = corner.x + corner.signOfPolygonInteriorX()*squareSize
+					  , y0 = corner.y
+					  , y1 = corner.y + corner.signOfPolygonInteriorY()*squareSize;
+					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize});
+					numOfCandidatesPerKnob++;
+				}
+			});
+			corner = corner.next;
+		};
+		
+		if (!numOfCandidatesPerKnob) {
+			cakeCoveringData.removeErasableRegion(knob);
+			shouldRemoveKnobs = true;
 		}
-		return true;
-	})
+	});
+	
+	if (shouldRemoveKnobs) {
+		var newCake = cakeCoveringData.getResidualPolygon();
+		return recursive(valueFunctions, newCake, requiredLandplotValue)
+	}
 
 	valueFunctions.forEach(function(valueFunction) {
 		valueFunction.square = _.min(valueFunction.candidateSquares, function(square){

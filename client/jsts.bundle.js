@@ -871,7 +871,10 @@ Segment.prototype.signOfPolygonInterior = function() {
 		return this.next.direction==jsts.Side.North? 1: -1;
 }
 
-Segment.prototype.continuator = function() {
+/**
+ * @return the square adjacent to this segment which is contained in the polygon.
+ */
+Segment.prototype.getAdjacentSquareInPolygon = function() {
 	var x0, x1, y0, y1;
 	if (this.isVertical()) {
 		x0 = this.c0.x;
@@ -940,6 +943,30 @@ Corner.prototype.turnDirection = function() {
 	return jsts.turn(this.s0.direction, this.s1.direction); // left=-1, right=1
 }
 
+/**
+ * @return the direction of the polygon interior relative to this (convex) corner. 
+ * The direction is returned as a string: SW, SE, NW or NE.
+ */
+Corner.prototype.directionOfPolygonInterior = function() {
+	var northSouth, eastWest;
+	
+	var dir0 = jsts.sideToLetter[jsts.inverseSide(this.s0.direction)];
+	var dir1 = jsts.sideToLetter[this.s1.direction];
+	
+	if (this.s0.isVertical())
+		return dir0+dir1;
+	else
+		return dir1+dir0;
+}
+
+Corner.prototype.signOfPolygonInteriorX = function() {
+	return this.s0.isVertical()? this.s0.signOfPolygonInterior(): this.s1.signOfPolygonInterior();
+}
+
+Corner.prototype.signOfPolygonInteriorY = function() {
+	return this.s0.isHorizontal()? this.s0.signOfPolygonInterior(): this.s1.signOfPolygonInterior();
+}
+
 Corner.prototype.distanceToSegment = function(segment) {
 	return segment.distanceToCorner(this);
 }
@@ -1000,7 +1027,7 @@ Corner.prototype.toString = function() {
 
 
 
-/*-************ STRUCTURES *******************-*/
+/*-************ MinSquareCoveringData Structure *******************-*/
 
 var MinSquareCoveringData = jsts.algorithm.MinSquareCoveringData = function(thePolygon) {
 	/* Clone the sequence of corners in order to add more information: */
@@ -1028,6 +1055,8 @@ var MinSquareCoveringData = jsts.algorithm.MinSquareCoveringData = function(theP
 	totalTurn += corners.first.turnDirection();
 	this.turnDirection = jsts.turnDirection(totalTurn);
 	this.calculateConvexityAndVisibility();
+	
+	this.factory = thePolygon.factory;
 }
 
 
@@ -1104,10 +1133,51 @@ Segment.prototype.hasContinuator = function() {
 }
 
 /**
- * @return the first knob in a continuator.
+ * Decide if a given knob-chain supports a continuator.
+ * @param knobCount (int) number of knobs in chain: 1, 2, 3 or 4.
+ * @param knobStartingChain, knobEndingChain (Segment)
+ * 
  */
-MinSquareCoveringData.prototype.findContinuatorSegment = function() {
-	TRACE("\nfindContinuatorSegment: "+this.segments.length+" segments")
+function hasContinuator(knobCount, knobStartingChain, knobEndingChain) {
+	var knobLength = knobStartingChain.length();
+	var beforeChain = knobStartingChain.prev;
+	var afterChain = knobEndingChain.next;
+	switch (knobCount) {
+	case 4: 
+		return true;
+	case 3: 
+		var Aprev = beforeChain.c0;
+		var Dnext = afterChain.c1;
+		//console.log("Aprev:"+Aprev+" Dnext:"+Dnext);
+		var Aprev_sees_Dnext = (!Aprev.isConvex && !Dnext.isConvex && Dnext.positiveVisibilitySegment.c1==Aprev);
+		return Aprev_sees_Dnext;
+	case 2:
+		var A = knobStartingChain.c0;
+		var Aprev = beforeChain.c0;
+		var C = knobEndingChain.c1;
+		var Cnext = afterChain.c1;
+		
+		var AAprev = knobStartingChain.prev.length();
+		var A_Aprev = Aprev.isConvex? AAprev: A.distanceToSegment(Aprev.negativeVisibilitySegment);
+		var CCnext = knobEndingChain.next.length();
+		var C_Cnext = Cnext.isConvex? CCnext: C.distanceToSegment(Cnext.positiveVisibilitySegment);
+
+		//console.log("Aprev:"+Aprev+" Cnext:"+Cnext+" AAprev:"+AAprev+" A_Aprev:"+A_Aprev+" CCnext:"+CCnext+" C_Cnext:"+C_Cnext);
+
+		return (A_Aprev>knobLength && C_Cnext>knobLength) ||
+		                (AAprev>=knobLength && C_Cnext==knobLength) ||
+		                (A_Aprev==knobLength && CCnext>=knobLength);
+	case 1:
+		return (knobStartingChain.distanceToNearestBorder() > knobLength+almostEqual.FLT_EPSILON);
+	default: 
+		throw new Error("Invalid knobCount: "+knobCount);
+	}
+}
+
+/**
+ * @return the first segment, unless it is a knob in the middle of a knob-chain, in which case it returns the first knob in that chain.
+ */
+MinSquareCoveringData.prototype.firstInChain = function() {
 	var segment = this.segments.first;
 	
 	if (segment.isKnob()) {
@@ -1120,13 +1190,22 @@ MinSquareCoveringData.prototype.findContinuatorSegment = function() {
 		}
 	}
 	
-	var firstSegment = segment;
-	
-	var knobCount = 1;
+	return segment;
+}
+
+
+/**
+ * @return the first knob in a chain supporting a continuator.
+ */
+MinSquareCoveringData.prototype.findSegmentWithContinuator = function() {
+	TRACE("\nfindSegmentWithContinuator: "+this.segments.length+" segments")
+
+	var firstSegment = this.firstInChain();
+	var segment = firstSegment;
 	for (;;) {
 		if (segment.isKnob()) {
-			var knobLength = segment.length();
 			var knobStartingChain = segment;
+			var knobLength = knobStartingChain.length();
 			
 			// Calculate the length of the knob-chain:
 			var knobCount = 1;
@@ -1138,58 +1217,68 @@ MinSquareCoveringData.prototype.findContinuatorSegment = function() {
 				knobCount++;
 			}
 			knobStartingChain.knobCount = knobCount;
-			//console.log(knobStartingChain.toString())
-			
-			var beforeChain = knobStartingChain.prev;
-			var afterChain = knobEndingChain.next;
 			
 			// Check if there is a continuator starting at knobStartingChain:
-			var isContinuator = false;
-			switch (knobCount) {
-			case 4: 
-				isContinuator = true;
-				break;
-			case 3: 
-				var Aprev = beforeChain.c0;
-				var Dnext = afterChain.c1;
-				//console.log("Aprev:"+Aprev+" Dnext:"+Dnext);
-				var Aprev_sees_Dnext = (!Aprev.isConvex && !Dnext.isConvex && Dnext.positiveVisibilitySegment.c1==Aprev);
-				isContinuator = Aprev_sees_Dnext;
-				break;
-			case 2:
-				var A = knobStartingChain.c0;
-				var Aprev = beforeChain.c0;
-				var C = knobEndingChain.c1;
-				var Cnext = afterChain.c1;
-				
-				var AAprev = knobStartingChain.prev.length();
-				var A_Aprev = Aprev.isConvex? AAprev: A.distanceToSegment(Aprev.negativeVisibilitySegment);
-				var CCnext = knobEndingChain.next.length();
-				var C_Cnext = Cnext.isConvex? CCnext: C.distanceToSegment(Cnext.positiveVisibilitySegment);
-
-				//console.log("Aprev:"+Aprev+" Cnext:"+Cnext+" AAprev:"+AAprev+" A_Aprev:"+A_Aprev+" CCnext:"+CCnext+" C_Cnext:"+C_Cnext);
-
-				isContinuator = (A_Aprev>knobLength && C_Cnext>knobLength) ||
-				                (AAprev>=knobLength && C_Cnext==knobLength) ||
-				                (A_Aprev==knobLength && CCnext>=knobLength);
-				break;
-			case 1:
-				isContinuator = (knobStartingChain.distanceToNearestBorder() > knobLength+almostEqual.FLT_EPSILON);
-				break;
-			}
-			if (isContinuator)
+			if (hasContinuator(knobCount, knobStartingChain, knobEndingChain))
 				return knobStartingChain;
-			else
-				segment = knobEndingChain.next;
+
+			segment = knobEndingChain.next; // ...and continue searching
 		} else {
-			segment = segment.next;
+			segment = segment.next;  // ...and continue searching
 		}
-		if (segment==firstSegment)
+		
+		if (segment==firstSegment) {
+			console.log(this.segments.toString());
+			throw new Error("No continuator found - this is against the Theorem!");
+		}
+	}
+}
+
+/**
+ * @return a list of all first-knobs with continuators.
+ */
+MinSquareCoveringData.prototype.findAllSegmentsWithContinuators = function() {
+	TRACE("\findAllSegmentsWithContinuators: "+this.segments.length+" segments")
+	
+	var theSegments = [];
+
+	var firstSegment = this.firstInChain();
+	var segment = firstSegment;
+	for (;;) {
+		if (segment.isKnob()) {
+			var knobStartingChain = segment;
+			var knobLength = knobStartingChain.length();
+
+			// Calculate the length of the knob-chain:
+			var knobCount = 1;
+			var knobEndingChain = segment;
+			while (almostEqual(knobEndingChain.next.length(),knobLength,0,0.001) && 
+					knobEndingChain.next.isKnob() && 
+					knobEndingChain.next!=firstSegment)  {
+				knobEndingChain = knobEndingChain.next;
+				knobCount++;
+			}
+			knobStartingChain.knobCount = knobCount;
+
+			// Check if there is a continuator starting at knobStartingChain:
+			if (hasContinuator(knobCount, knobStartingChain, knobEndingChain))
+				theSegments.push(knobStartingChain);
+			
+			segment = knobEndingChain.next; // ...and continue searching
+		} else {
+			segment = segment.next;  // ...and continue searching
+		}
+
+		if (segment==firstSegment) 
 			break;
 	}
 
-	console.log(this.segments.toString());
-	throw new Error("No continuator found - this is impossible!");
+	if (!theSegments.length) {
+		console.log(this.segments.toString());
+		throw new Error("No continuator found - this is against the Theorem!");
+	}
+	
+	return theSegments;
 }
 
 /**
@@ -1419,6 +1508,13 @@ MinSquareCoveringData.prototype.hasConvexCorner = function(corner) {
 	return this.hashOfConvexCorners[cornerToKey(corner)];
 }
 
+MinSquareCoveringData.prototype.getResidualPolygon = function() {
+	var residualPolygonPoints = this.corners.map(function(corner) {
+		return {x:corner.x, y:corner.y}
+	});
+	residualPolygonPoints.push(residualPolygonPoints[0]);
+	return this.factory.createSimpleRectilinearPolygon(residualPolygonPoints);
+}
 
 /**
  * Iterates the squares covering this polygon.
@@ -1426,14 +1522,15 @@ MinSquareCoveringData.prototype.hasConvexCorner = function(corner) {
  * @param iterator a function with a single argument which is the current covering square.
  * The function should return a truthy value; if it returns a falsy value, the iteration stops immediately.
  */
-MinSquareCoveringData.prototype.iterateMinimalCovering = function(iterator) {
+MinSquareCoveringData.prototype.iterateMinimumCovering = function(iterator) {
 	var P = this;   // P is the residual polygon.
 	var maxIterations = Math.max(2*P.corners.length,200);
-	while (!P.isEmpty() && maxIterations>0) {
+	while (!P.isEmpty()) {
 		TRACE("\nP="+P.corners.toString())
-		var knob = P.findContinuatorSegment(); // returns the first knob in a continuator.
-		var continuator = knob.continuator();
+		var knob = P.findSegmentWithContinuator(); // returns the first knob in a continuator.
+		var continuator = knob.getAdjacentSquareInPolygon();
 		TRACE("\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
+		P.removeErasableRegion(knob);
 
 		var balconyOfContinuatorIsCovered = false; // TODO: check whether the balcony is really covered, to avoid redundant squares.!
 		if (!balconyOfContinuatorIsCovered) {
@@ -1441,22 +1538,20 @@ MinSquareCoveringData.prototype.iterateMinimalCovering = function(iterator) {
 			if (!shouldWeContinue)
 				break;
 		}
-
-		P.removeErasableRegion(knob);
+	
 		maxIterations--;
+		if (maxIterations<=0) 
+			throw new Error("Covering not found after many iterations!");
 	}
 
-	if (maxIterations<=0) {
-		throw new Error("Covering not found after many iterations!");
-	}
 }
 
 /**
  * @return a list of squares covering this polygon.
  */
-MinSquareCoveringData.prototype.findMinimalCovering = function() {
+MinSquareCoveringData.prototype.findMinimumCovering = function() {
 	var covering = [];       // C is the current covering.
-	this.iterateMinimalCovering(function(square) {
+	this.iterateMinimumCovering(function(square) {
 		covering.push(square); 
 		return true;
 	});
@@ -1475,7 +1570,7 @@ MinSquareCoveringData.prototype.findMinimalCovering = function() {
 jsts.algorithm.minSquareCovering = function(arg, factory) {
 	var srp = arg;
 	var srpc = new jsts.algorithm.MinSquareCoveringData(srp);
-	var covering = srpc.findMinimalCovering();
+	var covering = srpc.findMinimumCovering();
 	if (factory) {
 		return covering.map(function(square) {
 			return factory.createAxisParallelRectangle(square);
@@ -1571,6 +1666,11 @@ jsts.Side = {
 	North: 2,
 	East: 3
 };
+
+jsts.sideToLetter = {};
+
+for (var i in jsts.Side)
+	jsts.sideToLetter[jsts.Side[i]] = i[0];
 
 jsts.inverseSide = function(side) {
 	return (side+2)%4;
@@ -1753,10 +1853,8 @@ SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 		var thisPolygon = this;
 		
 		var setLandplotAdjacentToBorder = function()  {
-			if (landplotIsAdjacentToBorder) { //
-				console.dir("this.points="+JSON.stringify(thisPolygon.points));
-				console.dir("removeRectangle("+JSON.stringify(landplot)+"):");
-				throw new Error("landplot meets the border more than once - the result will be disconnected");
+			if (landplotIsAdjacentToBorder) { 
+				throw new Error("landplot meets the border more than once - the result will be disconnected!\n\tthis.points="+JSON.stringify(thisPolygon.points)+"\n\tremoveRectangle("+JSON.stringify(landplot)+"):");
 			}
 			landplotIsAdjacentToBorder = true;
 		}
@@ -12678,54 +12776,44 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 	valueFunctions.forEach(function(valueFunction) {
 		valueFunction.candidateSquares = [];
 	});
-	
-	cakeCoveringData.iterateMinimalCovering(function(coveringSquare) {
-		// for each agent, calculate all corner squares with value 1:
-		var numOfCandidatesPerCoveringSquare = 0;
-		valueFunctions.forEach(function(valueFunction) {
 
-			var minx=coveringSquare.minx
-			  , maxx=coveringSquare.maxx
-			  , miny=coveringSquare.miny
-			  , maxy=coveringSquare.maxy;
-			
-			var SW = {x:minx,y:miny}
-			  , SE = {x:maxx,y:miny}
-			  , NW = {x:minx,y:maxy}
-			  , NE = {x:maxx,y:maxy}
-			  ;
-			
-			var squareSizeSW = valueFunction.sizeOfSquareWithValue(SW, requiredLandplotValue, "NE")
-			  , squareSizeSE = valueFunction.sizeOfSquareWithValue(SE, requiredLandplotValue, "NW")
-			  , squareSizeNW = valueFunction.sizeOfSquareWithValue(NW, requiredLandplotValue, "SE")
-			  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
-			  ;
-
-			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW)) {
-				valueFunction.candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
-				numOfCandidatesPerCoveringSquare++;
-			}
-
-			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE)) {
-				valueFunction.candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
-				numOfCandidatesPerCoveringSquare++;
-			}
-
-			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW)) {
-				valueFunction.candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
-				numOfCandidatesPerCoveringSquare++;
-			}
-
-			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE)) {
-				valueFunction.candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
-				numOfCandidatesPerCoveringSquare++;
-			}
-		});
+	TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
+	var knobs = cakeCoveringData.findAllSegmentsWithContinuators();
+	var shouldRemoveKnobs = false;
+	knobs.forEach(function(knob) {
+		var knobLength = knob.length();
+		var continuator = knob.getAdjacentSquareInPolygon();
+		TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
 		
-		if (numOfCandidatesPerCoveringSquare==0) {
+		var numOfCandidatesPerKnob = 0;
+		var corner = knob.c0;
+		var cornerCount = Math.min(4,knob.knobCount+1);
+		for (var i=0; i<=cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
+			var directionOfPolygonInterior = corner.directionOfPolygonInterior();
+			valueFunctions.forEach(function(valueFunction) {
+				var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, directionOfPolygonInterior);
+				if (squareSize<=knobLength) {
+					var x0 = corner.x
+					  , x1 = corner.x + corner.signOfPolygonInteriorX()*squareSize
+					  , y0 = corner.y
+					  , y1 = corner.y + corner.signOfPolygonInteriorY()*squareSize;
+					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize});
+					numOfCandidatesPerKnob++;
+				}
+			});
+			corner = corner.next;
+		};
+		
+		if (!numOfCandidatesPerKnob) {
+			cakeCoveringData.removeErasableRegion(knob);
+			shouldRemoveKnobs = true;
 		}
-		return true;
-	})
+	});
+	
+	if (shouldRemoveKnobs) {
+		var newCake = cakeCoveringData.getResidualPolygon();
+		return recursive(valueFunctions, newCake, requiredLandplotValue)
+	}
 
 	valueFunctions.forEach(function(valueFunction) {
 		valueFunction.square = _.min(valueFunction.candidateSquares, function(square){
