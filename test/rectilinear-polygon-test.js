@@ -67,22 +67,28 @@ describe('Single agent', function() {
 });
 
 describe('Two agents', function() {
-	var agent0 = [1,1, 1,9, 9,1, 9,9, 5,5];
 	it('square', function() {
-		testAlgorithm([agent0, agent0], square, 2);
+		var agent = [1,1, 1,9, 9,1, 9,9, 5,5];
+		testAlgorithm([agent, agent], square, 2);
 	});
 	
-	var agent1 = [1,1, 5,1, 9,1, 1,8, 1,19, 19,19];
-	var mediumLshape = [0,0, 10,10, 20,20];
 	it('medium L-shape', function() {
-		testAlgorithm([agent1, agent1], mediumLshape, 2);
+		var agent = [1,1, 5,1, 9,1, 1,8, 1,19, 19,19];
+		var land = [0,0, 10,10, 20,20];
+		testAlgorithm([agent, agent], land, 2);
 	});
 	
-	var fatLShape = [0,0, 20,10, 30,30];
-	var agent2 = [18,18, 19,19, 1,1, 1,29, 29,29, 29,11]
 	it('fat L-shape', function() {  
+		var land = [0,0, 20,10, 30,30];
+		var agent = [18,18, 19,19, 1,1, 1,29, 29,29, 29,11]
 		// This test-case breaks the algorithm that uses all covering squares, 
 		//		because one of the selected squares makes the cake not-simply-connected.
-		testAlgorithm([agent2, agent2], fatLShape, 2);
+		testAlgorithm([agent, agent], land, 2);
+	});
+	
+	it.only('fLag-shape', function() {  
+		var land = [0,0, 20,10, 60,60];
+		var agent = [1,11, 21,11, 59,11, 59,59, 30,59, 1,59];
+		testAlgorithm([agent, agent], land, 2);
 	});
 });

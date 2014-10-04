@@ -1030,6 +1030,11 @@ var MinSquareCoveringData = jsts.algorithm.MinSquareCoveringData = function(theP
 	this.calculateConvexityAndVisibility();
 }
 
+
+MinSquareCoveringData.prototype.isEmpty = function() {
+	return this.corners.isEmpty();
+}
+
 MinSquareCoveringData.prototype.calculateConvexityAndVisibility = function() {
 	/* Decide whether the corners are convex or concave, and calculate visibility information: */
 	
@@ -1038,7 +1043,6 @@ MinSquareCoveringData.prototype.calculateConvexityAndVisibility = function() {
 		segment.initializeProjectionList();
 	});
 	this.corners.forEach(function(corner) {
-		//console.log(corner.x+","+corner.y)
 		corner.calculateConvexity(this.turnDirection);
 		if (!corner.isConvex) {   // concave corner - calculate visibility information:
 			var positiveVisibilitySegment = this.findClosestSegment(corner.s0.direction, corner);
@@ -1049,11 +1053,6 @@ MinSquareCoveringData.prototype.calculateConvexityAndVisibility = function() {
 		}
 	}, this);
 	this.checkValid();
-}
-
-
-MinSquareCoveringData.prototype.isEmpty = function() {
-	return this.corners.isEmpty();
 }
 
 MinSquareCoveringData.prototype.findClosestSegment = function(direction, point) {
@@ -1716,6 +1715,31 @@ function isCornerOf(point, rectangle) {
 
 
 /**
+ * @author http://engblog.nextdoor.com/post/86430627239/fast-polygon-self-intersection-detection-in-javascript
+ */
+SimpleRectilinearPolygon.prototype.selfIntersectionPoints = function() {
+	var jstsPolygon = this.getPolygon();
+	var res = [];
+
+	// if the geometry is aleady a simple linear ring, do not
+	// try to find self intersection points.
+	var validator = new jsts.operation.IsSimpleOp(jstsPolygon);
+	if (validator.isSimpleLinearGeometry(jstsPolygon)) {
+		return [];
+	}
+		 
+	var graph = new jsts.geomgraph.GeometryGraph(0, jstsPolygon);
+	var cat = new jsts.operation.valid.ConsistentAreaTester(graph);
+	var r = cat.isNodeConsistentArea();
+	if (!r) {
+		var pt = cat.getInvalidPoint();
+		res.push([pt.x, pt.y]);
+	}
+	return res;
+}
+
+
+/**
  * Remove a certain rectangular land-plot from this polygon.
  * 
  * @param landplot a rectangle {minx:,maxx:,miny:,maxy:} contained in the polygon and adjacent to the border.
@@ -1725,6 +1749,17 @@ function isCornerOf(point, rectangle) {
 SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 		var newPoints = [];
 		var landplotIsAdjacentToBorder = false;  // If this flag remains false, this is an error since the result is not simply-connected.
+		
+		var thisPolygon = this;
+		
+		var setLandplotAdjacentToBorder = function()  {
+			if (landplotIsAdjacentToBorder) { //
+				console.dir("this.points="+JSON.stringify(thisPolygon.points));
+				console.dir("removeRectangle("+JSON.stringify(landplot)+"):");
+				throw new Error("landplot meets the border more than once - the result will be disconnected");
+			}
+			landplotIsAdjacentToBorder = true;
+		}
 		
 		for (var i=1; i<this.points.length; ++i) {
 			var corner0 = this.points[i-1];
@@ -1749,25 +1784,25 @@ SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 					//console.log("\tlandplot is adjacent to western vertical wall");
 					if (corner0.y>corner1.y) {   // wall goes from north to south
 						if (corner0.y>=landplot.miny && landplot.miny>=corner1.y) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 						} else if (corner1.y==landplot.maxy) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 						}
 					} else if (corner0.y<corner1.y) { // wall goes from south to north
 						if (corner1.y>=landplot.maxy && landplot.maxy>=corner0.y) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 						} else if (corner1.y==landplot.miny) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 						}
@@ -1778,25 +1813,25 @@ SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 					//console.log("\tlandplot is adjacent to eastern vertical wall");
 					if (corner0.y>corner1.y) {   // wall goes from north to south
 						if (corner0.y>=landplot.miny && landplot.miny>=corner1.y) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 						} else if (corner1.y==landplot.maxy) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 						}
 					} else if (corner0.y<corner1.y) { // wall goes from south to north
 						if (corner1.y>=landplot.maxy && landplot.maxy>=corner0.y) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 						} else if (corner1.y==landplot.miny) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 						}
@@ -1810,25 +1845,25 @@ SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 					//console.log("\tlandplot is adjacent to southern horizontal wall")
 					if (corner0.x>corner1.x) {   // wall goes from east to west
 						if (corner0.x>=landplot.minx && landplot.minx>=corner1.x) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 						} else if (corner1.x==landplot.maxx) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 						}
 					} else if (corner0.x<corner1.x) { // wall goes from west to east
 						if (corner0.x<=landplot.maxx && landplot.maxx<=corner1.x) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 						} else if (corner1.x==landplot.minx) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 						}
@@ -1839,25 +1874,25 @@ SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 					//console.log("\tlandplot is adjacent to northern horizontal wall")
 					if (corner0.x>corner1.x) {   // wall goes from east to west
 						if (corner0.x>=landplot.minx && landplot.minx>=corner1.x) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 						} else if (corner1.x==landplot.maxx) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 						}
 					} else if (corner0.x<corner1.x) { // wall goes from west to east
 						if (corner0.x<=landplot.maxx && landplot.maxx<=corner1.x) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.minx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 						} else if (corner1.x==landplot.minx) {
-							landplotIsAdjacentToBorder=true;
+							setLandplotAdjacentToBorder();
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.maxy})
 							this.pushIfNotMyCorner(newPoints, {x:landplot.maxx,y:landplot.miny})
 						}
@@ -1884,7 +1919,18 @@ SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
 		// keep the border cyclic:
 		newPoints.push(newPoints[0]);
 		
-		return this.factory.createSimpleRectilinearPolygon(newPoints);
+		var newPolygon = this.factory.createSimpleRectilinearPolygon(newPoints);
+		
+		// check validity of new polygon:
+		var newPolygonIntersectionPoints = newPolygon.selfIntersectionPoints();
+		if (newPolygonIntersectionPoints.length>0) {
+			console.dir("this.points="+JSON.stringify(this.points));
+			console.dir("removeRectangle("+JSON.stringify(landplot)+") returns:");
+			console.dir(JSON.stringify(newPolygon.points));
+			throw new Error("New polygon has self-intersections at: "+JSON.stringify(newPolygonIntersectionPoints));
+		}
+		
+		return newPolygon;
 }
 
 
@@ -12635,6 +12681,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 	
 	cakeCoveringData.iterateMinimalCovering(function(coveringSquare) {
 		// for each agent, calculate all corner squares with value 1:
+		var numOfCandidatesPerCoveringSquare = 0;
 		valueFunctions.forEach(function(valueFunction) {
 
 			var minx=coveringSquare.minx
@@ -12654,19 +12701,29 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 			  , squareSizeNE = valueFunction.sizeOfSquareWithValue(NE, requiredLandplotValue, "SW")
 			  ;
 
-			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW))
+			if (minx+squareSizeSW <= maxx && miny+squareSizeSW <= maxy && cakeCoveringData.hasConvexCorner(SW)) {
 				valueFunction.candidateSquares.push({minx:minx, miny:miny, maxx:minx+squareSizeSW, maxy:miny+squareSizeSW, size:squareSizeSW});
+				numOfCandidatesPerCoveringSquare++;
+			}
 
-			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE))
+			if (maxx-squareSizeSE >= minx && miny+squareSizeSE <= maxy && cakeCoveringData.hasConvexCorner(SE)) {
 				valueFunction.candidateSquares.push({minx:maxx-squareSizeSE, miny:miny, maxx:maxx, maxy:miny+squareSizeSE, size:squareSizeSE});
+				numOfCandidatesPerCoveringSquare++;
+			}
 
-			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW))
+			if (minx+squareSizeNW <= maxx && maxy-squareSizeNW >= miny && cakeCoveringData.hasConvexCorner(NW)) {
 				valueFunction.candidateSquares.push({minx:minx, miny:maxy-squareSizeNW, maxx:minx+squareSizeNW, maxy:maxy, size:squareSizeNW});
+				numOfCandidatesPerCoveringSquare++;
+			}
 
-			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE))
+			if (maxx-squareSizeNE >= minx && maxy-squareSizeNE >= miny && cakeCoveringData.hasConvexCorner(NE)) {
 				valueFunction.candidateSquares.push({minx:maxx-squareSizeNE, maxx:maxx, miny:maxy-squareSizeNE, maxy:maxy, size:squareSizeNE});
+				numOfCandidatesPerCoveringSquare++;
+			}
 		});
 		
+		if (numOfCandidatesPerCoveringSquare==0) {
+		}
 		return true;
 	})
 

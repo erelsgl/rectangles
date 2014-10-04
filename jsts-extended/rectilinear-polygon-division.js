@@ -45,7 +45,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		valueFunction.candidateSquares = [];
 	});
 	
-	cakeCoveringData.iterateMinimalCovering(function(coveringSquare) {
+	cakeCoveringData.iterateMinimumCovering(function(coveringSquare) {
 		// for each agent, calculate all corner squares with value 1:
 		var numOfCandidatesPerCoveringSquare = 0;
 		valueFunctions.forEach(function(valueFunction) {
@@ -89,7 +89,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		});
 		
 		if (numOfCandidatesPerCoveringSquare==0) {
-		//	console.log("WARNING: No candidates for "+JSON.stringify(coveringSquare));
+			var newCake = cakeCoveringData.getResidualPolygon();
 		}
 		return true;
 	})
