@@ -45,7 +45,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		valueFunction.candidateSquares = [];
 	});
 
-	TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
+	//TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
 	var knobs = cakeCoveringData.findAllSegmentsWithContinuators();
 	var shouldRemoveKnobs = false;
 	knobs.forEach(function(knob) {
@@ -73,6 +73,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		};
 		
 		if (!numOfCandidatesPerKnob) {
+			TRACE(numOfAgents,"\t-- No demand - removing knob");
 			cakeCoveringData.removeErasableRegion(knob);
 			shouldRemoveKnobs = true;
 		}

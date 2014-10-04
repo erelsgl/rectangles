@@ -12777,13 +12777,13 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		valueFunction.candidateSquares = [];
 	});
 
-	TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
+	//TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
 	var knobs = cakeCoveringData.findAllSegmentsWithContinuators();
 	var shouldRemoveKnobs = false;
 	knobs.forEach(function(knob) {
 		var knobLength = knob.length();
 		var continuator = knob.getAdjacentSquareInPolygon();
-		TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
+		//TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
 		
 		var numOfCandidatesPerKnob = 0;
 		var corner = knob.c0;

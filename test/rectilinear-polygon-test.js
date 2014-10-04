@@ -86,7 +86,7 @@ describe('Two agents', function() {
 		testAlgorithm([agent, agent], land, 2);
 	});
 	
-	it('fLag-shape', function() {  
+	it.only('fLag-shape', function() {  
 		var land = [0,0, 20,10, 60,60];
 		var agent = [1,11, 21,11, 59,11, 59,59, 30,59, 1,59];
 		testAlgorithm([agent, agent], land, 2);
