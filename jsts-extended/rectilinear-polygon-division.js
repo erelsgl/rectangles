@@ -56,7 +56,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		var numOfCandidatesPerKnob = 0;
 		var corner = knob.c0;
 		var cornerCount = Math.min(4,knob.knobCount+1);
-		for (var i=0; i<=cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
+		for (var i=0; i<cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
 			var directionOfPolygonInterior = corner.directionOfPolygonInterior();
 			valueFunctions.forEach(function(valueFunction) {
 				var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, directionOfPolygonInterior);
@@ -65,7 +65,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 					  , x1 = corner.x + corner.signOfPolygonInteriorX()*squareSize
 					  , y0 = corner.y
 					  , y1 = corner.y + corner.signOfPolygonInteriorY()*squareSize;
-					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize});
+					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize, corner:{x:corner.x,y:corner.y}, direction:directionOfPolygonInterior});
 					numOfCandidatesPerKnob++;
 				}
 			});

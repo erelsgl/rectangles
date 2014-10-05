@@ -866,9 +866,9 @@ Segment.prototype.distanceToNearestBorder = function() {
 
 Segment.prototype.signOfPolygonInterior = function() {
 	if (this.isVertical()) 
-		return this.next.direction==jsts.Side.East? 1: -1;
+		return this.c0.signOfPolygonInteriorX();
 	else
-		return this.next.direction==jsts.Side.North? 1: -1;
+		return this.c0.signOfPolygonInteriorY();
 }
 
 /**
@@ -959,12 +959,20 @@ Corner.prototype.directionOfPolygonInterior = function() {
 		return dir1+dir0;
 }
 
+Corner.prototype.verticalDirection = function() {
+	return this.s0.isVertical()? jsts.inverseSide(this.s0.direction): this.s1.direction;
+}
+
+Corner.prototype.horizontalDirection = function() {
+	return this.s0.isHorizontal()? jsts.inverseSide(this.s0.direction): this.s1.direction;
+}
+
 Corner.prototype.signOfPolygonInteriorX = function() {
-	return this.s0.isVertical()? this.s0.signOfPolygonInterior(): this.s1.signOfPolygonInterior();
+	return ((this.horizontalDirection()==jsts.Side.East)==this.isConvex)? 1: -1
 }
 
 Corner.prototype.signOfPolygonInteriorY = function() {
-	return this.s0.isHorizontal()? this.s0.signOfPolygonInterior(): this.s1.signOfPolygonInterior();
+	return ((this.verticalDirection()==jsts.Side.North)==this.isConvex)? 1: -1
 }
 
 Corner.prototype.distanceToSegment = function(segment) {
@@ -1676,13 +1684,14 @@ jsts.inverseSide = function(side) {
 	return (side+2)%4;
 }
 
+jsts.isVertical = function(side) { return side%2==0; }
+jsts.isHorizontal = function(side) { return side%2==1; }
+
 jsts.Turn = {
 	Left: -1,
 	Right: 1
 };
 
-jsts.isVertical = function(side) { return side%2==0; }
-jsts.isHorizontal = function(side) { return side%2==1; }
 
 jsts.turn = function(side1, side2) {
 	var t = side2-side1;
@@ -12783,12 +12792,12 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 	knobs.forEach(function(knob) {
 		var knobLength = knob.length();
 		var continuator = knob.getAdjacentSquareInPolygon();
-		//TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
+		TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
 		
 		var numOfCandidatesPerKnob = 0;
 		var corner = knob.c0;
 		var cornerCount = Math.min(4,knob.knobCount+1);
-		for (var i=0; i<=cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
+		for (var i=0; i<cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
 			var directionOfPolygonInterior = corner.directionOfPolygonInterior();
 			valueFunctions.forEach(function(valueFunction) {
 				var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, directionOfPolygonInterior);
@@ -12797,7 +12806,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 					  , x1 = corner.x + corner.signOfPolygonInteriorX()*squareSize
 					  , y0 = corner.y
 					  , y1 = corner.y + corner.signOfPolygonInteriorY()*squareSize;
-					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize});
+					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize, corner:{x:corner.x,y:corner.y}, direction:directionOfPolygonInterior});
 					numOfCandidatesPerKnob++;
 				}
 			});
@@ -12805,6 +12814,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		};
 		
 		if (!numOfCandidatesPerKnob) {
+			TRACE(numOfAgents,"\t-- No demand - removing knob");
 			cakeCoveringData.removeErasableRegion(knob);
 			shouldRemoveKnobs = true;
 		}
