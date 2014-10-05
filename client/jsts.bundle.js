@@ -1430,7 +1430,7 @@ MinSquareCoveringData.prototype.removeErasableRegion = function(knob) {
 	var exposedDistance0 = knob.prev.length();
 	if (knobCount==1 && exposedDistance0<almostEqual.FLT_EPSILON || exposedDistance0<0) {console.log("knob="+knob.toString());  throw new Error("exposedDistance at knob.prev = "+exposedDistance0)}
 	var exposedDistance1 = knob.next.length();
-	if (knobCount==1 && exposedDistance1<almostEqual.FLT_EPSILON || exposedDistance1<0) {console.log("knob="+knob.toString()); throw new Error("exposedDistance at knob.next = "+exposedDistance0)}
+	if (knobCount==1 && exposedDistance1<almostEqual.FLT_EPSILON || exposedDistance1<0) {console.log("knob="+knob.toString()); throw new Error("exposedDistance at knob.next = "+exposedDistance1)}
 	var exposedDistance = Math.min(exposedDistance0,exposedDistance1);
 	var coveredDistance = knob.length(); // TODO: calculate the actual covering distance
 	if (knobCount==1 && coveredDistance<almostEqual.FLT_EPSILON || coveredDistance<0) {console.log("knob="+knob.toString()); throw new Error("coveredDistance = "+coveredDistance)}
@@ -1718,6 +1718,8 @@ jsts.turnDirection = function(turn) {
 
 var jsts = require('jsts');
 
+var round4 = function(x) { return Math.round(x*10000)/10000; }
+
 
 /**
  * Constructs a simply-connected rectilinear polygon.
@@ -1733,11 +1735,11 @@ var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon = function(xy,
 		throw new Error("xy is empty: "+JSON.stringify(xy));
 	if (!factory)
 		throw new Error("factory is empty");
-
+	
 	var points;
 	var first = xy[0];
 	if ((typeof first === 'object') && ('x' in first)) {
-		points = xy;	// xy is already an array of points
+		points = xy.map(function(point) {return {x:round4(point.x),y:round4(point.y)}});	// xy is already an array of points
 		if (points.length<5)
 			throw new Error("only "+points.length+" points: "+JSON.stringify(points));
 		if (points.length%2==0)
@@ -1749,6 +1751,7 @@ var SimpleRectilinearPolygon = jsts.geom.SimpleRectilinearPolygon = function(xy,
 		}
 
 	} else {
+		xy = xy.map(round4);
 		if (xy.length%2==1)
 			throw new Error("odd number of xy values: "+JSON.stringify(xy));
 		points = [];	// xy is an array of x-y-x-y-x-y-...
@@ -1856,6 +1859,10 @@ SimpleRectilinearPolygon.prototype.selfIntersectionPoints = function() {
  * (this polygon is not changed).
  */
 SimpleRectilinearPolygon.prototype.removeRectangle = function(landplot) {
+		if (landplot.minx==landplot.maxx || landplot.miny==landplot.maxy) { // empty landplot
+			console.log("\nWARNING: empty landplot: "+JSON.stringify(landplot))
+			return this;
+		}
 		var newPoints = [];
 		var landplotIsAdjacentToBorder = false;  // If this flag remains false, this is an error since the result is not simply-connected.
 		
@@ -12770,6 +12777,38 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 }
 
 
+/**
+ * @param knob a knob which is first in a knob-chain of a continuator.
+ * @param valueFunctions the candidate squares will be inserted in the valueFunction.candidateSquares array.
+ * @param cornerFilterFunction used to filter the corners.
+ * @return numOfCandidatesPerKnob total number of candidates for the given knob.
+ */
+function findCandidateSquaresInKnob(knob, valueFunctions, requiredLandplotValue, cornerFilterFunction) {
+	var corner = knob.c0;
+	var cornerCount = Math.min(4,knob.knobCount+1);
+	var knobLength = knob.length();
+	var numOfCandidatesPerKnob = 0;
+	for (var i=0; i<cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
+		if (!cornerFilterFunction || cornerFilterFunction(corner)) {
+			var directionOfPolygonInterior = corner.directionOfPolygonInterior();
+			valueFunctions.forEach(function(valueFunction) {
+				var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, directionOfPolygonInterior);
+				if (squareSize<=knobLength) {
+					var x0 = corner.x
+					  , x1 = corner.x + corner.signOfPolygonInteriorX()*squareSize
+					  , y0 = corner.y
+					  , y1 = corner.y + corner.signOfPolygonInteriorY()*squareSize;
+					numOfCandidatesPerKnob++;
+					if (valueFunction.candidateSquares)
+						valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize, corner:{x:corner.x,y:corner.y}, direction:directionOfPolygonInterior});
+				}
+			});
+		}
+		corner = corner.next;
+	};
+	return numOfCandidatesPerKnob;
+}
+
 
 /**
  * @param agentsValuePoints an array of n>=1 or more valuation functions, represented by value points (x,y).
@@ -12779,50 +12818,47 @@ function TRACE_PARTITION(numOfAgents, s, y, k, northAgents, northPlots, southAge
 jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, cake, requiredLandplotValue) {
 	var numOfAgents = valueFunctions.length;
 	TRACE(numOfAgents,numOfAgents+" agents("+_.pluck(valueFunctions,"color")+"), trying to give each a value of "+requiredLandplotValue+" from a cake "+cake.toString());
-	
+	var USE_FLOATING_CORNERS = false;
 	var cakeCoveringData = new jsts.algorithm.MinSquareCoveringData(cake);
 
-	valueFunctions.forEach(function(valueFunction) {
+	// Start by removing knobs that nobody wants:
+	var cakeHasChanged = false;
+	for (;;) {
+		var cakeHasChangedInIteration = false;
+		var knobs = cakeCoveringData.findAllSegmentsWithContinuators();
+		for (var i=0; i<knobs.length; ++i) {
+			var knob = knobs[i];
+			TRACE(numOfAgents,"\tchecking knob "+knob.toString());
+			var numOfCandidatesPerKnob = findCandidateSquaresInKnob(knob, valueFunctions, requiredLandplotValue);
+			if (!numOfCandidatesPerKnob) {
+				TRACE(numOfAgents,"\t-- No demand - removing knob");
+				cakeCoveringData.removeErasableRegion(knob);
+				cakeHasChangedInIteration = cakeHasChanged = true;
+				break;
+			}
+		}
+		if (!cakeHasChangedInIteration)  // no knob was removed - proceed to division
+			break;
+	}
+
+	if (cakeHasChanged) 
+		cake = cakeCoveringData.getResidualPolygon();
+	var originalCakeCoveringData = new jsts.algorithm.MinSquareCoveringData(cake);
+
+	valueFunctions.forEach(function(valueFunction) {	
 		valueFunction.candidateSquares = [];
 	});
 
-	//TRACE(numOfAgents,"\nP="+cakeCoveringData.corners.toString());
-	var knobs = cakeCoveringData.findAllSegmentsWithContinuators();
-	var shouldRemoveKnobs = false;
-	knobs.forEach(function(knob) {
-		var knobLength = knob.length();
-		var continuator = knob.getAdjacentSquareInPolygon();
-		TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
-		
-		var numOfCandidatesPerKnob = 0;
-		var corner = knob.c0;
-		var cornerCount = Math.min(4,knob.knobCount+1);
-		for (var i=0; i<cornerCount; ++i) {   // loop over all (convex) corners of the continuator:
-			var directionOfPolygonInterior = corner.directionOfPolygonInterior();
-			valueFunctions.forEach(function(valueFunction) {
-				var squareSize = valueFunction.sizeOfSquareWithValue(corner, requiredLandplotValue, directionOfPolygonInterior);
-				if (squareSize<=knobLength) {
-					var x0 = corner.x
-					  , x1 = corner.x + corner.signOfPolygonInteriorX()*squareSize
-					  , y0 = corner.y
-					  , y1 = corner.y + corner.signOfPolygonInteriorY()*squareSize;
-					valueFunction.candidateSquares.push({minx:Math.min(x0,x1), miny:Math.min(y0,y1), maxx:Math.max(x0,x1), maxy:Math.max(y0,y1), size:squareSize, corner:{x:corner.x,y:corner.y}, direction:directionOfPolygonInterior});
-					numOfCandidatesPerKnob++;
-				}
-			});
-			corner = corner.next;
-		};
-		
-		if (!numOfCandidatesPerKnob) {
-			TRACE(numOfAgents,"\t-- No demand - removing knob");
-			cakeCoveringData.removeErasableRegion(knob);
-			shouldRemoveKnobs = true;
-		}
-	});
-	
-	if (shouldRemoveKnobs) {
-		var newCake = cakeCoveringData.getResidualPolygon();
-		return recursive(valueFunctions, newCake, requiredLandplotValue)
+	while (!cakeCoveringData.isEmpty()) {
+		var knob = cakeCoveringData.findSegmentWithContinuator();
+		TRACE(numOfAgents,"\tprocessing knob "+knob.toString());
+
+		var numOfCandidatesPerKnob = findCandidateSquaresInKnob(knob, valueFunctions, requiredLandplotValue,
+			/* corner filter = */USE_FLOATING_CORNERS? null: function(corner) {	return originalCakeCoveringData.hasConvexCorner({x:corner.x,y:corner.y});}
+		);
+
+		cakeCoveringData.removeErasableRegion(knob);
+		TRACE(numOfAgents,"\t ++ found "+numOfCandidatesPerKnob+" candidates")
 	}
 
 	valueFunctions.forEach(function(valueFunction) {
