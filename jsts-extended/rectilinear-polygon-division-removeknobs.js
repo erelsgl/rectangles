@@ -54,7 +54,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 		var knobLength = knob.length();
 		var continuator = knob.getAdjacentSquareInPolygon();
 		TRACE(numOfAgents,"\tprocessing knob "+knob.toString()+"\twith continuator "+JSON.stringify(continuator))
-		
+
 		var numOfCandidatesPerKnob = 0;
 		var corner = knob.c0;
 		var cornerCount = Math.min(4,knob.knobCount+1);
