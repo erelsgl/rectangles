@@ -741,7 +741,7 @@ var Segment = function(c0, c1) {
 		c0.y>c1.y? jsts.Side.South:
 		c0.x<c1.x? jsts.Side.East:
 		c0.x>c1.x? jsts.Side.West:
-		error("cannot detect the direction: "+JSON.stringify(c0)+", "+JSON.stringify(c1))
+		error("cannot detect the direction: "+c0.toString()+", "+c1.toString())
 	);
 	
 	this.coveringSquares = new DoublyLinkedList();	 // All squares s selected for the cover and having the following properties:
@@ -12837,8 +12837,17 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 				break;
 			}
 		}
+		if (cakeCoveringData.isEmpty())
+			break;
 		if (!cakeHasChangedInIteration)  // no knob was removed - proceed to division
 			break;
+	}
+
+	if (cakeCoveringData.isEmpty()) { // no more rectangles
+		TRACE(numOfAgents, "-- no knob with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			TRACE_NO_LANDPLOT(valueFunctions);
+		return [];
 	}
 
 	if (cakeHasChanged) 

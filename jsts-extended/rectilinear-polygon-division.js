@@ -89,8 +89,17 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 				break;
 			}
 		}
+		if (cakeCoveringData.isEmpty())
+			break;
 		if (!cakeHasChangedInIteration)  // no knob was removed - proceed to division
 			break;
+	}
+
+	if (cakeCoveringData.isEmpty()) { // no more rectangles
+		TRACE(numOfAgents, "-- no knob with the required value "+requiredLandplotValue);
+		if (requiredLandplotValue<=1)
+			TRACE_NO_LANDPLOT(valueFunctions);
+		return [];
 	}
 
 	if (cakeHasChanged) 
