@@ -69,6 +69,12 @@ describe('Two agents', function() {
 		testAlgorithm([agent, agent], square, 2);
 	});
 	
+	it.only('rectangle', function() {
+		var land = [0,0, 20,10];
+		var agent = [0,0, 0,8, 8,0, 20,0, 20,9]
+		testAlgorithm([agent, agent], land, 2);
+	});
+	
 	it('medium L-shape', function() {
 		var agent = [1,1, 5,1, 9,1, 1,8, 1,19, 19,19];
 		testAlgorithm([agent, agent], mediumLshape, 2);
@@ -94,18 +100,32 @@ describe('Two agents', function() {
 		testAlgorithm([agent2, agent2], land, 2);
 	});
 	
+	it('special L-shape', function() {
+		// This test-case breaks the algorithm that picks the smallest square,
+		// because picking the smallest square makes most value useless.
+		var land = [0,0, 40,10, 60,40];
+		var agent = [15,0, 40,0, 60,10, 60,40, 10,40, 30,40];
+		testAlgorithm([agent, agent], land, 2);
+	})
+	
 	it('fLag-shape', function() {  
 		// This test-case breaks the algorithm that uses all covering squares, 
 		//		because one of the selected squares makes the cake not-simply-connected.
 		var land = [0,0, 20,10, 60,60];
 		var agent = [1,11, 21,11, 59,11, 59,59, 30,59, 1,59];
 		testAlgorithm([agent, agent], land, 2);
-	});
+	})
 	
 	it('hall with 4 rectangular rooms', function() {
 		// This test-case breaks BOTH the algorithm that uses only corner squares AND the algorithm that uses all covering squares!
-		var land = [0,0, 300,50, 350,0, 390,60, 350,340, 390,400, 350,360, 50,400, 0,340, 50,310];
 		var agent = [0,0,300,0,0,310, 390,0,390,60, 390,340,390,400, 0,340,0,400, 350,90,350,150,350,210,350,260];
 		testAlgorithm([agent, agent], hall4roomsRectangular, 2);
+	})
+	
+	it('corridor between 2 rooms', function() {
+		// In this test-case, the cake may be split to two cakes
+		var land = [0,0, 40,30, 50,18, 70,30, 80,0, 120,40];
+		var agent = [0,0, 0,40, 40,0, 40,40, 50,18, 70,18, 80,0, 120,0, 80,40, 120,40];
+		testAlgorithm([agent, agent], land, 2);
 	})
 });
