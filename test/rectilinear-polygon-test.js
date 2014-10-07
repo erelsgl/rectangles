@@ -69,7 +69,7 @@ describe('Two agents', function() {
 		testAlgorithm([agent, agent], square, 2);
 	});
 	
-	it.only('rectangle', function() {
+	it('rectangle', function() {
 		var land = [0,0, 20,10];
 		var agent = [0,0, 0,8, 8,0, 20,0, 20,9]
 		testAlgorithm([agent, agent], land, 2);
