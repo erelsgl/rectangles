@@ -37,8 +37,10 @@ jsts.algorithm.updatedCornersNorthEast = function(corners, landplot) {
 		newCorners.push(corners[c]);
 		++c;
 	}
+	
 	// HERE corners[c].x<landplot.maxx
-	newCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
+	if (c<numOfCorners)
+		newCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
 	while (c<numOfCorners && corners[c].y<landplot.maxy) { // skip corners shaded by the landplot
 		++c;
 	}

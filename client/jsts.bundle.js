@@ -3866,7 +3866,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":48}],20:[function(require,module,exports){
+},{"__browserify_process":49}],20:[function(require,module,exports){
 /*
  * $Id: combinatorics.js,v 0.25 2013/03/11 15:42:14 dankogai Exp dankogai $
  *
@@ -4831,7 +4831,7 @@ Console.extend(Console);
 
 exports.Console = Console;
 });
-},{"./core":23,"./enumerable":24,"__browserify_process":48,"system":33,"tty":50}],23:[function(require,module,exports){
+},{"./core":23,"./enumerable":24,"__browserify_process":49,"system":33,"tty":51}],23:[function(require,module,exports){
 var JS = (typeof this.JS === 'undefined') ? {} : this.JS;
 
 (function(factory) {
@@ -7581,7 +7581,7 @@ P.packages(function() { with(this) {
 }});
 
 })();
-},{"__browserify_process":48,"path":49}],28:[function(require,module,exports){
+},{"__browserify_process":49,"path":50}],28:[function(require,module,exports){
 (function(factory) {
   var E  = (typeof exports === 'object'),
       js = (typeof JS === 'undefined') ? require('./core') : JS;
@@ -9669,7 +9669,7 @@ Object.defineProperties(exports, {
   }
 })
 
-},{"__browserify_process":48,"sys":52,"util":52}],34:[function(require,module,exports){
+},{"__browserify_process":49,"sys":53,"util":53}],34:[function(require,module,exports){
 //     Underscore.js 1.7.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -11139,7 +11139,7 @@ window.calcHalfProportionalDivision = function(pointsPerAgent, envelopeTemp, max
 }); // end of $(document).ready
 
 
-},{"../jsts-extended":40,"underscore":46}],36:[function(require,module,exports){
+},{"../jsts-extended":40,"underscore":47}],36:[function(require,module,exports){
 var _ = require("underscore");
 
 /**
@@ -11287,7 +11287,7 @@ ValueFunction.orderArrayByLandplotValueRatio = function(valueFunctions, landplot
 
 module.exports = ValueFunction;
 
-},{"underscore":46}],37:[function(require,module,exports){
+},{"underscore":47}],37:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -11327,8 +11327,10 @@ jsts.algorithm.updatedCornersNorthEast = function(corners, landplot) {
 		newCorners.push(corners[c]);
 		++c;
 	}
+	
 	// HERE corners[c].x<landplot.maxx
-	newCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
+	if (c<numOfCorners)
+		newCorners.push({x:landplot.maxx, y:corners[c].y});  // add southwest new corner
 	while (c<numOfCorners && corners[c].y<landplot.maxy) { // skip corners shaded by the landplot
 		++c;
 	}
@@ -11720,7 +11722,7 @@ jsts.algorithm.rectanglesCoveringNorthernLevels = function(levelsParam) {
 
 
 
-},{"../../computational-geometry":1,"argminmax":44,"underscore":46}],38:[function(require,module,exports){
+},{"../../computational-geometry":1,"argminmax":45,"underscore":47}],38:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a fair number of points.
  * 
@@ -11829,7 +11831,7 @@ var numPartners = function(points, envelope, n, maxAspectRatio) {
 	return n;
 }
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./square-with-max-points":42,"underscore":46}],39:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./square-with-max-points":43,"underscore":47}],39:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -11843,9 +11845,9 @@ require("./corners");
 require("./rectilinear-polygon-division");
 var numutils = require('../../computational-geometry/lib/numeric-utils');
 
-
 var _ = require("underscore");
 _.mixin(require("argminmax"));
+_.mixin(require("./rainbow"));
 
 var util = require("util");
 var ValueFunction = require("./ValueFunction");
@@ -11900,7 +11902,7 @@ jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE = true;  // try to find divi
  * Find a set of axis-parallel fat rectangles representing a fair-and-square division for the valueFunctions
  * 
  * @param agentsValuePoints an array in which each entry represents the valuation of a single agent.
- * The valuation of an agent is represented by points with fields {x,y}. Each point has the same value.
+ * The valuation of an agent is represented as an array of points with fields {x,y}. Each point has the same value.
  *    Each agent may also have a field "color", that is copied to the rectangle.
  * 
  * @param envelope object with fields {minx,miny, maxx,maxy}; defines the boundaries for the landplots.
@@ -11916,7 +11918,7 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(ag
 		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
 		rect.color = (landplot.color!=prevColor?
 				landplot.color: 
-				color(index++));
+				_.color(index++));
 		prevColor = rect.color;
 		rect.fill = landplot.fill;
 		rect.stroke = landplot.stroke;
@@ -11933,6 +11935,15 @@ jsts.algorithm.getOpenSides = function(envelope) {
 	return openSides;
 }
 
+/**
+ * @param agentsValuePoints an array in which each entry represents the valuation of a single agent.
+ * The valuation of an agent is represented as an array of points with fields {x,y}. Each point has the same value.
+ *    Each agent may also have a field "color", that is copied to the rectangle.
+ * 
+ * @param envelope object with fields {minx,miny, maxx,maxy}; defines the boundaries for the landplots.
+ * 
+ * @return an array of squares, one per square per agent.
+ */
 jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
 	TRACE(10,"")
 	var landplots;
@@ -12015,13 +12026,18 @@ jsts.algorithm.halfProportionalDivision0Walls = function(agentsValuePoints, enve
 /************ NORMALIZATION *******************/
 
 var runDivisionAlgorithm = jsts.algorithm.runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, allowSingleValueFunction) {
+	var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? 
+			valuePerAgent: 
+			1;
+	var minVal = 1;
 	return runDivisionAlgorithm2(normalizedDivisionFunction, southernSide,
 			ValueFunction.createArray(valuePerAgent, agentsValuePoints),
-			envelope, maxAspectRatio, allowSingleValueFunction);
+			envelope, maxAspectRatio, allowSingleValueFunction,
+			minVal, maxVal);
 }
 
 
-var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(normalizedDivisionFunction, southernSide, valueFunctions, envelope, maxAspectRatio, allowSingleValueFunction) {
+var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(normalizedDivisionFunction, southernSide, valueFunctions, envelope, maxAspectRatio, allowSingleValueFunction, minVal, maxVal) {
 	if (valueFunctions.length==0) 
 		return [];
 
@@ -12062,15 +12078,13 @@ var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(norm
 		return [];
 
 	if (valueFunctions.length>1 || allowSingleValueFunction)  {  // subjective valuations
-		var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? 
-			_.min(_.pluck(valueFunctions,"totalValue")): 
-			1;
-		var minVal = 1;
 		var landplots = [];
 		
 		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
-			if (jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE) TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
+			if (maxVal>minVal) TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
 			landplots = normalizedDivisionFunction(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
+			if (!landplots)
+				throw new Error("no landplots returned")
 			if (landplots.length==valueFunctions.length) {
 				if (!landplots.minValuePerAgent)
 					landplots.minValuePerAgent = requiredLandplotValue;
@@ -12389,45 +12403,66 @@ var staircase2walls = function recurse(valueFunctions, origin, corners, required
 }
 
 
+
+
 /**
+ * Partition the agents to western and eastern agents according to their value functions.
  * @return [westernValueFunctions, easternValueFunctions]
  */
-var halvingEastWest  = function(valueFunctions, totalValue) {
+var partitionEastWest  = function(valueFunctions, totalValue, numOfWesternAgents) {
 	if (!totalValue)
 		throw new Error("totalValue is 0");
 	var FARWEST = {x:-400,y:0}, FAREAST={x:800,y:0};
 	var numOfAgents = valueFunctions.length;
-	var westValue, eastValue, numOfWesternAgents;
-	if (numOfAgents%2==0) {
-		numOfWesternAgents = numOfAgents/2;
-		westValue = eastValue = totalValue/2;
-	} else {
-		numOfWesternAgents = (numOfAgents+1)/2;
-		westValue = totalValue*(1+1/numOfAgents)/2;
-		eastValue = totalValue*(1-1/numOfAgents)/2;
-	}
-	for (var i=0; i<valueFunctions.length; ++i) {
+	var numOfEasternAgents = numOfAgents-numOfWesternAgents;
+	
+	if (numOfWesternAgents==0)
+		return [[], FARWEST.x, valueFunctions];
+	else if (numOfEasternAgents==0)
+		return [valueFunctions, FAREAST.x, []];
+	
+	var westValue = totalValue*(numOfWesternAgents/numOfAgents);
+	var eastValue = totalValue-westValue;
+
+	for (var i=0; i<numOfAgents; ++i) {
 		delete valueFunctions[i].yCuts;
 		if (valueFunctions[i].points.length==0) { // no points
 			TRACE(numOfAgents, " -- No value points for agent "+i);
 			TRACE_NO_LANDPLOT(valueFunctions);
 			return [];
 		}
-		var westHalvingPoint = FARWEST.x + valueFunctions[i].sizeOfSquareWithValue(FARWEST, westValue, 'NE');
-		var eastHalvingPoint = FAREAST.x - valueFunctions[i].sizeOfSquareWithValue(FAREAST, eastValue, 'NW');
-		valueFunctions[i].halvingPoint = (westHalvingPoint+eastHalvingPoint)/2;
+		var westPartitionPoint = FARWEST.x + valueFunctions[i].sizeOfSquareWithValue(FARWEST, westValue, 'NE');
+		var eastPartitionPoint = FAREAST.x - valueFunctions[i].sizeOfSquareWithValue(FAREAST, eastValue, 'NW');
+		valueFunctions[i].partitionPoint = (westPartitionPoint+eastPartitionPoint)/2;
 	}
 	
-	valueFunctions.sort(function(a,b){return a.halvingPoint-b.halvingPoint});
+	valueFunctions.sort(function(a,b){return a.partitionPoint-b.partitionPoint});
 
 	var westernValueFunctions = valueFunctions.slice(0, numOfWesternAgents);
 	var easternValueFunctions = valueFunctions.slice(numOfWesternAgents, numOfAgents);
-	var halvingPoint = (westernValueFunctions[westernValueFunctions.length-1].halvingPoint+easternValueFunctions[0].halvingPoint)/2;
+	var partitionPoint = (westernValueFunctions[westernValueFunctions.length-1].partitionPoint+easternValueFunctions[0].partitionPoint)/2;
 	
-	TRACE(numOfAgents, " -- Halving at x="+halvingPoint+", giving the west to "+_.pluck(westernValueFunctions,"color")+" with halving points "+_.pluck(westernValueFunctions,"halvingPoint")+" and the east to "+_.pluck(easternValueFunctions,"color")+" with halving points "+_.pluck(easternValueFunctions,"halvingPoint"));
+	TRACE(numOfAgents, " -- Partitioning at x="+partitionPoint+", giving the west to "+_.pluck(westernValueFunctions,"color")+" with partition points "+_.pluck(westernValueFunctions,"partitionPoint")+" and the east to "+_.pluck(easternValueFunctions,"color")+" with partition points "+_.pluck(easternValueFunctions,"partitionPoint"));
 	
-	return [westernValueFunctions, halvingPoint, easternValueFunctions];
+	return [westernValueFunctions, partitionPoint, easternValueFunctions];
 }
+
+
+
+/**
+ * @return [westernValueFunctions, easternValueFunctions]
+ */
+var halvingEastWest  = function(valueFunctions, totalValue) {
+	var numOfAgents = valueFunctions.length;
+	if (numOfAgents%2==0) {
+		numOfWesternAgents = numOfAgents/2;
+	} else {
+		numOfWesternAgents = (numOfAgents+1)/2;
+	}
+	
+	return partitionEastWest(valueFunctions, totalValue, numOfWesternAgents);
+}
+
 
 /**
  * Normalized 1-wall algorithm using an initial halving and then 2 calls to the 2-walls algorithm.
@@ -12454,45 +12489,35 @@ var norm1Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandp
 		return landplots;
 	}
 	
-	var halving = halvingEastWest(valueFunctions, valueFunctions[0].totalValue);
-		var westernValueFunctions = halving[0];
-		var halvingPoint = halving[1];
-		var easternValueFunctions = halving[2];
-	
-	var westernLandplots = runDivisionAlgorithm2(
-			norm2Walls, 
-			jsts.Side.East,
-			westernValueFunctions, 
-			new jsts.geom.Envelope(-Infinity,halvingPoint, 0,Infinity), 
-			maxAspectRatio, /*allow single value function = */true);
-	var easternLandplots = runDivisionAlgorithm2(
-			norm2Walls,
-			jsts.Side.South,
-			easternValueFunctions,
-			new jsts.geom.Envelope(halvingPoint,Infinity, 0,Infinity),
-			maxAspectRatio, /*allow single value function = */true);
-	var halvingLandplots = westernLandplots.concat(easternLandplots);
-	halvingLandplots.minValuePerAgent = Math.min(westernLandplots.minValuePerAgent||0, easternLandplots.minValuePerAgent||0);
-
-	TRACE(numOfAgents, " -- Trying to put everyone at the west");
-	var easternOpenLandplots = runDivisionAlgorithm2(
-			norm2Walls,
-			jsts.Side.South,
-			valueFunctions,
-			new jsts.geom.Envelope(0,Infinity, 0,Infinity),
-			maxAspectRatio, /*allow single value function = */true);
-	
-	TRACE(numOfAgents, " -- Trying to put everyone at the east");
-	var westernOpenLandplots = runDivisionAlgorithm2(
-			norm2Walls, 
-			jsts.Side.East,
-			valueFunctions, 
-			new jsts.geom.Envelope(-Infinity,400, 0,Infinity), 
-			maxAspectRatio, /*allow single value function = */true);
-
-	return _.max(
-		[halvingLandplots, easternOpenLandplots, westernOpenLandplots], 
-		function(landplots){return landplots.minValuePerAgent});
+	var totalValue = valueFunctions[0].totalValue;
+	for (var numOfWesternAgents=0; numOfWesternAgents<numOfAgents; ++numOfWesternAgents) {
+		var numOfEasternAgents = numOfAgents - numOfWesternAgents;
+		
+		TRACE(numOfAgents, " :: Trying "+numOfWesternAgents+" western agents");
+		var partition = partitionEastWest(valueFunctions, totalValue, numOfWesternAgents);
+		var westernValueFunctions = partition [0];
+		var partitionPoint = partition [1];
+		var easternValueFunctions = partition [2];
+		var westernLandplots = numOfWesternAgents>0? runDivisionAlgorithm2(
+				norm2Walls, 
+				jsts.Side.East,
+				westernValueFunctions, 
+				new jsts.geom.Envelope(-Infinity,partitionPoint, 0,Infinity), 
+				maxAspectRatio, /*allow single value function = */true,
+				requiredLandplotValue, requiredLandplotValue): [];
+		var easternLandplots = numOfEasternAgents>0? runDivisionAlgorithm2(
+				norm2Walls,
+				jsts.Side.South,
+				easternValueFunctions,
+				new jsts.geom.Envelope(partitionPoint,Infinity, 0,Infinity),
+				maxAspectRatio, /*allow single value function = */true,
+				requiredLandplotValue, requiredLandplotValue): [];
+		var allLandplots = westernLandplots.concat(easternLandplots);
+		allLandplots.minValuePerAgent = Math.min(westernLandplots.minValuePerAgent||0, easternLandplots.minValuePerAgent||0);
+		if (allLandplots.length>=numOfAgents && allLandplots.minValuePerAgent>=requiredLandplotValue)
+			return allLandplots;
+	}
+	return [];
 }
 
 /**
@@ -12680,15 +12705,6 @@ var staircase1walls = function(valueFunctions, origin, westCorners, eastCorners,
 /// TEMP
 
 
-
-
-
-
-
-
-var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]}
-
 var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	var valueFunction = valueFunctions[0];
@@ -12713,7 +12729,7 @@ var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 			previousSquare.fill='transparent';
 		}
 
-		square.fill = square.stroke = color(iColor);
+		square.fill = square.stroke = _.color(iColor);
 		landplots.push(square);
 		previousSquare = square;
 	}
@@ -12727,7 +12743,7 @@ jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[2] = (norm2Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[3] = (norm1Walls);
 jsts.algorithm.mapOpenSidesToNormalizedAlgorithm[4] = (norm0Walls);
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./ValueFunction":36,"./corners":37,"./rectilinear-polygon-division":41,"./square-with-max-points":42,"argminmax":44,"underscore":46,"util":52}],40:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"./ValueFunction":36,"./corners":37,"./rainbow":41,"./rectilinear-polygon-division":42,"./square-with-max-points":43,"argminmax":45,"underscore":47,"util":53}],40:[function(require,module,exports){
 var jsts = require("../../computational-geometry");
 require("./square-with-max-points");
 require("./corners");
@@ -12745,7 +12761,34 @@ jsts.stringify = function(object) {
 }
 module.exports = jsts;
 
-},{"../../computational-geometry":1,"./corners":37,"./fair-division-of-points":38,"./half-proportional-division-staircase":39,"./rectilinear-polygon-division":41,"./square-with-max-points":42,"./test-division-algorithm":43}],41:[function(require,module,exports){
+},{"../../computational-geometry":1,"./corners":37,"./fair-division-of-points":38,"./half-proportional-division-staircase":39,"./rectilinear-polygon-division":42,"./square-with-max-points":43,"./test-division-algorithm":44}],41:[function(require,module,exports){
+var _ = require("underscore");
+
+var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
+var color = function(i) {return colors[i % colors.length]};
+
+module.exports = {
+	color: color,
+
+	/**
+	 * Duplicate a given object a given number of times, adding a "color" field to each copy.
+	 * 
+	 * @param object 
+	 * @param count 
+	 * @return an array with objects similar to "object" but with an added color field.
+	 */
+	rainbowDuplicate: function(object,count) {
+		var rainbow = [];
+		for (var i=0; i<count; ++i) {
+			var newObject = _.clone(object);
+			newObject.color = color(i);
+			rainbow.push(newObject);
+		}
+		return rainbow;
+	}
+};
+
+},{"underscore":47}],42:[function(require,module,exports){
 /**
  * Fairly cut a SimpleRectilinearPolygon such that each agent receives a square.
  * 
@@ -12906,7 +12949,7 @@ jsts.algorithm.rectilinearPolygonDivision = function recursive(valueFunctions, c
 }
 
 
-},{"../../computational-geometry":1,"./ValueFunction":36,"argminmax":44,"underscore":46,"util":52}],42:[function(require,module,exports){
+},{"../../computational-geometry":1,"./ValueFunction":36,"argminmax":45,"underscore":47,"util":53}],43:[function(require,module,exports){
 /**
  * Calculate a square containing a maximal number of points.
  * 
@@ -12984,7 +13027,7 @@ jsts.algorithm.squareWithMaxNumOfPoints = function(points, envelope, maxAspectRa
 	return result;
 }
 
-},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"underscore":46}],43:[function(require,module,exports){
+},{"../../computational-geometry":1,"../../computational-geometry/lib/numeric-utils":14,"underscore":47}],44:[function(require,module,exports){
 /**
  * Divide a cake such that each color gets a square with 1/2n of its points.
  * 
@@ -13034,7 +13077,7 @@ jsts.algorithm.testDivisionAlgorithm = function(algorithm, args, requiredNum)  {
  }
 
 
-},{"../../computational-geometry":1,"./ValueFunction":36,"argminmax":44,"underscore":46,"util":52}],44:[function(require,module,exports){
+},{"../../computational-geometry":1,"./ValueFunction":36,"argminmax":45,"underscore":47,"util":53}],45:[function(require,module,exports){
 var _ = require("underscore");
 
   // Internal function: creates a callback bound to its context if supplied
@@ -13109,11 +13152,11 @@ module.exports = {
 
 
 
-},{"underscore":45}],45:[function(require,module,exports){
-module.exports=require(34)
-},{}],46:[function(require,module,exports){
+},{"underscore":46}],46:[function(require,module,exports){
 module.exports=require(34)
 },{}],47:[function(require,module,exports){
+module.exports=require(34)
+},{}],48:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -13138,7 +13181,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -13193,7 +13236,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -13419,7 +13462,7 @@ var substr = 'ab'.substr(-1) === 'b'
     }
 ;
 
-},{"__browserify_process":48}],50:[function(require,module,exports){
+},{"__browserify_process":49}],51:[function(require,module,exports){
 exports.isatty = function () { return false; };
 
 function ReadStream() {
@@ -13432,14 +13475,14 @@ function WriteStream() {
 }
 exports.WriteStream = WriteStream;
 
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],52:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -14027,4 +14070,4 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":51,"__browserify_process":48,"inherits":47}]},{},[35])
+},{"./support/isBuffer":52,"__browserify_process":49,"inherits":48}]},{},[35])

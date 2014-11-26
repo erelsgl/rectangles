@@ -11,9 +11,9 @@ require("./corners");
 require("./rectilinear-polygon-division");
 var numutils = require('../../computational-geometry/lib/numeric-utils');
 
-
 var _ = require("underscore");
 _.mixin(require("argminmax"));
+_.mixin(require("./rainbow"));
 
 var util = require("util");
 var ValueFunction = require("./ValueFunction");
@@ -25,11 +25,11 @@ function logValueFunctions(valueFunctions) {
 }
 
 function TRACE (numOfAgents, s) {
-	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
+//	console.log(Array(Math.max(0,6-numOfAgents)).join("   ")+s);
 };
 
 function TRACE_NO_LANDPLOT(valueFunctions) {
-	logValueFunctions(valueFunctions);
+//	logValueFunctions(valueFunctions);
 }
 
 
@@ -68,7 +68,7 @@ jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE = true;  // try to find divi
  * Find a set of axis-parallel fat rectangles representing a fair-and-square division for the valueFunctions
  * 
  * @param agentsValuePoints an array in which each entry represents the valuation of a single agent.
- * The valuation of an agent is represented by points with fields {x,y}. Each point has the same value.
+ * The valuation of an agent is represented as an array of points with fields {x,y}. Each point has the same value.
  *    Each agent may also have a field "color", that is copied to the rectangle.
  * 
  * @param envelope object with fields {minx,miny, maxx,maxy}; defines the boundaries for the landplots.
@@ -84,7 +84,7 @@ jsts.geom.GeometryFactory.prototype.createHalfProportionalDivision = function(ag
 		var rect = new jsts.geom.AxisParallelRectangle(landplot.minx, landplot.miny, landplot.maxx, landplot.maxy, this);
 		rect.color = (landplot.color!=prevColor?
 				landplot.color: 
-				color(index++));
+				_.color(index++));
 		prevColor = rect.color;
 		rect.fill = landplot.fill;
 		rect.stroke = landplot.stroke;
@@ -101,6 +101,15 @@ jsts.algorithm.getOpenSides = function(envelope) {
 	return openSides;
 }
 
+/**
+ * @param agentsValuePoints an array in which each entry represents the valuation of a single agent.
+ * The valuation of an agent is represented as an array of points with fields {x,y}. Each point has the same value.
+ *    Each agent may also have a field "color", that is copied to the rectangle.
+ * 
+ * @param envelope object with fields {minx,miny, maxx,maxy}; defines the boundaries for the landplots.
+ * 
+ * @return an array of squares, one per square per agent.
+ */
 jsts.algorithm.halfProportionalDivision = function(agentsValuePoints, envelope, maxAspectRatio) {
 	TRACE(10,"")
 	var landplots;
@@ -183,13 +192,18 @@ jsts.algorithm.halfProportionalDivision0Walls = function(agentsValuePoints, enve
 /************ NORMALIZATION *******************/
 
 var runDivisionAlgorithm = jsts.algorithm.runDivisionAlgorithm = function(normalizedDivisionFunction, southernSide, valuePerAgent, agentsValuePoints, envelope, maxAspectRatio, allowSingleValueFunction) {
+	var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? 
+			valuePerAgent: 
+			1;
+	var minVal = 1;
 	return runDivisionAlgorithm2(normalizedDivisionFunction, southernSide,
 			ValueFunction.createArray(valuePerAgent, agentsValuePoints),
-			envelope, maxAspectRatio, allowSingleValueFunction);
+			envelope, maxAspectRatio, allowSingleValueFunction,
+			minVal, maxVal);
 }
 
 
-var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(normalizedDivisionFunction, southernSide, valueFunctions, envelope, maxAspectRatio, allowSingleValueFunction) {
+var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(normalizedDivisionFunction, southernSide, valueFunctions, envelope, maxAspectRatio, allowSingleValueFunction, minVal, maxVal) {
 	if (valueFunctions.length==0) 
 		return [];
 
@@ -230,15 +244,13 @@ var runDivisionAlgorithm2 = jsts.algorithm.runDivisionAlgorithm2 = function(norm
 		return [];
 
 	if (valueFunctions.length>1 || allowSingleValueFunction)  {  // subjective valuations
-		var maxVal = jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE? 
-			_.min(_.pluck(valueFunctions,"totalValue")): 
-			1;
-		var minVal = 1;
 		var landplots = [];
 		
 		for (var requiredLandplotValue=maxVal; requiredLandplotValue>=minVal; requiredLandplotValue--) {
-			if (jsts.algorithm.FIND_DIVISION_WITH_LARGEST_MIN_VALUE) TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
+			if (maxVal>minVal) TRACE(10, ":: Trying "+requiredLandplotValue+" value per agent: ");
 			landplots = normalizedDivisionFunction(valueFunctions, yLength, maxAspectRatio, requiredLandplotValue);
+			if (!landplots)
+				throw new Error("no landplots returned")
 			if (landplots.length==valueFunctions.length) {
 				if (!landplots.minValuePerAgent)
 					landplots.minValuePerAgent = requiredLandplotValue;
@@ -557,45 +569,66 @@ var staircase2walls = function recurse(valueFunctions, origin, corners, required
 }
 
 
+
+
 /**
+ * Partition the agents to western and eastern agents according to their value functions.
  * @return [westernValueFunctions, easternValueFunctions]
  */
-var halvingEastWest  = function(valueFunctions, totalValue) {
+var partitionEastWest  = function(valueFunctions, totalValue, numOfWesternAgents) {
 	if (!totalValue)
 		throw new Error("totalValue is 0");
 	var FARWEST = {x:-400,y:0}, FAREAST={x:800,y:0};
 	var numOfAgents = valueFunctions.length;
-	var westValue, eastValue, numOfWesternAgents;
-	if (numOfAgents%2==0) {
-		numOfWesternAgents = numOfAgents/2;
-		westValue = eastValue = totalValue/2;
-	} else {
-		numOfWesternAgents = (numOfAgents+1)/2;
-		westValue = totalValue*(1+1/numOfAgents)/2;
-		eastValue = totalValue*(1-1/numOfAgents)/2;
-	}
-	for (var i=0; i<valueFunctions.length; ++i) {
+	var numOfEasternAgents = numOfAgents-numOfWesternAgents;
+	
+	if (numOfWesternAgents==0)
+		return [[], FARWEST.x, valueFunctions];
+	else if (numOfEasternAgents==0)
+		return [valueFunctions, FAREAST.x, []];
+	
+	var westValue = totalValue*(numOfWesternAgents/numOfAgents);
+	var eastValue = totalValue-westValue;
+
+	for (var i=0; i<numOfAgents; ++i) {
 		delete valueFunctions[i].yCuts;
 		if (valueFunctions[i].points.length==0) { // no points
 			TRACE(numOfAgents, " -- No value points for agent "+i);
 			TRACE_NO_LANDPLOT(valueFunctions);
 			return [];
 		}
-		var westHalvingPoint = FARWEST.x + valueFunctions[i].sizeOfSquareWithValue(FARWEST, westValue, 'NE');
-		var eastHalvingPoint = FAREAST.x - valueFunctions[i].sizeOfSquareWithValue(FAREAST, eastValue, 'NW');
-		valueFunctions[i].halvingPoint = (westHalvingPoint+eastHalvingPoint)/2;
+		var westPartitionPoint = FARWEST.x + valueFunctions[i].sizeOfSquareWithValue(FARWEST, westValue, 'NE');
+		var eastPartitionPoint = FAREAST.x - valueFunctions[i].sizeOfSquareWithValue(FAREAST, eastValue, 'NW');
+		valueFunctions[i].partitionPoint = (westPartitionPoint+eastPartitionPoint)/2;
 	}
 	
-	valueFunctions.sort(function(a,b){return a.halvingPoint-b.halvingPoint});
+	valueFunctions.sort(function(a,b){return a.partitionPoint-b.partitionPoint});
 
 	var westernValueFunctions = valueFunctions.slice(0, numOfWesternAgents);
 	var easternValueFunctions = valueFunctions.slice(numOfWesternAgents, numOfAgents);
-	var halvingPoint = (westernValueFunctions[westernValueFunctions.length-1].halvingPoint+easternValueFunctions[0].halvingPoint)/2;
+	var partitionPoint = (westernValueFunctions[westernValueFunctions.length-1].partitionPoint+easternValueFunctions[0].partitionPoint)/2;
 	
-	TRACE(numOfAgents, " -- Halving at x="+halvingPoint+", giving the west to "+_.pluck(westernValueFunctions,"color")+" with halving points "+_.pluck(westernValueFunctions,"halvingPoint")+" and the east to "+_.pluck(easternValueFunctions,"color")+" with halving points "+_.pluck(easternValueFunctions,"halvingPoint"));
+	TRACE(numOfAgents, " -- Partitioning at x="+partitionPoint+", giving the west to "+_.pluck(westernValueFunctions,"color")+" with partition points "+_.pluck(westernValueFunctions,"partitionPoint")+" and the east to "+_.pluck(easternValueFunctions,"color")+" with partition points "+_.pluck(easternValueFunctions,"partitionPoint"));
 	
-	return [westernValueFunctions, halvingPoint, easternValueFunctions];
+	return [westernValueFunctions, partitionPoint, easternValueFunctions];
 }
+
+
+
+/**
+ * @return [westernValueFunctions, easternValueFunctions]
+ */
+var halvingEastWest  = function(valueFunctions, totalValue) {
+	var numOfAgents = valueFunctions.length;
+	if (numOfAgents%2==0) {
+		numOfWesternAgents = numOfAgents/2;
+	} else {
+		numOfWesternAgents = (numOfAgents+1)/2;
+	}
+	
+	return partitionEastWest(valueFunctions, totalValue, numOfWesternAgents);
+}
+
 
 /**
  * Normalized 1-wall algorithm using an initial halving and then 2 calls to the 2-walls algorithm.
@@ -622,45 +655,35 @@ var norm1Walls = function(valueFunctions, yLength, maxAspectRatio, requiredLandp
 		return landplots;
 	}
 	
-	var halving = halvingEastWest(valueFunctions, valueFunctions[0].totalValue);
-		var westernValueFunctions = halving[0];
-		var halvingPoint = halving[1];
-		var easternValueFunctions = halving[2];
-	
-	var westernLandplots = runDivisionAlgorithm2(
-			norm2Walls, 
-			jsts.Side.East,
-			westernValueFunctions, 
-			new jsts.geom.Envelope(-Infinity,halvingPoint, 0,Infinity), 
-			maxAspectRatio, /*allow single value function = */true);
-	var easternLandplots = runDivisionAlgorithm2(
-			norm2Walls,
-			jsts.Side.South,
-			easternValueFunctions,
-			new jsts.geom.Envelope(halvingPoint,Infinity, 0,Infinity),
-			maxAspectRatio, /*allow single value function = */true);
-	var halvingLandplots = westernLandplots.concat(easternLandplots);
-	halvingLandplots.minValuePerAgent = Math.min(westernLandplots.minValuePerAgent||0, easternLandplots.minValuePerAgent||0);
-
-	TRACE(numOfAgents, " -- Trying to put everyone at the west");
-	var easternOpenLandplots = runDivisionAlgorithm2(
-			norm2Walls,
-			jsts.Side.South,
-			valueFunctions,
-			new jsts.geom.Envelope(0,Infinity, 0,Infinity),
-			maxAspectRatio, /*allow single value function = */true);
-	
-	TRACE(numOfAgents, " -- Trying to put everyone at the east");
-	var westernOpenLandplots = runDivisionAlgorithm2(
-			norm2Walls, 
-			jsts.Side.East,
-			valueFunctions, 
-			new jsts.geom.Envelope(-Infinity,400, 0,Infinity), 
-			maxAspectRatio, /*allow single value function = */true);
-
-	return _.max(
-		[halvingLandplots, easternOpenLandplots, westernOpenLandplots], 
-		function(landplots){return landplots.minValuePerAgent});
+	var totalValue = valueFunctions[0].totalValue;
+	for (var numOfWesternAgents=0; numOfWesternAgents<numOfAgents; ++numOfWesternAgents) {
+		var numOfEasternAgents = numOfAgents - numOfWesternAgents;
+		
+		TRACE(numOfAgents, " :: Trying "+numOfWesternAgents+" western agents");
+		var partition = partitionEastWest(valueFunctions, totalValue, numOfWesternAgents);
+		var westernValueFunctions = partition [0];
+		var partitionPoint = partition [1];
+		var easternValueFunctions = partition [2];
+		var westernLandplots = numOfWesternAgents>0? runDivisionAlgorithm2(
+				norm2Walls, 
+				jsts.Side.East,
+				westernValueFunctions, 
+				new jsts.geom.Envelope(-Infinity,partitionPoint, 0,Infinity), 
+				maxAspectRatio, /*allow single value function = */true,
+				requiredLandplotValue, requiredLandplotValue): [];
+		var easternLandplots = numOfEasternAgents>0? runDivisionAlgorithm2(
+				norm2Walls,
+				jsts.Side.South,
+				easternValueFunctions,
+				new jsts.geom.Envelope(partitionPoint,Infinity, 0,Infinity),
+				maxAspectRatio, /*allow single value function = */true,
+				requiredLandplotValue, requiredLandplotValue): [];
+		var allLandplots = westernLandplots.concat(easternLandplots);
+		allLandplots.minValuePerAgent = Math.min(westernLandplots.minValuePerAgent||0, easternLandplots.minValuePerAgent||0);
+		if (allLandplots.length>=numOfAgents && allLandplots.minValuePerAgent>=requiredLandplotValue)
+			return allLandplots;
+	}
+	return [];
 }
 
 /**
@@ -848,15 +871,6 @@ var staircase1walls = function(valueFunctions, origin, westCorners, eastCorners,
 /// TEMP
 
 
-
-
-
-
-
-
-var colors = ['#000','#f00','#0f0','#ff0','#088','#808','#880'];
-function color(i) {return colors[i % colors.length]}
-
 var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 	var numOfAgents = valueFunctions.length;
 	var valueFunction = valueFunctions[0];
@@ -881,7 +895,7 @@ var norm1WallsTemp = function(valueFunctions, yLength, maxAspectRatio) {
 			previousSquare.fill='transparent';
 		}
 
-		square.fill = square.stroke = color(iColor);
+		square.fill = square.stroke = _.color(iColor);
 		landplots.push(square);
 		previousSquare = square;
 	}

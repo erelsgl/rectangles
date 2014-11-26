@@ -15,6 +15,9 @@ var halfplane_S    = new jsts.geom.Envelope(-Infinity,Infinity, -Infinity,400);
 var testAlgorithm = jsts.algorithm.testDivisionAlgorithm;
 var alg1walls = jsts.algorithm.halfProportionalDivision1Walls; // shorthand
 
+var _ = require("underscore");
+require("../jsts-extended/rainbow");
+
 describe('1 wall algorithm', function() {
 	it('single agent with 2 points', function() {
 		var agent1 = [{x:100,y:100},{x:300,y:300}]; agent1.color='blue';
