@@ -4,7 +4,7 @@
 
 
 var setStatus = function(text) {
-	$("#status").text(text);
+	$("#status").html(text);
 }
 
 

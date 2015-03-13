@@ -121,6 +121,10 @@ function updatePermaLink() {
 	window.updatePermaLink("points="+encodeURI(pointsString));
 }
 
+function updateStatus() {
+	setStatus(""+(window.points.length*2)+" corners");
+}
+
 $(".example").click(function() {
 	var pointsString = $(this).attr("title");
 	window.points.clear();
@@ -131,7 +135,7 @@ $(".example").click(function() {
 $(".addpoint").click(function() {
 	var color="blue";//$(this).text().toLowerCase();
 	window.points.add({x:20,y:20}, color); 
-	setStatus(""+(window.points.length*2)+" corners");
+	updateStatus();
 });
 
 $(".randomize").click(function() {
@@ -154,7 +158,7 @@ window.points = DraggablePoints(window.svgpaper, /* change event = */function() 
 	window.shapes.clear();
 
 	updatePermaLink();
-	setStatus(""+(window.points.length*2)+" corners");
+	updateStatus();
 	
 	if (!window.points.length)
 		return;

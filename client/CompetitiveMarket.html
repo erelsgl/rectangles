@@ -1,0 +1,212 @@
+<html>
+<head>
+<meta charset='utf8' />
+<script src="jsmodules/jquery-1.11.0.min.js"></script>
+<script src="jsmodules/svg.min.js"></script>
+<script src="jsmodules/svg.draggable.min.js"></script>
+<script src="jsmodules/svg.math.js"></script>
+<script src="jsmodules/svg.export.js"></script>
+<script src="jsmodules/arg.js.v1.1.min.js"></script>
+
+<script src="DraggablePoints.js"></script>
+<script src="ShapeCollection.js"></script>
+
+<script src="events.js"></script>
+
+<script type='text/javascript' src='jsts.bundle.js'></script>
+
+<link rel='stylesheet' href='style.css' />
+<title>Competitive Market</title>
+
+<style>
+a { cursor: pointer; color: blue; text-decoration: underline; }
+a:hover,a.hover {  }
+</style>
+
+</head>
+<body>
+
+
+
+<table><tr><td style='width:50%'>
+	<svg id='svg' style="background:#ffe; border:dotted #ccc 3px"></svg>
+	<p id='status'></p>
+	<div class='reference'>
+	<h2>References</h2>
+	<ul>
+	<li>Wikipedia, <a href='https://en.wikipedia.org/wiki/Competitive_equilibrium'>Competitive equilibrium</a>.</li>
+	<li>Wikipedia, <a href='https://en.wikipedia.org/wiki/Double_auction'>Double auction</a>.</li>
+	</ul>
+	</div>
+
+</td><td style='width:50%; font-size:12px'>
+<p><a href='index.html'>Computational Geometry</a>  &gt; </p>
+<h1>Competitive Market</h1>
+<p>
+The square represents an economy with two products, x and y. 
+Each point in the square represents a single, unit-demand buyer, whose utility from product x is the x coordinate and utility from product y is the y coordinate.
+</p>
+
+<p>
+CONTROLS:</p>
+<ul>
+<li> <button class='addpoint'>Add a point</button></li>
+<li>Remove a point by dragging it over the left or top border.</li>
+<li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
+<li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
+<li><button class='randomize'>Move all points randomly</button>;</li>
+<li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
+<!-- li><input id='createCovering' name='createCovering' type='checkbox' checked='checked'/>Automatically find the minimum covering</li -->
+</ul>
+
+
+<form method='get' action=''>
+<table>
+<tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
+<tr><th colspan='2'><input type='submit' /></th></tr>
+</table>
+</form>
+
+</td>
+</tr>
+
+</table>
+
+<script type='text/javascript'>$(document).ready(function() {
+	
+var priceX, priceY;
+var demandForX, demandForY, demandForNone;
+
+var AGENT_COLOR = 'red';
+var BUYX_COLOR = '#0f0';
+var BUYY_COLOR = '#00f';
+
+function updatePermaLink() {
+	var pointsString = window.points.toString();
+	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
+	window.updatePermaLink("points="+encodeURI(pointsString));
+}
+
+function updateStatus() {
+	setStatus("px="+priceX+", py="+priceY+";  "+window.points.length+" agents, "+
+	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" buy x</span>, "+
+	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" buy y</span>, "
+	);
+}
+
+var priceLines = [];
+function updatePriceLines() {
+	var priceLineX, priceLineY;
+	
+	// draw diagonal line:
+	if (priceX >= priceY) {
+		priceLineX = canvas.width;
+		priceLineY = priceY + (canvas.width-priceX);
+	} else {
+		priceLineY = canvas.height;
+		priceLineX = priceX + (canvas.height-priceY);
+	}
+	
+	for (var i in priceLines) 
+		priceLines[i].remove();
+	priceLines=[];
+	
+	priceLines.push(svgpaper.polygon([
+			[priceX,priceY],
+			[priceLineX,priceLineY],
+			[canvas.width,canvas.height],
+			[canvas.width,0],
+			[priceX,0]
+			]).fill(BUYX_COLOR).attr({'fill-opacity':0.5}).back());
+	priceLines.push(svgpaper.polygon([
+			[priceX,priceY],
+			[priceLineX,priceLineY],
+			[canvas.width,canvas.height],
+			[0,canvas.height],
+			[0,priceY]
+			]).fill(BUYY_COLOR).attr({'fill-opacity':0.5}).back());
+//	priceCircle.front();
+}
+
+function updateDemands() {
+	demandForX = demandForY = demandForNone = 0;
+	for (var i=0; i<window.points.length; ++i) {
+		var utility=window.points[i];
+		var netUtilityX = utility.x-priceX;
+		var netUtilityY = utility.y-priceY;
+		if (netUtilityX >= 0 && netUtilityX >= netUtilityY)
+			demandForX++;
+		else if (netUtilityY >= 0 && netUtilityY > netUtilityX)
+			demandForY++;
+		else
+			demandForNone++;
+	}
+}
+
+
+$(".addpoint").click(function() {
+	var color=AGENT_COLOR;//$(this).text().toLowerCase();
+	window.points.add({x:20,y:20}, color);
+	updateDemands();
+	updateStatus();
+});
+
+$(".randomize").click(function() {
+	window.points.randomize(canvas.width,canvas.height);
+});
+
+$(".clear").click(function() {
+	window.points.clear();
+});
+
+window.points = DraggablePoints(window.svgpaper, /* change event = */function() {
+	updatePermaLink();
+	updateDemands();
+	updateStatus();
+
+	if (!window.points.length)
+		return;
+	
+	//var createCovering = $("#createCovering").prop('checked');
+});
+
+var pointsString = Arg("points");
+if (pointsString)
+	window.points.fromString(pointsString);
+else { // add 100 random points
+	for (var i=0; i<100; ++i) {
+		var utilityX = Math.floor(Math.random()*canvas.width);
+		var utilityY = Math.floor(Math.random()*canvas.height);
+		window.points.add({x:utilityX,y:utilityY}, AGENT_COLOR);
+	}
+}
+
+var price = Arg("price");
+if (!price)
+	price = "200,100";
+var priceVector = price.split(",");
+priceX = parseInt(priceVector[0]);
+priceY = parseInt(priceVector[1]);
+var priceCircle = svgpaper.circle(10).attr('cx',priceX).attr('cy',priceY).attr(
+		{stroke: 'black', "stroke-width": '5px', fill: 'white'});
+priceCircle.draggable();
+priceCircle.dragend = function(delta, event) {
+	priceX = this.attr('cx');
+	priceY = this.attr('cy');
+	if (priceX<0) 
+		this.attr('cx',(priceX=0));
+	if (priceY<0) 
+		this.attr('cy',(priceY=0));
+	updatePriceLines();
+	updateDemands();
+	updateStatus();
+};
+
+window.points.refresh();
+updatePriceLines();
+
+});</script>
+
+
+</body>
+</html>

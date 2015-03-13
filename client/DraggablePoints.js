@@ -86,7 +86,7 @@ function DraggablePoints(svgpaper, onDragEnd) {
 	points.randomize = function(width, height) {
 		for (var i=0; i<this.length; ++i) {
 			var p = this[i];
-			p.move(Math.round(Math.random()*width), Math.round(Math.random()*height)); 
+			p.move(Math.floor(Math.random()*width), Math.floor(Math.random()*height)); 
 		}
 		onDragEnd();
 	}
