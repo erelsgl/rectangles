@@ -34,7 +34,7 @@ $(document).ready(function() {
 		};
 		img.src = url;
 	});
-	
+
 	$(".interrupt").click(function() {
 		window.solver.interrupt();
 	});

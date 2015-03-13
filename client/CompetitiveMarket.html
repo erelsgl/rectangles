@@ -21,6 +21,8 @@
 <style>
 a { cursor: pointer; color: blue; text-decoration: underline; }
 a:hover,a.hover {  }
+#status {text-align:left; font-size:15px;}
+
 </style>
 
 </head>
@@ -29,15 +31,15 @@ a:hover,a.hover {  }
 
 
 <table><tr><td style='width:50%'>
-	<svg id='svg' style="background:#ffe; border:dotted #ccc 3px"></svg>
+	<svg id='svg' style="background:#ffa; border:solid #888 3px"></svg>
 	<p id='status'></p>
-	<div class='reference'>
+	<!-- div class='reference'>
 	<h2>References</h2>
 	<ul>
 	<li>Wikipedia, <a href='https://en.wikipedia.org/wiki/Competitive_equilibrium'>Competitive equilibrium</a>.</li>
 	<li>Wikipedia, <a href='https://en.wikipedia.org/wiki/Double_auction'>Double auction</a>.</li>
 	</ul>
-	</div>
+	</div -->
 
 </td><td style='width:50%; font-size:12px'>
 <p><a href='index.html'>Computational Geometry</a>  &gt; </p>
@@ -56,7 +58,7 @@ CONTROLS:</p>
 <li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
 <li><button class='randomize'>Move all points randomly</button>;</li>
 <li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
-<!-- li><input id='createCovering' name='createCovering' type='checkbox' checked='checked'/>Automatically find the minimum covering</li -->
+<li>Scale </li>
 </ul>
 
 
@@ -76,6 +78,7 @@ CONTROLS:</p>
 	
 var priceX, priceY;
 var demandForX, demandForY, demandForNone;
+var utilityFromX, utilityFromY, totalUtility;
 
 var AGENT_COLOR = 'red';
 var BUYX_COLOR = '#0f0';
@@ -84,14 +87,15 @@ var BUYY_COLOR = '#00f';
 function updatePermaLink() {
 	var pointsString = window.points.toString();
 	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
-	window.updatePermaLink("points="+encodeURI(pointsString));
+	window.updatePermaLink("points="+encodeURI(pointsString)+"&price="+priceX+","+priceY);
 }
 
 function updateStatus() {
-	setStatus("px="+priceX+", py="+priceY+";  "+window.points.length+" agents, "+
-	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" buy x</span>, "+
-	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" buy y</span>, "
-	);
+	setStatus("px="+priceX+", py="+priceY+";  "+window.points.length+" agents, total utility="+totalUtility+"<br/>"+
+	"<span style='background-color:"+$("svg").css("background-color")+"'>"+demandForNone+" buy nothing</span><br/> "+
+	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" buy x and gain utility "+utilityFromX+"</span><br/> "+
+	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" buy y and gain utility "+utilityFromY+"</span><br/> "+
+	"");
 }
 
 var priceLines = [];
@@ -129,15 +133,22 @@ function updatePriceLines() {
 }
 
 function updateDemands() {
-	demandForX = demandForY = demandForNone = 0;
+	demandForX = demandForY = demandForNone = totalUtility = utilityFromX = utilityFromY = 0;
+	
 	for (var i=0; i<window.points.length; ++i) {
 		var utility=window.points[i];
 		var netUtilityX = utility.x-priceX;
 		var netUtilityY = utility.y-priceY;
-		if (netUtilityX >= 0 && netUtilityX >= netUtilityY)
+		if (netUtilityX >= 0 && netUtilityX >= netUtilityY) {
 			demandForX++;
-		else if (netUtilityY >= 0 && netUtilityY > netUtilityX)
+			utilityFromX += utility.x;
+			totalUtility += utility.x;
+		}
+		else if (netUtilityY >= 0 && netUtilityY > netUtilityX) {
 			demandForY++;
+			utilityFromY += utility.y;
+			totalUtility += utility.y;
+		}
 		else
 			demandForNone++;
 	}
@@ -199,6 +210,7 @@ priceCircle.dragend = function(delta, event) {
 		this.attr('cy',(priceY=0));
 	updatePriceLines();
 	updateDemands();
+	updatePermaLink();
 	updateStatus();
 };
 
