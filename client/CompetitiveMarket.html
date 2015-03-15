@@ -13,8 +13,6 @@
 
 <script src="events.js"></script>
 
-<script type='text/javascript' src='jsts.bundle.js'></script>
-
 <link rel='stylesheet' href='style.css' />
 <title>Competitive Market</title>
 
@@ -52,7 +50,7 @@ Each point in the square represents a single, unit-demand buyer, whose utility f
 <p>
 CONTROLS:</p>
 <ul>
-<li> <button class='addpoint'>Add a point</button></li>
+<li>Add agents: <button class='add'>right</button><button class='add'>left</button><button class='add'>top</button><button class='add'>bottom</button></li>
 <li>Remove a point by dragging it over the left or top border.</li>
 <li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
 <li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
@@ -77,13 +75,17 @@ CONTROLS:</p>
 </table>
 
 <script type='text/javascript'>$(document).ready(function() {
-	
+
+var maxDrawX = canvas.width, maxDrawY = canvas.height;
 var priceX, priceY;
 var demandForX, demandForY, demandForNone;
 var supplyX, supplyY;
 var buyX, buyY;
-var maxUx, maxUy, yScale;  // yScale = maxUy / maxY
 var utilityFromX, utilityFromY, totalUtility;
+var maxUx, maxUy, yScale;  // yScale := maxUy / maxY
+
+function realY(theDrawY) {return (maxDrawY-theDrawY)*yScale}
+function drawY(theRealY) {return maxDrawY-theRealY/yScale}
 
 var AGENT_COLOR = 'red';
 var BUYX_COLOR = '#0f0';
@@ -100,7 +102,7 @@ function updatePermaLink() {
 }
 
 function updateStatus() {
-	setStatus("px="+priceX+", py="+(priceY*yScale)+";  "+window.points.length+" agents, total utility="+totalUtility+"<br/>"+
+	setStatus("px="+priceX+", py="+priceY+";  "+window.points.length+" agents, total utility="+totalUtility+"<br/>"+
 	"<span style='background-color:"+$("svg").css("background-color")+"'>"+demandForNone+" want nothing</span><br/> "+
 	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" want x, "+buyX+" buy x and gain utility "+utilityFromX+"</span><br/> "+
 	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" want y, "+buyY+" buy y and gain utility "+utilityFromY+"</span><br/> "+
@@ -111,15 +113,13 @@ var priceLines = [];
 function updatePriceLines() {
 	var priceLineX, priceLineY;
 	
-	var priceYScaled = priceY*yScale;
-	
 	// draw diagonal line:
-	if (maxUx-priceX < maxUy-priceYScaled) {
+	if (maxUx-priceX < maxUy-priceY) {
 		priceLineX = maxUx;
-		priceLineY = priceYScaled + (maxUx-priceX);
+		priceLineY = priceY + (maxUx-priceX);
 	} else {
 		priceLineY = maxUy;
-		priceLineX = priceX + (maxUy-priceYScaled);
+		priceLineX = priceX + (maxUy-priceY);
 	}
 	
 	for (var i in priceLines) 
@@ -127,37 +127,36 @@ function updatePriceLines() {
 	priceLines=[];
 	
 	priceLines.push(svgpaper.polygon([
-			[priceX,priceY],
-			[priceLineX,priceLineY/yScale],
-			[maxUx,maxUy/yScale],
-			[canvas.width,0],
-			[priceX,0]
+			[priceX,drawY(priceY)],
+			[priceLineX,drawY(priceLineY)],
+			[maxUx,drawY(maxUy)],
+			[canvas.width,drawY(0)],
+			[priceX,drawY(0)]
 			]).fill(BUYX_COLOR).attr({'fill-opacity':0.5}).back());
 	priceLines.push(svgpaper.polygon([
-			[priceX,priceY],
-			[priceLineX,priceLineY/yScale],
-			[maxUx,maxUy/yScale],
-			[0,maxUy/yScale],
-			[0,priceY]
+			[priceX,drawY(priceY)],
+			[priceLineX,drawY(priceLineY)],
+			[maxUx,drawY(maxUy)],
+			[0,drawY(maxUy)],
+			[0,drawY(priceY)]
 			]).fill(BUYY_COLOR).attr({'fill-opacity':0.5}).back());
 //	priceCircle.front();
 }
 
 function updateDemands() {
-	var priceYScaled = priceY*yScale;
 	demandForX = demandForY = demandForNone = totalUtility = utilityFromX = utilityFromY = 0;
 	
 	for (var i=0; i<window.points.length; ++i) {
 		var utility=window.points[i];
 		var netUtilityX = utility.x-priceX;
-		var netUtilityY = (utility.y-priceY)*yScale;
+		var netUtilityY = realY(utility.y)-priceY;
 		if (netUtilityX >= 0 && netUtilityX >= netUtilityY) {
 			demandForX++;
 			utilityFromX += utility.x;
 		}
 		else if (netUtilityY >= 0 && netUtilityY > netUtilityX) {
 			demandForY++;
-			utilityFromY += utility.y*yScale;
+			utilityFromY += realY(utility.y);
 		}
 		else {
 			demandForNone++;
@@ -172,15 +171,29 @@ function updateDemands() {
 }
 
 
-$(".addpoint").click(function() {
-	var color=AGENT_COLOR;//$(this).text().toLowerCase();
-	window.points.add({x:20,y:20}, color);
+function addPoints(count, x, y, color) {
+	for (var i=0; i<count; ++i) {
+		point = {x:x, y:y};
+		if (!x) point.x = Math.round(Math.random()*maxDrawX)
+		if (!y) point.y = Math.round(Math.random()*maxDrawY)
+		window.points.add(point, color);
+	}
+}
+
+$(".add").click(function addAgent() {
+	var location = $(this).text();
+	switch(location) {
+		case 'right': addPoints(10,  390, null, AGENT_COLOR); break;
+		case 'left': addPoints(10,   10, null, AGENT_COLOR); break;
+		case 'top': addPoints(10,    null, 10, AGENT_COLOR); break;
+		case 'bottom': addPoints(10, null, 390, AGENT_COLOR); break;
+	}
 	updateDemands();
 	updateStatus();
 });
 
 $(".randomize").click(function() {
-	window.points.randomize(canvas.width,canvas.height);
+	window.points.randomize(maxDrawX,maxDrawY);
 });
 
 $(".clear").click(function() {
@@ -197,6 +210,14 @@ window.points = DraggablePoints(window.svgpaper, /* change event = */function() 
 	
 	//var createCovering = $("#createCovering").prop('checked');
 });
+
+
+var maxUx = canvas.width;
+var maxUy = Arg("max_uy");
+if (!maxUy)
+	maxUy = canvas.height;
+maxUy = parseInt(maxUy);
+yScale = maxUy/maxDrawY;
 
 var pointsString = Arg("points");
 if (pointsString)
@@ -215,12 +236,12 @@ if (!prices)
 var priceVector = prices.split(",");
 priceX = parseInt(priceVector[0]);
 priceY = parseInt(priceVector[1]);
-var priceCircle = svgpaper.circle(10).attr('cx',priceX).attr('cy',priceY).attr(
+var priceCircle = svgpaper.circle(10).attr('cx',priceX).attr('cy',drawY(priceY)).attr(
 		{stroke: 'black', "stroke-width": '5px', fill: 'white'});
 priceCircle.draggable();
 priceCircle.dragend = function(delta, event) {
 	priceX = this.attr('cx');
-	priceY = this.attr('cy');
+	priceY = realY(this.attr('cy'));
 	if (priceX<0) 
 		this.attr('cx',(priceX=0));
 	if (priceY<0) 
@@ -238,13 +259,6 @@ if (!supplies)
 var supplyVector = supplies.split(",");
 supplyX = parseInt(supplyVector[0]);
 supplyY = parseInt(supplyVector[1]);
-
-var maxUx = canvas.width;
-var maxUy = Arg("max_uy");
-if (!maxUy)
-	maxUy = canvas.height;
-maxUy = parseInt(maxUy);
-yScale = maxUy/canvas.height;
 
 window.points.refresh();
 updatePriceLines();
