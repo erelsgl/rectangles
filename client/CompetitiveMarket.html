@@ -58,13 +58,15 @@ CONTROLS:</p>
 <li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
 <li><button class='randomize'>Move all points randomly</button>;</li>
 <li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
-<li>Scale </li>
 </ul>
 
 
 <form method='get' action=''>
 <table>
 <tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
+<tr><th>Prices:</th><td><input name='prices' id='prices' /></td></tr>
+<tr><th>Supplies:</th><td><input name='supplies' id='supplies' /></td></tr>
+<tr><th>max u<sub>x</sub>=<span id='max_ux'></span>&nbsp;&nbsp;&nbsp; max u<sub>y</sub>=</th> <td><input name='max_uy' id='max_uy' /></td></tr>
 <tr><th colspan='2'><input type='submit' /></th></tr>
 </table>
 </form>
@@ -78,6 +80,9 @@ CONTROLS:</p>
 	
 var priceX, priceY;
 var demandForX, demandForY, demandForNone;
+var supplyX, supplyY;
+var buyX, buyY;
+var maxUx, maxUy, yScale;  // yScale = maxUy / maxY
 var utilityFromX, utilityFromY, totalUtility;
 
 var AGENT_COLOR = 'red';
@@ -87,14 +92,18 @@ var BUYY_COLOR = '#00f';
 function updatePermaLink() {
 	var pointsString = window.points.toString();
 	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
-	window.updatePermaLink("points="+encodeURI(pointsString)+"&price="+priceX+","+priceY);
+	document.getElementById('prices').value  = priceX+","+priceY;
+	document.getElementById('supplies').value  = supplyX+","+supplyY;
+	document.getElementById('max_ux').innerHTML  = maxUx;
+	document.getElementById('max_uy').value  = maxUy;
+	window.updatePermaLink("points="+encodeURI(pointsString)+"&prices="+priceX+","+priceY+"&supplies="+supplyX+","+supplyY+"&max_ux="+maxUx+"&max_uy="+maxUy);
 }
 
 function updateStatus() {
-	setStatus("px="+priceX+", py="+priceY+";  "+window.points.length+" agents, total utility="+totalUtility+"<br/>"+
-	"<span style='background-color:"+$("svg").css("background-color")+"'>"+demandForNone+" buy nothing</span><br/> "+
-	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" buy x and gain utility "+utilityFromX+"</span><br/> "+
-	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" buy y and gain utility "+utilityFromY+"</span><br/> "+
+	setStatus("px="+priceX+", py="+(priceY*yScale)+";  "+window.points.length+" agents, total utility="+totalUtility+"<br/>"+
+	"<span style='background-color:"+$("svg").css("background-color")+"'>"+demandForNone+" want nothing</span><br/> "+
+	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" want x, "+buyX+" buy x and gain utility "+utilityFromX+"</span><br/> "+
+	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" want y, "+buyY+" buy y and gain utility "+utilityFromY+"</span><br/> "+
 	"");
 }
 
@@ -102,13 +111,15 @@ var priceLines = [];
 function updatePriceLines() {
 	var priceLineX, priceLineY;
 	
+	var priceYScaled = priceY*yScale;
+	
 	// draw diagonal line:
-	if (priceX >= priceY) {
-		priceLineX = canvas.width;
-		priceLineY = priceY + (canvas.width-priceX);
+	if (maxUx-priceX < maxUy-priceYScaled) {
+		priceLineX = maxUx;
+		priceLineY = priceYScaled + (maxUx-priceX);
 	} else {
-		priceLineY = canvas.height;
-		priceLineX = priceX + (canvas.height-priceY);
+		priceLineY = maxUy;
+		priceLineX = priceX + (maxUy-priceYScaled);
 	}
 	
 	for (var i in priceLines) 
@@ -117,41 +128,47 @@ function updatePriceLines() {
 	
 	priceLines.push(svgpaper.polygon([
 			[priceX,priceY],
-			[priceLineX,priceLineY],
-			[canvas.width,canvas.height],
+			[priceLineX,priceLineY/yScale],
+			[maxUx,maxUy/yScale],
 			[canvas.width,0],
 			[priceX,0]
 			]).fill(BUYX_COLOR).attr({'fill-opacity':0.5}).back());
 	priceLines.push(svgpaper.polygon([
 			[priceX,priceY],
-			[priceLineX,priceLineY],
-			[canvas.width,canvas.height],
-			[0,canvas.height],
+			[priceLineX,priceLineY/yScale],
+			[maxUx,maxUy/yScale],
+			[0,maxUy/yScale],
 			[0,priceY]
 			]).fill(BUYY_COLOR).attr({'fill-opacity':0.5}).back());
 //	priceCircle.front();
 }
 
 function updateDemands() {
+	var priceYScaled = priceY*yScale;
 	demandForX = demandForY = demandForNone = totalUtility = utilityFromX = utilityFromY = 0;
 	
 	for (var i=0; i<window.points.length; ++i) {
 		var utility=window.points[i];
 		var netUtilityX = utility.x-priceX;
-		var netUtilityY = utility.y-priceY;
+		var netUtilityY = (utility.y-priceY)*yScale;
 		if (netUtilityX >= 0 && netUtilityX >= netUtilityY) {
 			demandForX++;
 			utilityFromX += utility.x;
-			totalUtility += utility.x;
 		}
 		else if (netUtilityY >= 0 && netUtilityY > netUtilityX) {
 			demandForY++;
-			utilityFromY += utility.y;
-			totalUtility += utility.y;
+			utilityFromY += utility.y*yScale;
 		}
-		else
+		else {
 			demandForNone++;
+		}
 	}
+	
+	buyX = Math.min(demandForX, supplyX);
+	buyY = Math.min(demandForY, supplyY);
+	if (demandForX) utilityFromX = Math.round(utilityFromX*buyX/demandForX);
+	if (demandForY) utilityFromY = Math.round(utilityFromY*buyY/demandForY);
+	totalUtility = utilityFromX +  utilityFromY;
 }
 
 
@@ -192,10 +209,10 @@ else { // add 100 random points
 	}
 }
 
-var price = Arg("price");
-if (!price)
-	price = "200,100";
-var priceVector = price.split(",");
+var prices = Arg("prices");
+if (!prices)
+	prices = "200,100";
+var priceVector = prices.split(",");
 priceX = parseInt(priceVector[0]);
 priceY = parseInt(priceVector[1]);
 var priceCircle = svgpaper.circle(10).attr('cx',priceX).attr('cy',priceY).attr(
@@ -214,8 +231,24 @@ priceCircle.dragend = function(delta, event) {
 	updateStatus();
 };
 
+
+var supplies = Arg("supplies");
+if (!supplies)
+	supplies = "50,50";
+var supplyVector = supplies.split(",");
+supplyX = parseInt(supplyVector[0]);
+supplyY = parseInt(supplyVector[1]);
+
+var maxUx = canvas.width;
+var maxUy = Arg("max_uy");
+if (!maxUy)
+	maxUy = canvas.height;
+maxUy = parseInt(maxUy);
+yScale = maxUy/canvas.height;
+
 window.points.refresh();
 updatePriceLines();
+updatePermaLink();
 
 });</script>
 
