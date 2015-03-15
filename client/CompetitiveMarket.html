@@ -47,6 +47,14 @@ The square represents an economy with two products, x and y.
 Each point in the square represents a single, unit-demand buyer, whose utility from product x is the x coordinate and utility from product y is the y coordinate.
 </p>
 
+<p>TEST CASES: <ul>
+<li>Support: 
+	<a class='example' href='?points=368,89,red:365,327,red:369,335,red:369,226,red:370,141,red:371,115,red:373,69,red:372,166,red:370,398,red:368,337,red:369,366,red:369,152,red:365,214,red:366,207,red:369,136,red:381,103,red:366,289,red:369,223,red:369,66,red:374,279,red:366,103,red:390,140,red:368,162,red:366,359,red:372,137,red:368,302,red:369,326,red:375,118,red:375,94,red:373,226,red:370,393,red:368,144,red:374,259,red:374,388,red:374,105,red:374,249,red:370,128,red:370,317,red:373,93,red:373,337,red:371,312,red:373,148,red:366,201,red:384,79,red:368,310,red:366,131,red:371,228,red:370,54,red:372,234,red:385,106,red:366,204,red:373,143,red:369,332,red:370,176,red:368,192,red:374,245,red:368,124,red:374,125,red:389,66,red:373,398,red:371,273,red:370,361,red:373,226,red:368,279,red:372,58,red:365,59,red:368,303,red:368,356,red:368,191,red:368,204,red:375,262,red:367,49,red:367,45,red:371,364,red:367,389,red:384,48,red:387,58,red:370,300,red:371,374,red:368,192,red:273,33,red:150,16,red:258,22,red:338,90,red:30,33,red:281,17,red:332,105,red:106,30,red:78,30,red:140,32,red:14,25,red:224,29,red:267,12,red:58,27,red:42,35,red:199,19,red:87,20,red:170,25,red:328,121,red:122,28,red&prices=339,743&supplies=80,10&max_ux=400&max_uy=800'>H-V support</a> 
+	<a class='example' href='?points=368,89,red:365,327,red:369,335,red:369,226,red:370,141,red:371,115,red:373,69,red:372,166,red:370,398,red:368,337,red:369,366,red:369,152,red:365,214,red:366,207,red:369,136,red:381,103,red:366,289,red:369,223,red:369,66,red:374,279,red:366,103,red:390,140,red:368,162,red:366,359,red:372,137,red:368,302,red:369,326,red:375,118,red:375,94,red:373,226,red:370,393,red:368,144,red:374,259,red:374,388,red:374,105,red:374,249,red:370,128,red:370,317,red:373,93,red:373,337,red:371,312,red:373,148,red:366,201,red:384,79,red:368,310,red:366,131,red:371,228,red:370,54,red:372,234,red:385,106,red:366,204,red:373,143,red:369,332,red:370,176,red:368,192,red:374,245,red:368,124,red:374,125,red:389,66,red:373,398,red:371,273,red:370,361,red:373,226,red:368,279,red:372,58,red:365,59,red:368,303,red:368,356,red:368,191,red:368,204,red:375,262,red:367,49,red:354,20,red:371,364,red:367,389,red:384,48,red:387,58,red:370,300,red:371,374,red:368,192,red:273,33,red:150,16,red:258,22,red:356,175,red:30,33,red:281,17,red:38,60,red:115,42,red:84,40,red:140,32,red:14,35,red:226,39,red:251,44,red:62,38,red:42,35,red:199,19,red:87,20,red:170,25,red:18,59,red:129,41,red&prices=326,731&supplies=80,10&max_ux=400&max_uy=800'>H-D support</a> 
+	</li>
+</ul>
+
+
 <p>
 CONTROLS:</p>
 <ul>
@@ -55,6 +63,7 @@ CONTROLS:</p>
 <li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
 <li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
 <li><button class='randomize'>Move all points randomly</button>;</li>
+<li>Calc min Walrasian price at supply: <button class='calcMinWalrasianPrice'>x-1</button> <button class='calcMinWalrasianPrice'>x+1</button> <button class='calcMinWalrasianPrice'>y-1</button> <button class='calcMinWalrasianPrice'>y+1</button> <button class='calcMinWalrasianPrice'>current</button> 
 <li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
 </ul>
 
@@ -63,7 +72,7 @@ CONTROLS:</p>
 <table>
 <tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
 <tr><th>Prices:</th><td><input name='prices' id='prices' /></td></tr>
-<tr><th>Supplies:</th><td><input name='supplies' id='supplies' /></td></tr>
+<tr><th>Supplies:</th><td><input name='supplies' id='supplies' /> </td></tr>
 <tr><th>max u<sub>x</sub>=<span id='max_ux'></span>&nbsp;&nbsp;&nbsp; max u<sub>y</sub>=</th> <td><input name='max_uy' id='max_uy' /></td></tr>
 <tr><th colspan='2'><input type='submit' /></th></tr>
 </table>
@@ -143,6 +152,20 @@ function updatePriceLines() {
 //	priceCircle.front();
 }
 
+function demandsAtGivenPrices(priceX, priceY) {
+	var demandForX = 0, demandForY = 0;
+	for (var i=0; i<window.points.length; ++i) {
+		var utility=window.points[i];
+		var netUtilityX = utility.x-priceX;
+		var netUtilityY = realY(utility.y)-priceY;
+		if (netUtilityX >= 0 && netUtilityX >= netUtilityY) 
+			demandForX++;
+		else if (netUtilityY >= 0 && netUtilityY > netUtilityX) 
+			demandForY++;
+	}
+	return [demandForX, demandForY];
+}
+
 function updateDemands() {
 	demandForX = demandForY = demandForNone = totalUtility = utilityFromX = utilityFromY = 0;
 	
@@ -174,19 +197,33 @@ function updateDemands() {
 function addPoints(count, x, y, color) {
 	for (var i=0; i<count; ++i) {
 		point = {x:x, y:y};
-		if (!x) point.x = Math.round(Math.random()*maxDrawX)
-		if (!y) point.y = Math.round(Math.random()*maxDrawY)
+		if (!x) 
+			point.x = Math.round(Math.random()*maxDrawX)
+		else
+			point.x += Math.round(Math.random()*10-5)
+
+		if (!y) 
+			point.y = Math.round(Math.random()*maxDrawY)
+		else
+			point.y += Math.round(Math.random()*10-5)
 		window.points.add(point, color);
 	}
 }
 
+function setSupplies(supplyString) {
+	if (!supplyString)
+		supplyString = "50,50";
+	var supplyVector = supplyString.split(",");
+	supplyX = parseInt(supplyVector[0]);
+	supplyY = parseInt(supplyVector[1]);
+}
+
 $(".add").click(function addAgent() {
-	var location = $(this).text();
-	switch(location) {
-		case 'right': addPoints(10,  390, null, AGENT_COLOR); break;
-		case 'left': addPoints(10,   10, null, AGENT_COLOR); break;
-		case 'top': addPoints(10,    null, 10, AGENT_COLOR); break;
-		case 'bottom': addPoints(10, null, 390, AGENT_COLOR); break;
+	switch($(this).text()) {
+		case 'right': addPoints(10,  370, null, AGENT_COLOR); break;
+		case 'left': addPoints(10,   30, null, AGENT_COLOR); break;
+		case 'top': addPoints(10,    null, 30, AGENT_COLOR); break;
+		case 'bottom': addPoints(10, null, 370, AGENT_COLOR); break;
 	}
 	updateDemands();
 	updateStatus();
@@ -198,6 +235,35 @@ $(".randomize").click(function() {
 
 $(".clear").click(function() {
 	window.points.clear();
+});
+
+function calcMinWalrasianPrice(supplyX,supplyY) {
+// Implement the English auction (Gul & Staccheti, 2000).
+	priceX = priceY = 0;
+	for (;;) {
+		var demands = demandsAtGivenPrices(priceX,priceY);
+		incPriceX = (demands[0]>supplyX);
+		incPriceY = (demands[1]>supplyY);
+		if (!incPriceX && !incPriceY) break;
+		priceX += incPriceX;
+		priceY += incPriceY;
+	}
+	
+	priceCircle.attr('cx',priceX).attr('cy',drawY(priceY));	
+	updatePriceLines();
+	updateDemands();
+	updatePermaLink();
+	updateStatus();
+}
+
+$(".calcMinWalrasianPrice").click(function() {
+	switch($(this).text()) {
+		case 'x+1': supplyX+=1; break;
+		case 'x-1': supplyX=Math.max(supplyX-1,0); break;
+		case 'y+1': supplyY+=1; break;
+		case 'y-1': supplyY=Math.max(supplyY-1,0); break;
+	};
+	calcMinWalrasianPrice(supplyX,supplyY);
 });
 
 window.points = DraggablePoints(window.svgpaper, /* change event = */function() {
@@ -246,6 +312,7 @@ priceCircle.dragend = function(delta, event) {
 		this.attr('cx',(priceX=0));
 	if (priceY<0) 
 		this.attr('cy',(priceY=0));
+
 	updatePriceLines();
 	updateDemands();
 	updatePermaLink();
@@ -253,12 +320,7 @@ priceCircle.dragend = function(delta, event) {
 };
 
 
-var supplies = Arg("supplies");
-if (!supplies)
-	supplies = "50,50";
-var supplyVector = supplies.split(",");
-supplyX = parseInt(supplyVector[0]);
-supplyY = parseInt(supplyVector[1]);
+setSupplies(Arg("supplies"));
 
 window.points.refresh();
 updatePriceLines();
