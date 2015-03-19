@@ -20,7 +20,6 @@
 a { cursor: pointer; color: blue; text-decoration: underline; }
 a:hover,a.hover {  }
 #status {text-align:left; font-size:15px;}
-
 </style>
 
 </head>
@@ -39,15 +38,36 @@ a:hover,a.hover {  }
 	</ul>
 	</div -->
 
-</td><td style='width:50%; font-size:12px'>
-<p><a href='index.html'>Computational Geometry</a>  &gt; </p>
-<h1>Competitive Market</h1>
+</td><td style='width:50%; font-size:14px'>
+<h1>Competitive Market Simulation</h1>
 <p>
-The square represents an economy with two products, x and y. 
-Each point in the square represents a single, unit-demand buyer, whose utility from product x is the x coordinate and utility from product y is the y coordinate.
-</p>
+The square at your left represents a competitive market with two products: X, Y, and Money. 
+<p>
+The black ring represents the price vector; its coordinates are (p<sub>x</sub>,p<sub>y</sub>).
+<p>
+Each red disc represents an agent with unit demand; its coordinates are (u<sub>x</sub>,u<sub>y</sub>). 
+The net utility when buying X is u<sub>x</sub>-p<sub>x</sub>; when buying Y is u<sub>y</sub>-p<sub>y</sub>; and when buying nothing the utility is 0.
+<p>
+Agents in the green area want to buy X; in the blue area - to buy Y; and in the yellow area - to buy nothing.
 
-<p>TEST CASES: <ul>
+<h2>What to do?</h2>
+<ul>
+<li>Change the prices by moving the black ring around. Watch the changes in demand. Can you find equilibrium prices?</li>
+<li>Automatically find minimum equilibrium prices with <button class='calcMinWalrasianPrice'>current</button> supplies.
+<li>Change the supplies of X and/or Y, and watch how equilibrium prices change: <button class='calcMinWalrasianPrice'>x-1</button> <button class='calcMinWalrasianPrice'>x+1</button> <button class='calcMinWalrasianPrice'>y-1</button> <button class='calcMinWalrasianPrice'>y+1</button>
+
+<li>Add agents: <button class='add'>right</button><button class='add'>left</button><button class='add'>top</button>
+                <button class='add'>bottom</button><button class='add'>BR</button><button class='add'>BL</button><button class='add'>TR</button><button class='add'>TL</button>
+</li>
+<li>Remove an agent by dragging it over the left or top border.</li>
+<li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
+<li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
+<li><button class='randomize'>Move agents randomly</button>;</li>
+<li>Remove all agents by clicking <button class='clear'>Clear</button>.</li>
+</ul>
+
+<h2>Test cases</h2>
+ <ul>
 <li>Support: 
 	<a class='example' href='?points=368,89,red:365,327,red:369,335,red:369,226,red:370,141,red:371,115,red:373,69,red:372,166,red:370,398,red:368,337,red:369,366,red:369,152,red:365,214,red:366,207,red:369,136,red:381,103,red:366,289,red:369,223,red:369,66,red:374,279,red:366,103,red:390,140,red:368,162,red:366,359,red:372,137,red:368,302,red:369,326,red:375,118,red:375,94,red:373,226,red:370,393,red:368,144,red:374,259,red:374,388,red:374,105,red:374,249,red:370,128,red:370,317,red:373,93,red:373,337,red:371,312,red:373,148,red:366,201,red:384,79,red:368,310,red:366,131,red:371,228,red:370,54,red:372,234,red:385,106,red:366,204,red:373,143,red:369,332,red:370,176,red:368,192,red:374,245,red:368,124,red:374,125,red:389,66,red:373,398,red:371,273,red:370,361,red:373,226,red:368,279,red:372,58,red:365,59,red:368,303,red:368,356,red:368,191,red:368,204,red:375,262,red:367,49,red:367,45,red:371,364,red:367,389,red:384,48,red:387,58,red:370,300,red:371,374,red:368,192,red:273,33,red:150,16,red:258,22,red:338,90,red:30,33,red:281,17,red:332,105,red:106,30,red:78,30,red:140,32,red:14,25,red:224,29,red:267,12,red:58,27,red:42,35,red:199,19,red:87,20,red:170,25,red:328,121,red:122,28,red&prices=339,743&supplies=80,10&max_ux=400&max_uy=800'>H-V support</a> 
 	<a class='example' href='?points=368,89,red:365,327,red:369,335,red:369,226,red:370,141,red:371,115,red:373,69,red:372,166,red:370,398,red:368,337,red:369,366,red:369,152,red:365,214,red:366,207,red:369,136,red:381,103,red:366,289,red:369,223,red:369,66,red:374,279,red:366,103,red:390,140,red:368,162,red:366,359,red:372,137,red:368,302,red:369,326,red:375,118,red:375,94,red:373,226,red:370,393,red:368,144,red:374,259,red:374,388,red:374,105,red:374,249,red:370,128,red:370,317,red:373,93,red:373,337,red:371,312,red:373,148,red:366,201,red:384,79,red:368,310,red:366,131,red:371,228,red:370,54,red:372,234,red:385,106,red:366,204,red:373,143,red:369,332,red:370,176,red:368,192,red:374,245,red:368,124,red:374,125,red:389,66,red:373,398,red:371,273,red:370,361,red:373,226,red:368,279,red:372,58,red:365,59,red:368,303,red:368,356,red:368,191,red:368,204,red:375,262,red:367,49,red:354,20,red:371,364,red:367,389,red:384,48,red:387,58,red:370,300,red:371,374,red:368,192,red:273,33,red:150,16,red:258,22,red:356,175,red:30,33,red:281,17,red:38,60,red:115,42,red:84,40,red:140,32,red:14,35,red:226,39,red:251,44,red:62,38,red:42,35,red:199,19,red:87,20,red:170,25,red:18,59,red:129,41,red&prices=326,731&supplies=80,10&max_ux=400&max_uy=800'>H-D support</a> 
@@ -58,23 +78,7 @@ Each point in the square represents a single, unit-demand buyer, whose utility f
 </li>
 </ul>
 
-
-
-<p>
-CONTROLS:</p>
-<ul>
-<li>Add agents: <button class='add'>right</button><button class='add'>left</button><button class='add'>top</button>
-                <button class='add'>bottom</button><button class='add'>BR</button><button class='add'>BL</button><button class='add'>TR</button><button class='add'>TL</button>
-</li>
-<li>Remove a point by dragging it over the left or top border.</li>
-<li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
-<li><button class='export'>Export</button> then right-click to save the image: <canvas id='canvas' style='width:10px;height:10px;border:solid black 1px'></canvas></li>
-<li><button class='randomize'>Move all points randomly</button>;</li>
-<li>Calc min Walrasian price at supply: <button class='calcMinWalrasianPrice'>x-1</button> <button class='calcMinWalrasianPrice'>x+1</button> <button class='calcMinWalrasianPrice'>y-1</button> <button class='calcMinWalrasianPrice'>y+1</button> <button class='calcMinWalrasianPrice'>current</button> 
-<li>Remove all points by clicking <button class='clear'>Clear</button>.</li>
-</ul>
-
-
+<h2>Advanced</h2>
 <form method='get' action=''>
 <table>
 <tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
@@ -117,12 +121,28 @@ function updatePermaLink() {
 	window.updatePermaLink("points="+encodeURI(pointsString)+"&prices="+priceX+","+priceY+"&supplies="+supplyX+","+supplyY+"&max_ux="+maxUx+"&max_uy="+maxUy);
 }
 
+function excessString(demand,supply) {
+	if (demand>supply)
+		return "excess demand";
+	else if (demand<supply)
+		return "excess supply";
+	else
+		return "equilibrium"
+}
+
+function demandSupplyString(demand,supply) {
+	return 	"<b>"+excessString(demand,supply)+"</b>: "+
+		"demand="+demand+", supply="+supply;
+}
+
+
 function updateStatus() {
-	setStatus("px="+priceX+", py="+priceY+";  "+window.points.length+" agents, total utility="+totalUtility+"<br/>"+
-	"<span style='background-color:"+$("svg").css("background-color")+"'>"+demandForNone+" want nothing</span><br/> "+
-	"<span style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'>"+demandForX+" want x, "+buyX+" buy x and gain utility "+utilityFromX+"</span><br/> "+
-	"<span style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'>"+demandForY+" want y, "+buyY+" buy y and gain utility "+utilityFromY+"</span><br/> "+
-	"");
+	setStatus("<table>"+
+		"<tr> <th>good</th> <th>price</th> <th>demand</th> <th>supply</th> <th>status</th> <th>welfare</th> </tr>"+
+		"<tr style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'> <th>X</th> <th>"+priceX+"</th> <th>"+demandForX+"</th> <th>"+supplyX+"</th> <th>"+excessString(demandForX,supplyX)+"</th> <th>"+utilityFromX+"</th> </tr>"+
+		"<tr style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'> <th>Y</th> <th>"+priceY+"</th> <th>"+demandForY+"</th> <th>"+supplyY+"</th> <th>"+excessString(demandForY,supplyY)+"</th> <th>"+utilityFromY+"</th> </tr>"+
+		"<tr style='background-color:white'> <th>Total</th> <th></th> <th>"+(demandForX+demandForY)+"</th> <th>"+(supplyX+supplyY)+"</th> <th></th> <th>"+totalUtility+"</th> </tr>"+
+		"</table>");
 }
 
 var priceLines = [];
@@ -219,7 +239,7 @@ function addPoints(count, x, y, color) {
 
 function setSupplies(supplyString) {
 	if (!supplyString)
-		supplyString = "50,50";
+		supplyString = "80,10";
 	var supplyVector = supplyString.split(",");
 	supplyX = parseInt(supplyVector[0]);
 	supplyY = parseInt(supplyVector[1]);
