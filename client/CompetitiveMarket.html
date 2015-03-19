@@ -54,7 +54,8 @@ Agents in the green area want to buy X; in the blue area - to buy Y; and in the 
 <ul>
 <li>Change the prices by moving the black ring around. Watch the changes in demand. Can you find equilibrium prices?</li>
 <li>Automatically find minimum equilibrium prices with <button class='calcMinWalrasianPrice'>current</button> supplies.
-<li>Change the supplies of X and/or Y, and watch how equilibrium prices change: <button class='calcMinWalrasianPrice'>x-1</button> <button class='calcMinWalrasianPrice'>x+1</button> <button class='calcMinWalrasianPrice'>y-1</button> <button class='calcMinWalrasianPrice'>y+1</button>
+<li>Change the supplies of X and/or Y: <button class='changeSupply'>x-1</button> <button class='changeSupply'>x+1</button> <button class='changeSupply'>y-1</button> <button class='changeSupply'>y+1</button>
+<li>Change the values of the suppliers of X/Y: <button class='changeSupplyValue'>x-1</button> <button class='changeSupplyValue'>x+1</button> <button class='changeSupplyValue'>y-1</button> <button class='changeSupplyValue'>y+1</button>
 
 <li>Add agents: <button class='add'>right</button><button class='add'>left</button><button class='add'>top</button>
                 <button class='add'>bottom</button><button class='add'>BR</button><button class='add'>BL</button><button class='add'>TR</button><button class='add'>TL</button>
@@ -83,6 +84,7 @@ Agents in the green area want to buy X; in the blue area - to buy Y; and in the 
 <tr><th>Points:</th><td><textarea rows='10' cols='10' name='points' id='points'></textarea></td></tr>
 <tr><th>Prices:</th><td><input name='prices' id='prices' /></td></tr>
 <tr><th>Supplies:</th><td><input name='supplies' id='supplies' /> </td></tr>
+<tr><th>Supply values:</th><td><input name='supplyvals' id='supplyvals' /> </td></tr>
 <tr><th>max u<sub>x</sub>=<span id='max_ux'></span>&nbsp;&nbsp;&nbsp; max u<sub>y</sub>=</th> <td><input name='max_uy' id='max_uy' /></td></tr>
 <tr><th colspan='2'><input type='submit' /></th></tr>
 </table>
@@ -99,6 +101,7 @@ var maxDrawX = canvas.width, maxDrawY = canvas.height;
 var priceX, priceY;
 var demandForX, demandForY, demandForNone;
 var supplyX, supplyY;
+var supplyValueX, supplyValueY;
 var buyX, buyY;
 var utilityFromX, utilityFromY, totalUtility;
 var maxUx, maxUy, yScale;  // yScale := maxUy / maxY
@@ -115,9 +118,10 @@ function updatePermaLink() {
 	document.getElementById('points').value = pointsString.replace(/:/g,":\n");
 	document.getElementById('prices').value  = priceX+","+priceY;
 	document.getElementById('supplies').value  = supplyX+","+supplyY;
+	document.getElementById('supplyvals').value  = supplyValueX+","+supplyValueY;
 	document.getElementById('max_ux').innerHTML  = maxUx;
 	document.getElementById('max_uy').value  = maxUy;
-	window.updatePermaLink("points="+encodeURI(pointsString)+"&prices="+priceX+","+priceY+"&supplies="+supplyX+","+supplyY+"&max_ux="+maxUx+"&max_uy="+maxUy);
+	window.updatePermaLink("points="+encodeURI(pointsString)+"&prices="+priceX+","+priceY+"&supplies="+supplyX+","+supplyY+"&supplyvals="+supplyValueX+","+supplyValueY+"&max_ux="+maxUx+"&max_uy="+maxUy);
 }
 
 function excessString(demand,supply) {
@@ -137,7 +141,7 @@ function demandSupplyString(demand,supply) {
 
 function updateStatus() {
 	setStatus("<table>"+
-		"<tr> <th>good</th> <th>price</th> <th>demand</th> <th>supply</th> <th>status</th> <th>welfare</th> </tr>"+
+		"<tr> <th>good</th> <th>price</th> <th>demand</th> <th>supply</th> <th>status</th> <th>gain-from-trade</th> </tr>"+
 		"<tr style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'> <th>X</th> <th>"+priceX+"</th> <th>"+demandForX+"</th> <th>"+supplyX+"</th> <th>"+excessString(demandForX,supplyX)+"</th> <th>"+utilityFromX+"</th> </tr>"+
 		"<tr style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'> <th>Y</th> <th>"+priceY+"</th> <th>"+demandForY+"</th> <th>"+supplyY+"</th> <th>"+excessString(demandForY,supplyY)+"</th> <th>"+utilityFromY+"</th> </tr>"+
 		"<tr style='background-color:white'> <th>Total</th> <th></th> <th>"+(demandForX+demandForY)+"</th> <th>"+(supplyX+supplyY)+"</th> <th></th> <th>"+totalUtility+"</th> </tr>"+
@@ -175,7 +179,16 @@ function updatePriceLines() {
 			[0,drawY(maxUy)],
 			[0,drawY(priceY)]
 			]).fill(BUYY_COLOR).attr({'fill-opacity':0.5}).back());
+	
+	priceLines.push(svgpaper.rect(canvas.width,supplyValueY).move(0,canvas.height-supplyValueY).fill('#888').attr({'fill-opacity':0.3}));
+	priceLines.push(svgpaper.rect(supplyValueX,canvas.height).fill('#888').attr({'fill-opacity':0.3}));
 //	priceCircle.front();
+}
+
+function suppliesAtGivenPrices(priceX,priceY) {
+	return [
+		(priceX>=supplyValueX? supplyX: 0),
+		(priceY>=supplyValueY? supplyY: 0)];
 }
 
 function demandsAtGivenPrices(priceX, priceY) {
@@ -196,16 +209,17 @@ function updateDemands() {
 	demandForX = demandForY = demandForNone = totalUtility = utilityFromX = utilityFromY = 0;
 	
 	for (var i=0; i<window.points.length; ++i) {
-		var utility=window.points[i];
-		var netUtilityX = utility.x-priceX;
-		var netUtilityY = realY(utility.y)-priceY;
+		var point=window.points[i];
+		var utilityX = point.x, utilityY=realY(point.y);
+		var netUtilityX = utilityX-priceX;
+		var netUtilityY = utilityY-priceY;
 		if (netUtilityX >= 0 && netUtilityX >= netUtilityY) {
 			demandForX++;
-			utilityFromX += utility.x;
+			utilityFromX += (utilityX-supplyValueX);
 		}
 		else if (netUtilityY >= 0 && netUtilityY > netUtilityX) {
 			demandForY++;
-			utilityFromY += realY(utility.y);
+			utilityFromY += (utilityY-supplyValueY);
 		}
 		else {
 			demandForNone++;
@@ -244,6 +258,14 @@ function setSupplies(supplyString) {
 	supplyY = parseInt(supplyVector[1]);
 }
 
+function setSupplyValues(supplyString) {
+	if (!supplyString)
+		supplyString = "0,0";
+	var supplyVector = supplyString.split(",");
+	supplyValueX = parseInt(supplyVector[0]);
+	supplyValueY = parseInt(supplyVector[1]);
+}
+
 $(".add").click(function addAgent() {
 	switch($(this).text()) {
 		case 'right': addPoints(10,  370, null, AGENT_COLOR); break;
@@ -272,8 +294,9 @@ function calcMinWalrasianPrice(supplyX,supplyY) {
 	priceX = priceY = 0;
 	for (;;) {
 		var demands = demandsAtGivenPrices(priceX,priceY);
-		incPriceX = (demands[0]>supplyX);
-		incPriceY = (demands[1]>supplyY);
+		var supplies = suppliesAtGivenPrices(priceX,priceY)
+		incPriceX = (demands[0]>supplies[0]);
+		incPriceY = (demands[1]>supplies[1]);
 		if (!incPriceX && !incPriceY) break;
 		priceX += incPriceX;
 		priceY += incPriceY;
@@ -287,11 +310,25 @@ function calcMinWalrasianPrice(supplyX,supplyY) {
 }
 
 $(".calcMinWalrasianPrice").click(function() {
+	calcMinWalrasianPrice(supplyX,supplyY);
+});
+
+$(".changeSupply").click(function() {
 	switch($(this).text()) {
 		case 'x+1': supplyX+=1; break;
 		case 'x-1': supplyX=Math.max(supplyX-1,0); break;
 		case 'y+1': supplyY+=1; break;
 		case 'y-1': supplyY=Math.max(supplyY-1,0); break;
+	};
+	calcMinWalrasianPrice(supplyX,supplyY);
+});
+
+$(".changeSupplyValue").click(function() {
+	switch($(this).text()) {
+		case 'x+1': supplyValueX+=1; break;
+		case 'x-1': supplyValueX=Math.max(supplyValueX-1,0); break;
+		case 'y+1': supplyValueY+=1; break;
+		case 'y-1': supplyValueY=Math.max(supplyValueY-1,0); break;
 	};
 	calcMinWalrasianPrice(supplyX,supplyY);
 });
@@ -351,6 +388,7 @@ priceCircle.dragend = function(delta, event) {
 
 
 setSupplies(Arg("supplies"));
+setSupplyValues(Arg("supplyvals"));
 
 window.points.refresh();
 updatePriceLines();
