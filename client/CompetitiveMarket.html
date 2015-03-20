@@ -113,7 +113,7 @@ var supplyValueX, supplyValueY;
 var gainFromXTrade, gainFromYTrade, gainFromTrade;
 var maxUx, maxUy, yScale;  // yScale := maxUy / maxY
 
-var isSellerMarket = false;  // default (false): the dots are buyers.  true: the dots are sellers.
+var isSellerMarket = true;  // default (false): the dots are buyers.  true: the dots are sellers.
 var demandsAtGivenPrices, suppliesAtGivenPrices; // functions determined by isSellerMarket;
 
 
@@ -153,9 +153,9 @@ function updatePermaLink() {
 
 function updateStatus() {
 	setStatus("<table>"+
-		"<tr> <th>good</th> <th>price</th> <th>demand</th> <th>supply</th> <th>status</th> <th>gain-from-trade</th> </tr>"+
-		"<tr style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'> <th>X</th> <th>"+priceX+"</th> <th>"+demandForX+"</th> <th>"+supplyOfX+"</th> <th>"+excessString(demandForX,supplyOfX)+"</th> <th>"+gainFromXTrade+"</th> </tr>"+
-		"<tr style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'> <th>Y</th> <th>"+priceY+"</th> <th>"+demandForY+"</th> <th>"+supplyOfY+"</th> <th>"+excessString(demandForY,supplyOfY)+"</th> <th>"+gainFromYTrade+"</th> </tr>"+
+		"<tr> <th>good</th> <th>price</th> <th>demand</th> <th>supply</th> <th>status</th> <th>gain</th> <th>mean</th> </tr>"+
+		"<tr style='background-color:"+BUYX_COLOR.replace(/0/g,"8")+"'> <th>X</th> <th>"+priceX+"</th> <th>"+demandForX+"</th> <th>"+supplyOfX+"</th> <th>"+excessString(demandForX,supplyOfX)+"</th> <th>"+gainFromXTrade+"</th> <th>"+gainFromXTrade+"</th> </tr>"+
+		"<tr style='background-color:"+BUYY_COLOR.replace(/0/g,"8")+"'> <th>Y</th> <th>"+priceY+"</th> <th>"+demandForY+"</th> <th>"+supplyOfY+"</th> <th>"+excessString(demandForY,supplyOfY)+"</th> <th>"+gainFromYTrade+"</th> <th>"+gainFromYTrade+"</th> </tr>"+
 		"<tr style='background-color:white'> <th>Total</th> <th></th> <th>"+(demandForX+demandForY)+"</th> <th>"+(maxSupplyOfX+maxSupplyOfY)+"</th> <th></th> <th>"+gainFromTrade+"</th> </tr>"+
 		"</table>");
 }
@@ -180,11 +180,11 @@ function updatePriceLines() {
 	priceLines.push(svgpaper.
 			rect(canvas.width,supplyValueY).
 			move(0,canvas.height-supplyValueY).
-			fill('#888').attr({'fill-opacity':0.5}).back());
+			fill('#888').attr({'fill-opacity':0.4}).back());
 	priceLines.push(svgpaper.
 			rect(supplyValueX,canvas.height).
 			fill('#888').
-			attr({'fill-opacity':0.5}).back());
+			attr({'fill-opacity':0.4}).back());
 	priceLines.push(svgpaper.polygon([
 			[priceX,drawY(priceY)],
 			[priceLineX,drawY(priceLineY)],

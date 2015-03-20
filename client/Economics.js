@@ -63,8 +63,8 @@ function suppliesOfGivenSellers(sellersUtilities, priceX, priceY) {
 		
 		var utilityAfterX = utility.x;
 		var utilityAfterY = utility.y;
-		if (sellX) 	supplyX++;
-		if (sellY) 	supplyY++;
+		if (sellX) 	supplyOfX++;
+		if (sellY) 	supplyOfY++;
 		
 		if (sellX&&sellY) {
 			if (utility.x>utility.y) welfareFromX -= utility.x;
