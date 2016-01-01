@@ -55,12 +55,12 @@ Agents in the green area want to buy X; in the blue area - to buy Y; and in the 
 <h2>What to do?</h2>
 <ul>
 <li>Change the prices by moving the black ring around. Watch the changes in demand. Can you find equilibrium prices?</li>
-<li><button class='calcMinWalrasianPrice'>Automatically find minimum equilibrium prices</button>
+<li>Find minimum equilibrium prices in: <button class='calcMinWalrasianPrice'>whole market</button> <button class='calcMinWalrasianPriceHalfMarket'>half market</button>
 <li>Change the supplies of X and/or Y: <button class='changeSupply'>x-1</button> <button class='changeSupply'>x+1</button> <button class='changeSupply'>y-1</button> <button class='changeSupply'>y+1</button>
 <li>Change the values of the suppliers of X/Y: <button class='changeSupplyValue'>x-1</button> <button class='changeSupplyValue'>x+1</button> <button class='changeSupplyValue'>y-1</button> <button class='changeSupplyValue'>y+1</button>
 
-<li>Add agents: <button class='add'>right</button><button class='add'>left</button><button class='add'>top</button>
-                <button class='add'>bottom</button><button class='add'>BR</button><button class='add'>BL</button><button class='add'>TR</button><button class='add'>TL</button>
+<li>Add agents: <button class='addAgents'>right</button><button class='addAgents'>left</button><button class='addAgents'>top</button><button class='addAgents'>bottom</button>
+                <button class='addAgents'>BR</button><button class='addAgents'>BL</button><button class='addAgents'>TR</button><button class='addAgents'>TL</button>
 </li>
 <li>Remove an agent by dragging it over the left or top border.</li>
 <li>Save your configuration by copying the <a id='permalink' href=''>PermaLink</a>.</li>
@@ -113,27 +113,51 @@ var supplyValueX, supplyValueY;
 var gainFromXTrade, gainFromYTrade, gainFromTrade;
 var maxUx, maxUy, yScale;  // yScale := maxUy / maxY
 
-var isSellerMarket = false;  // default (false): the dots are buyers.  true: the dots are sellers.
+var isSellerMarket = false;  // default (false): the dots are buyers.  true: the dots are sellers (this is buggy and not used).
 var demandsAtGivenPrices, suppliesAtGivenPrices; // functions determined by isSellerMarket;
 
 
-function updateDemandAndSupplyFunctions() {
+/**
+ * Create the functions  demandsAtGivenPrices(prices) and suppliesAtGivenPrices(price),
+ *        based on the valuations of the agents.
+ * @param samplingProbability - if given, it is used to sample the agents (typical value: 0.5). If not given, it is set to 1.
+ */
+function updateDemandAndSupplyFunctions(samplingProbability) {
+    if (!samplingProbability || samplingProbability>=1) {
+        samplingProbability = 1.0;
+        theMaxSupplyOfX = maxSupplyOfX;
+        theMaxSupplyOfY = maxSupplyOfY;
+    } else {  // calculate a sample of the sellers
+        theMaxSupplyOfX = sampleSupply(maxSupplyOfX,samplingProbability);
+        theMaxSupplyOfY = sampleSupply(maxSupplyOfY,samplingProbability);
+    }
+
 	// calculate agents utilities vector:
 	var agents = [];
 	for (var i=0; i<window.points.length; ++i) {
+        if (Math.random()>samplingProbability)            continue;
 		var point = window.points[i];
 		var utilityX = point.x, utilityY=realY(point.y);
 		agents.push({x:utilityX, y:utilityY});
 	}
 
 	// create demand and supply functions:
-	if (!isSellerMarket) {
+	if (!isSellerMarket) {  // The default option: agents are buyers, maxSupply is number of sellers.
 		demandsAtGivenPrices = demandsOfGivenBuyers.bind(0,agents);
-		suppliesAtGivenPrices = suppliesOfThresholdSellers.bind(0,maxSupplyOfX,maxSupplyOfY,supplyValueX,supplyValueY);  // in Economics.js
-	} else {
+		suppliesAtGivenPrices = suppliesOfThresholdSellers.bind(0,theMaxSupplyOfX,theMaxSupplyOfY,supplyValueX,supplyValueY);  // Defined in Economics.js
+	} else {  // The alternative option: agents are sellers, maxSupply is actually number of buyers. This option is buggy and not used.
 		suppliesAtGivenPrices = suppliesOfGivenSellers.bind(0,agents);
-		demandsAtGivenPrices = demandsOfThresholdBuyers.bind(0,maxSupplyOfX,maxSupplyOfY,supplyValueX,supplyValueY);
+		demandsAtGivenPrices = demandsOfThresholdBuyers.bind(0,theMaxSupplyOfX,theMaxSupplyOfY,supplyValueX,supplyValueY); 
 	}
+}
+
+var sampleSupply = function(maxSupply, samplingProbability) {
+    return samplingProbability*(maxSupply);
+    if (Math.random()>samplingProbability) {
+        return samplingProbability*(maxSupply - Math.sqrt(maxSupply));
+    } else {
+        return samplingProbability*(maxSupply + Math.sqrt(maxSupply));
+    }
 }
 
 var AGENT_COLOR = 'red';
@@ -203,14 +227,13 @@ function updatePriceLines() {
 }
 
 
-function updateDemands() {  // must be called after updateDemandAndSupplyFunctions
-//	if (!demandsAtGivenPrices || !suppliesAtGivenPrices)
-//		updateDemandAndSupplyFunctions();
+function updateDemands() {  
+    // This function must be called after updateDemandAndSupplyFunctions, 
+    // which creates the functions demandsAtGivenPrices and suppliesAtGivenPrices.
 	var demands = demandsAtGivenPrices(priceX,priceY);
 	demandForX = demands[0];
 	demandForY = demands[1];
 	var supplies = suppliesAtGivenPrices(priceX,priceY);
-    //alert("supplies="+supplies);
 	supplyOfX = supplies[0];
 	supplyOfY = supplies[1];
 	
@@ -271,7 +294,7 @@ function setSupplyValues(supplyString) {
 	supplyValueY = parseInt(supplyVector[1]);
 }
 
-$(".add").click(function addAgent() {
+$(".addAgents").click(function addAgent() {
 	switch($(this).text()) {
 		case 'right': addPoints(10,  370, null, AGENT_COLOR); break;
 		case 'left': addPoints(10,   30, null, AGENT_COLOR); break;
@@ -296,18 +319,31 @@ $(".clear").click(function() {
 });
 
 function gotoMinWalrasianPrice() {
-	updateDemandAndSupplyFunctions();	
+    // This function must be called after updateDemandAndSupplyFunctions, 
+    // which creates the functions demandsAtGivenPrices and suppliesAtGivenPrices.
 	var prices = calcMinWalrasianPrice(demandsAtGivenPrices,suppliesAtGivenPrices);
 	priceX = prices[0];
 	priceY = prices[1];
 	priceCircle.attr('cx',priceX).attr('cy',drawY(priceY));	
 	updatePriceLines();
+}
+
+$(".calcMinWalrasianPrice").click(function() {
+	updateDemandAndSupplyFunctions();
+	gotoMinWalrasianPrice();
 	updateDemands();
 	updatePermaLink();
 	updateStatus();
-}
+});
 
-$(".calcMinWalrasianPrice").click(gotoMinWalrasianPrice);
+$(".calcMinWalrasianPriceHalfMarket").click(function() {
+	updateDemandAndSupplyFunctions(0.5);
+	gotoMinWalrasianPrice();
+	updateDemandAndSupplyFunctions();
+	updateDemands();
+	updatePermaLink();
+	updateStatus();
+});
 
 $(".changeSupply").click(function() {
 	switch($(this).text()) {
@@ -316,7 +352,11 @@ $(".changeSupply").click(function() {
 		case 'y+1': maxSupplyOfY+=1; break;
 		case 'y-1': maxSupplyOfY=Math.max(maxSupplyOfY-1,0); break;
 	};
-	gotoMinWalrasianPrice();
+	updateDemandAndSupplyFunctions();
+	//gotoMinWalrasianPrice();
+	updateDemands();
+	updatePermaLink();
+	updateStatus();
 });
 
 $(".changeSupplyValue").click(function() {
@@ -326,7 +366,11 @@ $(".changeSupplyValue").click(function() {
 		case 'y+1': supplyValueY+=1; break;
 		case 'y-1': supplyValueY=Math.max(supplyValueY-1,0); break;
 	};
-	gotoMinWalrasianPrice();
+	updateDemandAndSupplyFunctions();
+	//gotoMinWalrasianPrice();
+	updateDemands();
+	updatePermaLink();
+	updateStatus();
 });
 
 window.points = DraggablePoints(window.svgpaper, /* change event = */function() {
