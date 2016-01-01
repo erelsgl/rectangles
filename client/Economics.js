@@ -77,20 +77,20 @@ function suppliesOfGivenSellers(sellersUtilities, priceX, priceY) {
 }
 
 /**
- * @returns {Array} [supplyOfX, supplyOfY];
+ * @returns {Array} [supplyOfX, supplyOfY, gainFromSellX, gainFromSellY];
  */
-function suppliesOfThresholdSellers(supplyOfX,supplyOfY,supplyValueX,supplyValueY,priceX,priceY) {
+function suppliesOfThresholdSellers(maxSupplyOfX,maxSupplyOfY,supplyValueX,supplyValueY,priceX,priceY) {
 	return [
-		(priceX>=supplyValueX? supplyOfX: 0),
-		(priceY>=supplyValueY? supplyOfY: 0),
-		(priceX>=supplyValueX? -supplyValueX*supplyOfX: 0),
-		(priceY>=supplyValueY? -supplyValueY*supplyOfY: 0)
+		(priceX>=supplyValueX? maxSupplyOfX: 0),
+		(priceY>=supplyValueY? maxSupplyOfY: 0),
+		(priceX>=supplyValueX? -supplyValueX*maxSupplyOfX: 0),
+		(priceY>=supplyValueY? -supplyValueY*maxSupplyOfY: 0)
 		];
 }
 
 
 /**
- * @returns {Array} [demandForX, demandForY, welfareFromX, welfareFromY];
+ * @returns {Array} [demandForX, demandForY, gainFromBuyX, gainFromBuyY];
  */
 function demandsOfThresholdBuyers(demandForX,demandForY,demandValueX,demandValueY,priceX,priceY) {
 	return [
