@@ -1,7 +1,9 @@
 rectangles
 ==========
 
-Utilities related to collections of rectangles.
+This project is deprecated. Most interesting content is now in the computational geometry project:
+
+https://github.com/erelsgl/computational-geometry
 
 ## Folder structure
 
